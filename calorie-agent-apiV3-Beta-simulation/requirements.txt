@@ -1,0 +1,3 @@
+# V3 MySQL storage uses PyMySQL, but the repository is opt-in and the legacy
+# Bitable path remains the default online write path.
+PyMySQL>=1.1,<2
