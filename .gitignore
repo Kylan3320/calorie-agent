@@ -21,6 +21,10 @@ LangGraph_Agent/deploy/build/
 LangGraph_Agent/deploy/rag-layer/
 LangGraph_Agent/deploy/rag_index/
 
+# === 报告输出：仅保留占位 .gitkeep ===
+LangGraph_Agent/reports/*
+!LangGraph_Agent/reports/.gitkeep
+
 # === 运行时数据：含凭证（DEEPSEEK_API_KEY 等），切勿提交 ===
 LangGraph_Agent/console/dsh-home/
 
