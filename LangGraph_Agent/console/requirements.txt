@@ -1,0 +1,4 @@
+# 控制台专用依赖（仅本机调试用，不进云函数部署包；云函数依赖见根目录 requirements.txt）
+fastapi
+uvicorn
+python-multipart

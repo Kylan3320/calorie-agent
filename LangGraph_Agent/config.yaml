@@ -1,0 +1,21 @@
+# 工程配置（secrets 与表 ID 走环境变量，见 REQUIREMENTS.md §5）
+# 修改本文件后需重新部署云函数。
+
+preset: live
+planner: deepseek
+model: deepseek-v4-flash
+
+# 知识检索器：faq（M1 生产默认）| 后续 lightrag（M3）
+knowledge_retriever: faq
+
+# 工具白名单（live 预设生效；shadow 预设有各自的固定范围）
+allowed_tools:
+  - record_food
+  - query_today
+  - query_food_nutrition
+  - undo_last
+  - query_knowledge
+  - query_history
+
+# 本地时区偏移（小时），用于“今天”的口径
+timezone_offset_hours: 8

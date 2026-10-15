@@ -1,0 +1,36 @@
+# === macOS ===
+.DS_Store
+
+# === Python ===
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# === Node ===
+node_modules/
+dist/
+.next/
+
+# === 构建 / 打包产物 ===
+*.zip
+LangGraph_Agent/deploy/build/
+LangGraph_Agent/deploy/rag-layer/
+LangGraph_Agent/deploy/rag_index/
+
+# === 运行时数据：含凭证（DEEPSEEK_API_KEY 等），切勿提交 ===
+LangGraph_Agent/console/dsh-home/
+
+# === 工具生成的会话/计划文件 ===
+.zcode/
+
+# === 第三方依赖仓库：HKUDS/LightRAG 的独立克隆 ===
+rag-base/
+
+# === 备份 / 日志 ===
+*.bak
+*.log
+storage-ws/
