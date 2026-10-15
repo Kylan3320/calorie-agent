@@ -1,0 +1,198 @@
+# 评测集：映射 PRD《测试集与数据指标》核心场景（确定性规划器 + FakeStore）。
+# 断言只锁不变量（工具状态序列、关键回复片段、写入计数、自洽性），不锁具体营养数值。
+# PRD 的"表格字段异常"用例依赖真实 Bitable，属于线上验收项，不在本文件（见 REQUIREMENTS.md §6）。
+
+cases:
+  - id: T01
+    name: 已知食物记录
+    smoke: true
+    steps:
+      - text: 米饭200g
+        expect:
+          tool_statuses: [[record_food, ok]]
+          reply_contains: ["已记录米饭"]
+          reply_not_contains: ["没有通过事实校验"]
+
+  - id: T02
+    name: 多食物记录并查询今日
+    smoke: true
+    steps:
+      - text: 午餐 米饭200g 鸡胸肉150g，查下今天还剩多少
+        expect:
+          tool_statuses: [[record_food, ok], [record_food, ok], [query_today, ok]]
+          reply_contains: ["我做了3步", "今日累计"]
+          store_rows: 2
+          totals_consistent: true
+
+  - id: T03
+    name: 查询今日（空）
+    smoke: true
+    steps:
+      - text: 今天吃了什么
+        expect:
+          tool_statuses: [[query_today, ok]]
+          reply_contains: ["暂无有效记录"]
+
+  - id: T04
+    name: 撤销确认闭环（取消后再确认）
+    smoke: true
+    steps:
+      - text: 记录鸡蛋100g
+        expect:
+          tool_statuses: [[record_food, ok]]
+      - text: 撤销上一条
+        expect:
+          tool_statuses: [[undo_last, needs_confirmation_plan]]
+          reply_contains: ["确认"]
+      - text: 取消
+        expect:
+          reply_contains: ["已取消"]
+      - text: 撤销上一条
+        expect:
+          tool_statuses: [[undo_last, needs_confirmation_plan]]
+      - text: 确认
+        expect:
+          reply_contains: ["已撤销"]
+      - text: 今天吃了什么
+        expect:
+          reply_contains: ["暂无有效记录"]
+          store_rows: 1   # 软删除：行仍在，status=deleted
+
+  - id: T05
+    name: 缺克重追问闭环（PRD S4）
+    smoke: true
+    steps:
+      - text: 米饭
+        expect:
+          tool_statuses: [[record_food, pending_created]]
+          reply_contains: ["还缺克重"]
+      - text: 200g
+        expect:
+          reply_contains: ["已记录米饭 200g"]
+          store_rows: 1
+
+  - id: T06
+    name: 重复推送幂等（PRD S6）
+    steps:
+      - text: 鸡蛋100g
+        msg_id: T06-same-message
+        expect:
+          tool_statuses: [[record_food, ok]]
+      - text: 鸡蛋100g
+        msg_id: T06-same-message
+        expect:
+          tool_statuses: [[record_food, duplicate_skipped]]
+          reply_contains: ["重复"]
+
+  - id: T07
+    name: 食物歧义返回候选（PRD E03）
+    steps:
+      - text: 记录 米 100g
+        expect:
+          tool_statuses: [[record_food, needs_confirmation]]
+          reply_contains: ["相近食物"]
+
+  - id: T08
+    name: 未知食物进 pending（PRD E02/S5 变体）
+    steps:
+      - text: 记录 沙拉汁 30g
+        expect:
+          tool_statuses: [[record_food, pending_created]]
+          reply_contains: ["暂时无法记录"]
+
+  - id: T09
+    name: 营养查询（快照优先，食物库兜底）
+    steps:
+      - text: 记录鸡蛋100g
+        expect:
+          tool_statuses: [[record_food, ok]]
+      - text: 鸡蛋有多少热量
+        expect:
+          tool_statuses: [[query_food_nutrition, ok]]
+          reply_contains: ["今天已记录"]
+      - text: 米饭有多少热量
+        expect:
+          tool_statuses: [[query_food_nutrition, ok]]
+          reply_contains: ["约为"]
+
+  - id: T10
+    name: 闲聊不写库（PRD E01）
+    smoke: true
+    steps:
+      - text: 你好
+        expect:
+          reply_contains: ["没有识别到"]
+          store_rows: 0
+
+  - id: T11
+    name: 知识问答命中（RAG M1）
+    smoke: true
+    steps:
+      - text: 减脂期间能吃米饭吗
+        expect:
+          tool_statuses: [[query_knowledge, ok]]
+          reply_contains: ["来源：", "膳食指南"]
+          reply_not_contains: ["没有通过事实校验"]
+
+  - id: T12
+    name: 知识问答未命中（不编造）
+    steps:
+      - text: 代糖会不会影响减脂
+        expect:
+          tool_statuses: [[query_knowledge, not_found]]
+          reply_contains: ["还没有收录"]
+          reply_not_contains: ["根据知识库"]
+
+  - id: T13
+    name: 记录意图优先于知识意图
+    steps:
+      - text: 减脂期吃米饭100g记录一下
+        expect:
+          tool_statuses: [[record_food, ok]]
+          store_rows: 1
+
+  - id: T14
+    name: 薄荷兜底候选确认入库（M1）
+    mock_boohee: true
+    steps:
+      - text: 记录 藜麦饭 50g
+        expect:
+          tool_statuses: [[record_food, needs_confirmation]]
+          reply_contains: ["薄荷健康找到候选", "回复序号"]
+      - text: "1"
+        expect:
+          reply_contains: ["已把", "加入食物库", "数据来源：薄荷健康"]
+      - text: 藜麦饭 50g
+        expect:
+          tool_statuses: [[record_food, ok]]
+          store_rows: 1
+
+  - id: T15
+    name: 历史聚合——本周食物频次（RAG M2）
+    intake_seed:
+      - {date: "2026-08-28", food_name: 猪肉, grams: 50, carbs: 0, protein: 8, fat: 14, kcal: 162}
+      - {date: "2026-09-02", food_name: 猪肉, grams: 100, carbs: 0, protein: 16, fat: 28, kcal: 324}
+      - {date: "2026-09-04", food_name: 猪肉, grams: 250, carbs: 0, protein: 40, fat: 70, kcal: 810}
+      - {date: "2026-09-05", food_name: 鸡蛋, grams: 100, carbs: 1.1, protein: 12.6, fat: 9.5, kcal: 140.3}
+    steps:
+      - text: 这周吃了几次猪肉
+        expect:
+          tool_statuses: [[query_history, ok]]
+          reply_contains: ["共 2 次", "350g"]
+          reply_not_contains: ["08-28"]
+
+  - id: T16
+    name: 历史聚合——上周全量与超标日（RAG M2）
+    intake_seed:
+      - {date: "2026-08-28", food_name: 猪肉, grams: 50, carbs: 0, protein: 8, fat: 14, kcal: 162}
+      - {date: "2026-09-03", food_name: 火锅, grams: 500, carbs: 80, protein: 60, fat: 120, kcal: 2450}
+      - {date: "2026-09-04", food_name: 米饭, grams: 200, carbs: 51.8, protein: 5.2, fat: 0.6, kcal: 233.4}
+    steps:
+      - text: 上周吃了什么
+        expect:
+          tool_statuses: [[query_history, ok]]
+          reply_contains: ["上周共 1 条记录", "162 kcal"]
+      - text: 最近7天有没有超标
+        expect:
+          tool_statuses: [[query_history, ok]]
+          reply_contains: ["共 2 条记录", "超标日：2026-09-03"]

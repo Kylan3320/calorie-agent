@@ -1,0 +1,27 @@
+# calorie-agent-driver bundle patch。
+#
+# 1) 禁用 dsh-base 的默认 agent-loop 行（非 insert 动作不允许换 name，
+#    换驱动必须 disable + 用新 id 插入本驱动）。
+# 2) 插入 calorie-agent-loop 行：消息直达本地 Python 桥接后端
+#    （console/server.py /api/agent），零中转 LLM。
+# 3) webserver 端口 3080 被本机其他进程占用，fallback 改为 3100
+#    （整行 config 重写，逐字段复述 web-app 层的既有值）。
+- id: agent-loop
+  disabled: true
+
+- insert:
+    - id: calorie-agent-loop
+      name: calorie-agent-driver
+      config:
+        endpoint: http://127.0.0.1:8765/api/agent
+        preset: live
+        timeoutMs: 180000
+
+- id: webserver
+  inject: [webStartup]
+  config:
+    host: !!js ctx.webStartup.host ?? '127.0.0.1'
+    port: !!js ctx.webStartup.port ?? 3100
+    compression: gzip
+    compressionLevel: 1
+    compressionThresholdBytes: 1024
