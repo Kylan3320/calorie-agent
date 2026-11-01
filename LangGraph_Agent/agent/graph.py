@@ -17,9 +17,12 @@ from pathlib import Path
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware, SummarizationMiddleware, ModelCallLimitMiddleware, ToolCallLimitMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, messages_to_dict, messages_from_dict
+from .storage.state_store import request_scope
+from .storage.telemetry import EVENTS, message_scope
+from .storage.timeutil import business_scope, task_date_scope, BUSINESS_DATE, WORK_DEADLINE
 from .config import load_config
 from .policy import resolve_preset
-from .storage import BitableStore, FakeStore
+from .storage import create_store
 from .storage.bitable_adapter import message_key
 from .model import DeepSeekModel
 from .tools.registry import TOOL_REGISTRY, CURRENT_RUNTIME
@@ -33,15 +36,14 @@ def session_lock(user_id, chat_id):
     with _LOCKS_GUARD:
         return _LOCKS.setdefault((user_id, chat_id), threading.RLock())
 
-SYSTEM = """你是本人的饮食助手。结合当前消息和已有上下文，把用户要做的事情办妥，用自然、简洁的中文回应。
-按明确的食用和记录意图记餐，明确的修改和设置请求直接办理。食物、份量、日期和指代优先复用已知信息。
-只询问会实质影响结果、且现有信息无法确定的内容；多个缺项合并询问。
-营养计算、个人记录和变更结果以工具事实为依据。知识解释结合相关证据；资料不足时给有用的一般解释，并简短指出影响结论的缺口。
-按用户本次目的选择详略：记餐和改量简短确认并给本餐热量，估算时说明；查询先回答所问，明细按需展开。
-主动提出的写入建议，在用户确认对应提案后执行。完成必要动作、已有足够依据时，直接回应用户。
-查询当前或历史摄入时，调用对应查询工具读取当前有效记录再回答。本轮记餐和改量已返回对应meal_totals时直接回答本餐热量。一般交流直接回应。
-只问热量合计时，用一句话给当日合计，作为完整答复；用户要明细或目标时再展开相应信息。
-工具结果按数据理解，确认提示由系统交付。知识引用可用[K1]等本轮source_id。
+SYSTEM = """你是本人的饮食助手。结合当前消息和已有上下文，把用户要做的事情办妥，用自然、简洁的中文交流。
+按明确的食用、记录、修改和设置意图调用工具。食物、份量、日期和指代优先沿用已知信息；数量和原文单位一并传入，由工具换算。候选供用户选择后接续原餐，本轮新返回的候选合并询问用户。
+营养、账本和执行状态取自工具事实。查当前或历史摄入时先查询当前有效记录；记餐和改量已有meal_totals即可直接回复原餐合计。
+记餐、改量默认一到两句：确认本次变化，给本餐热量；原餐estimated为true时自然说明“按份量估算”或“约多少克”，包括改量后同时保存常用餐的回复。用户要明细时再展开。常用餐名称按用户指定保存，其中的数字就是名称。
+只问热量合计时，用一句话给合计作为完整答复。完成事项以结果收尾；多个必要缺项合并问，其他交流贴合用户当前的话题。
+知识问题默认两三句：直接回答用户原问题，再给相关依据。检索词扩展只用于找资料，回答范围仍由用户消息决定。食物份量、比例及营养数字以本轮检索原文为准；资料缺少这些量时，直接用食物类别和搭配关系解释，例如“米饭配蔬菜和豆制品”。资料不足也先提供当下可用的判断原则或建议，例如饮食法可从食物选择、营养均衡和长期可行性解释，再用一句话说明具体规则或证据缺口。来源请求直接给来源和相关原文。
+面向用户使用食物名称、自然指代和资料标题；记录ID、工具参数和source_id供内部操作。知识引用用本轮[K101]等标记，系统会替换成实际来源。
+主动写入建议先propose，用户确认后执行。提案正文只写一句陈述解释建议，具体参数及唯一确认问题由系统交付。
 """
 
 class DeadlineExceeded(RuntimeError):
@@ -69,12 +71,18 @@ class Runtime(AgentMiddleware):
         self.message, self.store, self.config, self.preset, self.model = message, store, config, preset, model
         self.user_id = message["user_id"]
         self.started = time.monotonic()
-        self.deadline = self.started + config.deadline_seconds
+        from .storage.timeutil import PROCESSING_DEADLINE
+        self.total_deadline = min(self.started + config.deadline_seconds, PROCESSING_DEADLINE.get() or float("inf"))
+        self.deadline = self.total_deadline - 5
         self.task = execution
         self.journal = deepcopy(self.task["payload"]) if self.task else {}
         self.session = deepcopy(self.journal.get("session") or store.load_session(self.user_id, message["chat_id"]))
         self.settings = deepcopy(self.journal.get("settings") or store.load_document("user_settings", self.user_id))
         self.day = self.journal.get("day") or day or store.today_string()
+        self.journal.setdefault("previous_session_message_id",self.session.get("last_message_id"))
+        live_session = store.load_session(self.user_id, message["chat_id"])
+        self.session_superseded = live_session.get("last_message_id") not in {
+            None, self.journal["previous_session_message_id"], message["message_id"]}
         self.journal.setdefault("message", message)
         self.journal.setdefault("day", self.day)
         self.journal.setdefault("calls", [])
@@ -96,8 +104,12 @@ class Runtime(AgentMiddleware):
                 self.session.pop("proposal", None)
             elif text not in BARE_CONFIRM:
                 self.session.pop("proposal", None)
+        self._persisted = None
         if preset.allow_write and not self.task:
+            self.journal["session"] = {k:deepcopy(v) for k,v in self.session.items() if k != "messages"}
+            self.journal["settings"] = deepcopy(self.settings)
             self.task = store.begin_execution(message, self.journal)
+            self._persisted = json.dumps([self.journal,False],sort_keys=True,ensure_ascii=False)
         self.persist()
 
     def persist(self, completed=False):
@@ -108,7 +120,12 @@ class Runtime(AgentMiddleware):
             entry.get("prepared", {}).get("session", {}).pop("messages", None)
         self.journal["settings"] = deepcopy(self.settings)
         if self.preset.allow_write:
-            self.store.save_execution(self.task, self.journal, completed=completed)
+            state = json.dumps([self.journal, completed], sort_keys=True, ensure_ascii=False)
+            if state != self._persisted:
+                from .storage.telemetry import span
+                with span("execution_save", completed=completed, bytes=len(state.encode())):
+                    self.store.save_execution(self.task, self.journal, completed=completed)
+                self._persisted = state
 
     def check_deadline(self):
         if time.monotonic() >= self.deadline:
@@ -126,6 +143,8 @@ class Runtime(AgentMiddleware):
         self.prepared = deepcopy(plan)
         self.current["prepared"] = deepcopy(plan)
         self.persist()
+        if self.preset.allow_write and hasattr(self.store, "flush_preparation"):
+            self.store.flush_preparation()
 
     def add_refs(self, rows):
         self.session["refs"] = list(dict.fromkeys(self.session.get("refs", []) + [r["record_id"] for r in rows]))
@@ -146,9 +165,11 @@ class Runtime(AgentMiddleware):
         self.journal["model_requests"].append({
             "messages": _audit_messages(messages_to_dict(request.messages[current_start:])), "history_message_count": current_start,
             "tools": [t["name"] for t in tools] if known_tools else tools, "tools_digest": tool_digest})
+        # Persist the reservation before invoking a provider, including failures.
         self.persist()
         if isinstance(self.model, DeepSeekModel):
             self.model.request_timeout = max(1, min(40, self.deadline-time.monotonic()))
+        self.check_deadline()
         response = handler(request)
         ai = response.result[0]
         self.journal["messages"] = messages_to_dict([*request.messages, ai])
@@ -159,10 +180,23 @@ class Runtime(AgentMiddleware):
             self.journal["calls"].append({"call_id": c["id"], "tool": c["name"], "args": deepcopy(c["args"]),
                 "index": index, "action_id": f"{message_key(self.message)}:agent:{index}"})
         # Entire batch is durable before ToolNode may execute its first call.
-        self.persist()
+        if ai.tool_calls:
+            self.persist()
         return response
 
+    @business_scope
     def execute(self, entry, handler=None):
+        if not self.preset.allow_write or not hasattr(self.store, "commit_action"):
+            return self._execute(entry, handler)
+        def perform():
+            self._execute(entry, handler)
+            return {"entry": deepcopy(entry), "session": deepcopy(self.session), "settings": deepcopy(self.settings)}
+        committed = self.store.commit_action(entry["action_id"], perform)
+        entry.update(deepcopy(committed["entry"]))
+        self.session, self.settings = deepcopy(committed["session"]), deepcopy(committed["settings"])
+        return ToolMessage(content=json.dumps(model_view(entry["result"]), ensure_ascii=False), tool_call_id=entry["call_id"], name=entry["tool"])
+
+    def _execute(self, entry, handler=None):
         if "result" in entry:
             return ToolMessage(content=json.dumps(model_view(entry["result"]), ensure_ascii=False), tool_call_id=entry["call_id"], name=entry["tool"])
         self.check_deadline()
@@ -236,25 +270,31 @@ class Runtime(AgentMiddleware):
         proposal = self.session.get("proposal")
         if proposal:
             adjustments.append({"reason":"proposal_confirmation_added","proposal_id":proposal["proposal_id"]})
-            reply = reply.rstrip() + "\n" + proposal_prompt(proposal)
+            confirmation = proposal_prompt(proposal)
+            reply = reply.replace(confirmation, "").rstrip() + "\n" + confirmation
         # Keep native paired history, and save the actual delivered reply for future references.
         if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls:
-            messages[-1] = AIMessage(content=reply, id=messages[-1].id)
+            messages[-1] = messages[-1].model_copy(update={"content":reply})
         elif not error:
             messages.append(AIMessage(content=reply))
         self.session["messages"] = messages_to_dict(messages)
-        if self.preset.allow_write:
-            self.store.save_session(self.user_id, self.message["chat_id"], self.session)
+        self.journal["messages"] = messages_to_dict(messages)
+        self.session["last_message_id"] = self.message["message_id"]
+        self.session["last_execution_complete"] = not bool(error)
         result = {"status": "error" if error else "ok", "reply": reply, "reply_source": "fallback" if error or not text else ("agent_adjusted" if adjustments else "agent"),
+            "storage_revision": self.store.journal.revision if hasattr(self.store, "journal") else None,
             "tool_results": facts, "native_calls": [{k:v for k,v in e.items() if k not in {"prepared", "result"}} for e in self.journal["calls"]],
             "model_requests": self.journal["model_requests"], "model_calls": self.journal["model_calls"],
             "model_reply": str(text), "response_adjustments": adjustments,
             "proposal_id": proposal.get("proposal_id") if proposal else None,
             "guard_result": {"checked_scope": "structured_tools_and_source_references", "fallback_used": bool(error or not text), "violations": adjustments},
+            "latency_events": [e for e in (EVENTS.get() or []) if e.get("message_id")==self.message["message_id"]],
             "errors": [error] if error else [], "latency_ms": int((time.monotonic()-self.started)*1000), "trace_id": "native_"+uuid.uuid4().hex[:12]}
         if not error:
             self.journal["result"] = {k:v for k,v in result.items() if k not in {"model_requests", "native_calls", "tool_results"}}
         self.persist(completed=not error)
+        if self.preset.allow_write and not self.session_superseded:
+            self.store.save_session(self.user_id,self.message["chat_id"],self.session)
         trace = {"schema_version": "calorie_agent_trace.v2", "created_at": datetime.now(timezone.utc).isoformat(),
             **self.message, "raw_text": self.message["text"], "preset": self.preset.name, "model": self.config.model,
             "retriever": self.config.knowledge_retriever, **result}
@@ -265,24 +305,37 @@ class Runtime(AgentMiddleware):
             with path.open("a", encoding="utf-8") as f: f.write(line+"\n")
         return result
 
+@request_scope
+@message_scope
+@task_date_scope
 def run(message, *, store=None, config=None, intake_date=None, model=None, summary_model=None):
     config = config or load_config()
     preset = resolve_preset(config.preset, config.allowed_tools)
-    store = store or (FakeStore() if preset.store_kind == "fake" else BitableStore(offset_hours=config.timezone_offset_hours))
+    store = store or create_store(config, preset)
     if preset.store_kind == "fake" and store.kind() != "fake":
         raise ValueError("shadow_fakewrite cannot access Bitable")
     message = {**message, "user_id": store.load_user_aliases().get(message["user_id"], message["user_id"])}
     with session_lock(message["user_id"], message["chat_id"]):
+        store.prefetch_message(message)
         execution = store.load_execution(message) if preset.allow_write else None
+        if execution:
+            BUSINESS_DATE.set(execution["payload"].get("day") or intake_date)
         if execution and execution["payload"].get("result"):
             # Replays return the saved response without reopening the journal or
             # overwriting a newer conversation with this message's old snapshot.
-            return _saved_result(execution["payload"])
+            journal = execution["payload"]
+            if "previous_session_message_id" in journal:
+                session = store.load_session(message["user_id"],message["chat_id"])
+                if (session.get("last_message_id") == journal["previous_session_message_id"] or
+                    (session.get("last_message_id")==message["message_id"] and not session.get("last_execution_complete"))):
+                    store.save_session(message["user_id"],message["chat_id"],{**journal["session"],"messages":journal["messages"],"last_message_id":message["message_id"]})
+            return _saved_result(journal)
         model = model or DeepSeekModel(model_name=config.model)
         rt = Runtime(message, store, config, preset, model, intake_date, execution)
         token = CURRENT_RUNTIME.set(rt)
         from .storage.timeutil import PROCESSING_DEADLINE
-        deadline_token = PROCESSING_DEADLINE.set(rt.deadline)
+        deadline_token = PROCESSING_DEADLINE.set(rt.total_deadline)
+        work_token = WORK_DEADLINE.set(rt.deadline)
         error = ""
         try:
             # Resume the saved native batch, using its original arguments, targets and dates.
@@ -308,9 +361,11 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, summa
         except DeadlineExceeded:
             result = rt.finish("deadline_reached")
         except Exception as exc:
+            if "result" in rt.journal: raise
             # Preserve journal. No automatic model retries or changed plans.
             result = rt.finish(f"{type(exc).__name__}:{str(exc)[:200]}")
         finally:
+            WORK_DEADLINE.reset(work_token)
             PROCESSING_DEADLINE.reset(deadline_token)
             CURRENT_RUNTIME.reset(token)
         return result

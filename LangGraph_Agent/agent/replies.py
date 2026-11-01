@@ -82,13 +82,19 @@ def proposal_prompt(proposal):
 
 def progress_reply(facts):
     parts=[]
+    latest_meals={}
+    latest_today=None
     for f in facts:
         data=f.get("data",{});status=f.get("status")
         if status=="ok" and f["tool"] in {"record_meal","revise_intake"}:
+            latest_today=None
             parts.append("已撤销。" if data.get("operation")=="deleted" else ("已修改。" if f["tool"]=="revise_intake" else "已记好。"))
-            for meal in data.get("meal_totals",[]):parts.append(f"这餐合计{meal['total']['kcal']:g}千卡。")
+            for meal in data.get("meal_totals",[]):latest_meals[meal['meal_id']]=meal
         elif status=="ok" and f["tool"]=="update_user_settings":parts.append("设置已保存。")
-        elif f["tool"]=="query_today" and status=="ok":parts.append(f"今天合计{data['total']['kcal']:g}千卡。")
+        elif f["tool"]=="query_today" and status=="ok":latest_today=data['total']['kcal']
         for item in data.get("unfinished",[]):parts.append(item.get("food_query","")+"："+item.get("reason","请补充份量"))
         if data.get("question"):parts.append(data["question"])
+    for meal in latest_meals.values():
+        parts.append(f"这餐合计{meal['total']['kcal']:g}千卡。"+("份量为估算。" if meal.get('estimated') else ""))
+    if latest_today is not None:parts.append(f"今天合计{latest_today:g}千卡。")
     return "\n".join(dict.fromkeys(parts)) or "这次处理遇到了问题，请稍后重试。"

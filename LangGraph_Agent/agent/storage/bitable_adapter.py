@@ -5,6 +5,7 @@ Idempotency formulas and field defaults come from contracts/bitable_schema.md.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import base64
 import zlib
@@ -291,7 +292,7 @@ def _knowledge_entry_from_bitable(record: dict[str, Any]) -> dict[str, Any] | No
     }
 
 
-from .state_store import StateStore
+from .state_store import StateStore, REQUEST_TASKS
 
 
 class BitableStore(StateStore):
@@ -313,6 +314,7 @@ class BitableStore(StateStore):
         self.knowledge_table = os.getenv("BITABLE_KNOWLEDGE_TABLE_ID", "")
         self.alias_table = os.getenv("BITABLE_ALIASES_TABLE_ID", "")
         self._intake_created_at_writable = None
+        self._intake_date_type = None
 
     def kind(self) -> str:
         return "bitable"
@@ -531,9 +533,35 @@ class BitableStore(StateStore):
             "snapshot": json.loads(extract_text(fields.get(_intake_field("snapshot"))) or "{}"),
         }
 
-    def _iter_intake_rows(self) -> list[tuple[str, dict[str, Any]]]:
+    def _iter_intake_rows(self, *, filter_formula="") -> list[tuple[str, dict[str, Any]]]:
         table = self._require(self.intake_table, "BITABLE_INTAKE_TABLE_ID", "intake")
-        return _list_records(self.app_token, table, _unique_non_empty([_intake_field(key) for key in INTAKE_FIELD_DEFAULTS]))
+        return _list_records(self.app_token, table, _unique_non_empty([_intake_field(key) for key in INTAKE_FIELD_DEFAULTS]), filter_formula=filter_formula)
+
+    def _iter_calorie_rows(self, user_id):
+        keys = [k for k in INTAKE_FIELD_DEFAULTS if k not in {"snapshot","carbs","protein","fat","raw_text","food_id"}]
+        uid = _intake_field("user_id")
+        day = _intake_field("date")
+        user = f'OR(CurrentValue.[{uid}]="",CurrentValue.[{uid}]={json.dumps(user_id)})' if user_id else "TRUE()"
+        if os.getenv("BITABLE_FIELD_INTAKE_DATE_VALUE_TYPE", "timestamp") == "text":
+            dates = f'CurrentValue.[{day}]={json.dumps(self.today_string())}'
+        else:
+            if self._intake_date_type is None:
+                response = feishu_client.http_json_get(_record_url(self.app_token,self.intake_table).rsplit("/",1)[0]+"/fields?page_size=100",
+                    {"Authorization":f"Bearer {feishu_client.get_tenant_access_token()}"})
+                if response.get("code") != 0: raise RuntimeError("cannot read intake date field type")
+                self._intake_date_type = next((f["type"] for f in response["data"]["items"] if f["field_name"]==day),None)
+                if self._intake_date_type is None: raise RuntimeError("intake date field unavailable")
+            if self._intake_date_type == 5:
+                from datetime import date,timedelta
+                tomorrow = (date.fromisoformat(self.today_string())+timedelta(days=1)).isoformat()
+                dates = f'AND(CurrentValue.[{day}]>=TODATE({json.dumps(self.today_string())}),CurrentValue.[{day}]<TODATE({json.dumps(tomorrow)}))'
+            elif self._intake_date_type == 2:
+                start = self._today_start_millis()
+                dates = f'AND(CurrentValue.[{day}]>={start},CurrentValue.[{day}]<{start+86400000})'
+            else:
+                # Other legacy representations retain the existing local date check.
+                dates = "TRUE()"
+        return _list_records(self.app_token,self.intake_table,[_intake_field(k) for k in keys],filter_formula=f'AND({user},{dates})')
 
     def _is_today_date_value(self, value: Any) -> bool:
         if os.getenv("BITABLE_FIELD_INTAKE_DATE_VALUE_TYPE", "timestamp") == "text":
@@ -544,11 +572,11 @@ class BitableStore(StateStore):
         start = self._today_start_millis()
         return start <= int(number) < start + 86400000
 
-    def today_summary(self, user_id: str) -> dict[str, Any]:
+    def today_summary(self, user_id: str, *, calories_only=False) -> dict[str, Any]:
         user_id = str(user_id or "").strip()
         items: list[dict[str, Any]] = []
         totals = {"carbs": 0.0, "protein": 0.0, "fat": 0.0, "kcal": 0.0}
-        for record_id, fields in self._iter_intake_rows():
+        for record_id, fields in (self._iter_calorie_rows(user_id) if calories_only else self._iter_intake_rows()):
             row_user_id = extract_text(fields.get(_intake_field("user_id")))
             if user_id and row_user_id and row_user_id != user_id:
                 continue
@@ -557,8 +585,11 @@ class BitableStore(StateStore):
             if not _is_valid_intake_status(fields.get(_intake_field("status"))):
                 continue
             item = self._intake_summary_item(record_id, fields)
-            for key in totals:
+            for key in (("kcal",) if calories_only else totals):
                 totals[key] = round_number(totals[key] + float(item["nutrition"][key]))
+            if calories_only:
+                item["nutrition"] = {"kcal":item["nutrition"]["kcal"]}
+                item.pop("snapshot",None)
             items.append(item)
         items.sort(key=lambda item: (float(item.get("created_at") or 0), str(item.get("record_id") or "")))
         return {
@@ -643,7 +674,7 @@ class BitableStore(StateStore):
             return False
         table = self._require(self.intake_table, "BITABLE_INTAKE_TABLE_ID", "intake")
         message_field = _intake_field("message_id")
-        for _record_id, fields in _list_records(self.app_token, table, [message_field]):
+        for _record_id, fields in _list_records(self.app_token, table, [message_field], filter_formula="CurrentValue.["+message_field+"]="+json.dumps(message_id)):
             if extract_text(fields.get(message_field)) == message_id:
                 return True
         return False
@@ -815,27 +846,58 @@ class BitableStore(StateStore):
         if grams is not None:
             fields[_pending_field("grams")] = grams
         client_token = stable_uuid(f"calorie-agent:pending-create:{msg_key}:{intent}:{food_name}")
+        cache = REQUEST_TASKS.get()
+        if cache is not None: cache.pop((id(self),pending_id),None)
         try:
-            self._batch_create(self.pending_table, [{"fields": fields}], client_token=client_token)
+            created = self._batch_create(self.pending_table, [{"fields": fields}], client_token=client_token)
         except Exception:
             # A timeout or a concurrent request may have committed the same token.
             existing = self.get_pending(pending_id)
             if existing is not None:
                 return existing
             raise
-        task = self.get_pending(pending_id)
+        records = created.get("data", {}).get("records", [])
+        if records and records[0].get("record_id"):
+            task = self._pending_task(records[0]["record_id"], fields)
+            cache = REQUEST_TASKS.get()
+            if cache is not None: cache[(id(self), pending_id)] = task
+        else:
+            cache = REQUEST_TASKS.get()
+            if cache is not None: cache.pop((id(self),pending_id),None)
+            task = self.get_pending(pending_id)
         if task is None:
             raise RuntimeError("created pending task could not be read back")
         return task
 
     def get_pending(self, pending_id: str) -> dict[str, Any] | None:
+        cache = REQUEST_TASKS.get()
+        key = (id(self),pending_id)
+        if cache is not None and key in cache: return deepcopy(cache[key])
         if not self.app_token or not self.pending_table:
             return None
         names = [_pending_field(key) for key in PENDING_FIELDS]
         for record_id, fields in _list_records(self.app_token, self.pending_table, names, filter_formula="CurrentValue.[" + _pending_field("id") + "]=" + json.dumps(pending_id)):
             if extract_text(fields.get(_pending_field("id"))) == pending_id:
-                return self._pending_task(record_id, fields)
+                task = self._pending_task(record_id, fields)
+                if cache is not None: cache[key] = task
+                return deepcopy(task)
+        if cache is not None: cache[key] = None
         return None
+
+    def prefetch_message(self, message):
+        cache = REQUEST_TASKS.get()
+        if cache is None: return
+        ids = [stable_uuid(f"calorie-agent:pending:{message_key(message)}:message_execution:")]
+        for kind,scope in (("user_settings",""),("agent_session",message["chat_id"])):
+            ids.append(stable_uuid(f"calorie-agent:pending:{kind}:{message['user_id']}:{scope}:{kind}:"))
+        missing = [pid for pid in ids if (id(self),pid) not in cache]
+        if not missing: return
+        formula = "OR("+",".join("CurrentValue.["+_pending_field("id")+"]="+json.dumps(pid) for pid in missing)+")"
+        found = {}
+        for rid,fields in _list_records(self.app_token,self.pending_table,[_pending_field(k) for k in PENDING_FIELDS],filter_formula=formula):
+            task = self._pending_task(rid,fields)
+            if task["pending_id"] in missing: found[task["pending_id"]] = task
+        for pid in missing: cache[(id(self),pid)] = found.get(pid)
 
     def _pending_task(self, record_id: str, fields: dict[str, Any]) -> dict[str, Any]:
         payload = _decode_pending_payload(extract_text(fields.get(_pending_field("payload"))))
@@ -868,17 +930,39 @@ class BitableStore(StateStore):
         return self.create_pending(message, "message_execution", "", None, payload=payload)
 
     def save_execution(self, task: dict[str, Any], payload: dict[str, Any], *, completed: bool = False) -> None:
+        cache = REQUEST_TASKS.get()
+        key = (id(self),task.get("pending_id"))
+        if cache is not None: cache.pop(key,None)
         self._update_record(self.pending_table, task["record_id"], {
             _pending_field("payload"): _encode_pending_payload(payload),
             _pending_field("status"): "completed" if completed else "pending",
             _pending_field("expires_at"): 0,
         })
+        if cache is not None and task.get("pending_id"):
+            cache[key] = {**task,"payload":deepcopy(payload),"status":"completed" if completed else "pending","expires_at":0}
 
-    def load_unfinished_executions(self) -> list[dict[str, Any]]:
+    def load_unfinished_executions(self, user_id="", chat_id="", *, message=None) -> list[dict[str, Any]]:
         self._require(self.pending_table, "BITABLE_PENDING_TABLE_ID", "message execution")
         names = [_pending_field(key) for key in PENDING_FIELDS]
         tasks: dict[str, dict[str, Any]] = {}
-        for record_id, fields in _list_records(self.app_token, self.pending_table, names):
+        conditions = [f'CurrentValue.[{_pending_field("status")} ]="pending"'.replace(" ]","]"),
+                      f'OR(CurrentValue.[{_pending_field("intent")} ]="message_execution",CurrentValue.[{_pending_field("intent")} ]="message_received")'.replace(" ]","]")]
+        for field,value in (("user_id",user_id),("chat_id",chat_id)):
+            if value: conditions.append("CurrentValue.["+_pending_field(field)+"]="+json.dumps(value))
+        formula="AND("+",".join(conditions)+")"
+        cache=REQUEST_TASKS.get()
+        document_ids=[]
+        if message and cache is not None:
+            document_ids=[stable_uuid(f"calorie-agent:pending:{message_key(message)}:message_execution:")]
+            document_ids += [stable_uuid(f"calorie-agent:pending:{kind}:{user_id}:{scope}:{kind}:") for kind,scope in (("user_settings",""),("agent_session",chat_id))]
+            formula="OR("+formula+","+",".join("CurrentValue.["+_pending_field("id")+"]="+json.dumps(pid) for pid in document_ids)+")"
+        found={}
+        for record_id, fields in _list_records(self.app_token, self.pending_table, names, filter_formula=formula):
+            pid=extract_text(fields.get(_pending_field("id")))
+            if pid in document_ids:
+                found[pid]=self._pending_task(record_id,fields)
+            if user_id and extract_text(fields.get(_pending_field("user_id"))) != user_id: continue
+            if chat_id and extract_text(fields.get(_pending_field("chat_id"))) != chat_id: continue
             if extract_text(fields.get(_pending_field("intent"))) not in {"message_execution", "message_received"}:
                 continue
             if extract_text(fields.get(_pending_field("status"))).lower() != "pending":
@@ -887,6 +971,8 @@ class BitableStore(StateStore):
             key = task["source_message_id"]
             if key not in tasks or task["intent"] == "message_received":
                 tasks[key] = task
+        for pid in document_ids:
+            cache[(id(self),pid)]=found.get(pid)
         return sorted(tasks.values(), key=lambda task: task["created_at"])
 
     # --- usage events -------------------------------------------------------
@@ -923,7 +1009,7 @@ class BitableStore(StateStore):
     def intake_items(self, user_id, start_date="", end_date="", include_deleted=False):
         from datetime import datetime, timedelta, timezone
         result = []
-        for rid, fields in self._iter_intake_rows():
+        for rid, fields in self._iter_intake_rows(filter_formula="CurrentValue.["+_intake_field("user_id")+"]="+json.dumps(user_id)):
             if extract_text(fields.get(_intake_field("user_id"))) != user_id:
                 continue
             status = extract_text(fields.get(_intake_field("status")))

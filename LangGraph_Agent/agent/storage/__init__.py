@@ -18,3 +18,12 @@ __all__ = [
     "today_string",
     "usage_event_token",
 ]
+
+
+def create_store(config, preset=None):
+    from ..policy import resolve_preset
+    from .cos_store import CosStore
+    preset = preset or resolve_preset(config.preset, config.allowed_tools)
+    if preset.store_kind == "fake":
+        return FakeStore()
+    return CosStore(offset_hours=config.timezone_offset_hours, readonly=not preset.allow_write)

@@ -1,7 +1,7 @@
 """SCF minute entry: fixed facts, stable UUID and durable delivery receipt. No LLM."""
 from datetime import datetime, timezone, timedelta
 import json
-from .bitable_adapter import BitableStore, stable_uuid, reply_uuid
+from .bitable_adapter import stable_uuid, reply_uuid
 from . import feishu_client
 from ..config import load_config
 from ..policy import resolve_preset
@@ -38,16 +38,26 @@ def check_reminders(store, scheduled_time, send=None):
             sent += 1
     return {"scheduled_minute": local.isoformat(timespec="minutes"), "sent": sent}
 
+def reminder_intake(scheduled):
+    """Canonical fixed timer identity, independent of delayed invocation time."""
+    if not scheduled:
+        raise ValueError("SCF timer scheduled Time is required")
+    stamp = datetime.fromisoformat(str(scheduled).replace("Z", "+00:00"))
+    if stamp.tzinfo is None:
+        raise ValueError("SCF timer scheduled Time must include timezone")
+    scheduled = stamp.astimezone(timezone.utc).isoformat(timespec="seconds")
+    return {"message_id": "reminder_tick:" + scheduled, "user_id": "system",
+            "chat_id": "system:reminders", "text": ""}, {"scheduled_time": scheduled}
+
+
 def handler(event, context=None):
     config = load_config()
     preset = resolve_preset(config.preset, config.allowed_tools)
     if not preset.send_reply:
         return {"sent": 0, "reason": "preset_does_not_send"}
     # Tencent timer Time is the scheduled event timestamp, not the delayed execution clock.
-    scheduled = event.get("Time") or event.get("time")
-    if not scheduled:
-        raise ValueError("SCF timer scheduled Time is required")
-    stamp = datetime.fromisoformat(scheduled.replace("Z", "+00:00"))
-    result = check_reminders(BitableStore(offset_hours=config.timezone_offset_hours), stamp)
-    print(json.dumps({"event": "reminder_check", **result}, ensure_ascii=False))
+    _, reference = reminder_intake(event.get("Time") or event.get("time"))
+    from .live_client import LiveClient
+    result = LiveClient().submit_reminder(reference["scheduled_time"])
+    print(json.dumps({"event": "reminder_accepted", **result}, ensure_ascii=False))
     return result

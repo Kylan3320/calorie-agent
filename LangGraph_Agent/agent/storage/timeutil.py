@@ -7,13 +7,38 @@ import re
 import time
 import unicodedata
 from contextvars import ContextVar
+from functools import wraps
 from typing import Any
 
 DEFAULT_TIMEZONE_OFFSET_HOURS = 8.0
 PROCESSING_DEADLINE = ContextVar("processing_deadline", default=None)
+WORK_DEADLINE = ContextVar("work_deadline", default=None)
+BUSINESS_DATE = ContextVar("business_date", default=None)
+BUSINESS_IO = ContextVar("business_io", default=False)
+
+def task_date_scope(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        token = BUSINESS_DATE.set(kwargs.get("intake_date"))
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            BUSINESS_DATE.reset(token)
+    return wrapped
+
+
+def business_scope(fn):
+    @wraps(fn)
+    def wrapped(*args,**kwargs):
+        token = BUSINESS_IO.set(True)
+        try: return fn(*args,**kwargs)
+        finally: BUSINESS_IO.reset(token)
+    return wrapped
 
 def remaining_timeout(default):
     deadline = PROCESSING_DEADLINE.get()
+    if BUSINESS_IO.get() and WORK_DEADLINE.get() is not None:
+        deadline = min(deadline or float("inf"),WORK_DEADLINE.get())
     if deadline is None:
         return default
     remaining = deadline - time.monotonic()

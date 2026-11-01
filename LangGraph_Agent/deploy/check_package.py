@@ -18,6 +18,7 @@ def main():
     package = root / "deploy" / "build"
     with zipfile.ZipFile(root / "deploy" / "calorie-agent-v4.zip") as z:
         assert all(not n.startswith(("console/", "reports/", "harness/", "deploy/")) for n in z.namelist())
+        assert not any("cos_probe" in n or n.startswith("dsh/") for n in z.namelist())
         assert z.read("BUILD_ID").decode() == (package / "BUILD_ID").read_text()
         assert z.getinfo("scf_bootstrap").external_attr >> 16 & 0o111
     sys.path[:0] = [str(package / "deps"), str(package), str(args.layer.resolve())]
@@ -28,10 +29,14 @@ def main():
     from agent.model import DeepSeekModel
     from agent.tools.registry import TOOL_REGISTRY
     from agent.storage.knowledge_retriever import _build_lightrag
-    from app import reminder_handler
+    from app import reminder_handler, ingress_handler, message_handler, maintenance_handler
+    from agent.storage.cos_store import CosStore
+    from agent.storage.cos_transport import CosObjects
+    from agent.storage.cos_archive import archive_pending
+    from qcloud_cos import CosS3Client
     create_agent(model=DeepSeekModel(), tools=list(TOOL_REGISTRY.values()))
     rag = _build_lightrag()
-    assert rag is not None and callable(reminder_handler)
+    assert rag is not None and all(callable(obj) for obj in (reminder_handler, ingress_handler, message_handler, maintenance_handler, CosStore, CosObjects, archive_pending, CosS3Client))
     env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path[:3]), "PORT": "9000"}
     process = subprocess.Popen([sys.executable, str(package / "app.py")], cwd=package, env=env,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -49,7 +54,8 @@ def main():
         assert health["retriever"] == "lightrag"
         evidence = {"python": sys.version.split()[0], "platform": sys.platform, "health": {
             k: health[k] for k in ("build_id", "model", "retriever", "status")},
-            "native_agent_loaded": True, "production_layer": "calorie-rag:6", "lightrag_loaded": True,
+            "native_agent_loaded": True, "lightrag_loaded": True,
+            "cos_store_loaded": True, "cos_transport_loaded": True, "archive_entry_loaded": True,
             "reminder_entry": "app.reminder_handler", "package_bytes": (root/"deploy/calorie-agent-v4.zip").stat().st_size}
         (root/"reports/package-check.json").write_text(json.dumps(evidence, indent=2))
         print(json.dumps(evidence))

@@ -10,12 +10,14 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import sys
 import uuid
 from collections.abc import Iterator
 from typing import Any
 
-from agent import BitableStore, FakeStore, load_config, run
+from agent import FakeStore, load_config, run
+from agent.storage.live_client import LiveClient
 from agent.policy import resolve_preset
 
 
@@ -36,14 +38,21 @@ def main(argv: list[str] | None = None) -> int:
         config = dataclasses.replace(config, preset="shadow_fakewrite")
 
     preset = resolve_preset(config.preset, config.allowed_tools)
-    store = FakeStore() if preset.store_kind == "fake" else BitableStore(offset_hours=config.timezone_offset_hours)
+    from agent.storage import create_store
+    store = FakeStore() if preset.store_kind == "fake" else (create_store(config, preset) if config.preset != "live" else None)
+    client = LiveClient() if config.preset == "live" else None
+    user_id = os.environ["CLI_USER_ID"] if client else "local_user"
     texts = [" ".join(args.text)] if args.text else _interactive()
     session_id = "cli:" + uuid.uuid4().hex
     for text in texts:
-        result = run({"message_id": f"cli-{uuid.uuid4().hex}", "user_id": "local_user", "chat_id": session_id, "text": text}, store=store, config=config)
+        message = {"message_id": f"cli-{uuid.uuid4().hex}", "user_id": user_id, "chat_id": session_id, "text": text}
+        result = client.submit(message, source="cli") if client else run(message, store=store, config=config)
         _print_result(result)
         from agent.graph import mark_reply_presented
-        mark_reply_presented(store, "local_user", session_id, result)
+        if client:
+            client.presented(result["delivery_reference"])
+        elif preset.allow_write:
+            mark_reply_presented(store, "local_user", session_id, result)
     return 0
 
 

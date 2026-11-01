@@ -11,10 +11,10 @@ if [[ "$(realpath -m "$BUILD")" != "$ROOT/deploy/build" ]]; then exit 1; fi
 if [[ "${1:-}" == "--reuse-deps" ]]; then
   "$PYTHON" - "$BUILD/deps" "$ROOT/requirements.txt" <<'PY'
 import importlib.metadata as m, pathlib, sys
-installed={d.metadata["Name"].lower():d.version for d in m.distributions(path=[sys.argv[1]])}
+installed={d.metadata["Name"].lower().replace("_","-"):d.version for d in m.distributions(path=[sys.argv[1]])}
 for line in pathlib.Path(sys.argv[2]).read_text().splitlines():
     name,version=line.split("==")
-    assert installed.get(name.lower())==version, (name,version,installed.get(name.lower()))
+    assert installed.get(name.lower().replace("_","-"))==version, (name,version,installed.get(name.lower().replace("_","-")))
 PY
   rm -rf "$BUILD/agent"
 else
@@ -24,6 +24,9 @@ fi
 cp -r "$ROOT/agent" "$BUILD/agent"
 cp "$ROOT/app.py" "$ROOT/config.yaml" "$ROOT/scf_bootstrap" "$ROOT/requirements.txt" "$BUILD/"
 find "$BUILD/agent" -name __pycache__ -type d -prune -exec rm -rf {} +
+# Probe packages contain fixtures and validation-only drivers. Production uses
+# cos_store/cos_journal/cos_transport and the dedicated worker entry points.
+find "$BUILD/agent/storage" -maxdepth 1 -name 'cos_probe*.py' -delete
 chmod +x "$BUILD/scf_bootstrap"
 if [[ "${1:-}" != "--reuse-deps" ]]; then
   "$PYTHON" -m pip install --disable-pip-version-check -q -r "$ROOT/requirements.txt" --target "$BUILD/deps"
@@ -33,9 +36,9 @@ import hashlib, pathlib, sys, zipfile
 root, target = map(pathlib.Path, sys.argv[1:])
 h = hashlib.sha256()
 for p in sorted(root.rglob("*")):
-    if p.is_file() and "__pycache__" not in p.parts:
+    if p.is_file() and "__pycache__" not in p.parts and p.name != "BUILD_ID":
         h.update(str(p.relative_to(root)).encode()); h.update(p.read_bytes())
-(root / "BUILD_ID").write_text("personal-" + h.hexdigest()[:16])
+(root / "BUILD_ID").write_text("cos-production-" + h.hexdigest()[:16])
 with zipfile.ZipFile(target,"w",zipfile.ZIP_DEFLATED) as z:
     for p in root.rglob("*"):
         if p.is_file() and "__pycache__" not in p.parts:

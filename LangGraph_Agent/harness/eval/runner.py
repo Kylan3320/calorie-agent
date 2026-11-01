@@ -33,10 +33,52 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--smoke", action="store_true", help="only smoke-flagged cases")
     parser.add_argument("--case", default="", help="case ID or comma-separated IDs")
     parser.add_argument("--real-model", action="store_true")
+    parser.add_argument("--production-live-plan", type=Path)
+    parser.add_argument("--production-live-stage", choices=["business", "archive", "cleanup", "report"])
     args = parser.parse_args(argv)
+    if args.production_live_plan:
+        if not args.production_live_stage:
+            parser.error("--production-live-plan requires --production-live-stage")
+        from harness.eval.production_live import main as live_main
+        return live_main(["--plan", str(args.production_live_plan), "--stage", args.production_live_stage])
+    if args.production_live_stage:
+        parser.error("--production-live-stage requires --production-live-plan")
     from harness.eval import conversation_cases
     conversation_cases.REAL = args.real_model
     CHECKS.update(conversation_cases.CHECKS)
+    from harness.eval.cos_probe_cases import CHECKS as COS_PROBE_CHECKS
+    CHECKS.pop("C02", None)
+    CHECKS.update({key: check for key, check in COS_PROBE_CHECKS.items()
+                   if key != "C02" or key in args.case.split(",")})
+    from harness.eval.cos_pipeline_cases import CHECKS as COS_PIPELINE_CHECKS
+    CHECKS.update(COS_PIPELINE_CHECKS)
+    from harness.eval.cos_pipeline_live_cases import CHECKS as COS_PIPELINE_LIVE_CHECKS
+    CHECKS.update(COS_PIPELINE_LIVE_CHECKS)
+
+    from harness.eval.production_store_cases import CHECKS as STORE_CHECKS
+    from harness.eval.production_archive_cases import CHECKS as ARCHIVE_CHECKS
+    from harness.eval.production_pipeline_cases import CHECKS as PIPELINE_CHECKS
+    from harness.eval.production_role_cases import CHECKS as ROLE_CHECKS
+    from harness.eval.production_cutover_cases import CHECKS as CUTOVER_CHECKS
+    CHECKS.update(STORE_CHECKS)
+    CHECKS.update(ARCHIVE_CHECKS)
+    CHECKS.update(PIPELINE_CHECKS)
+    CHECKS.update(ROLE_CHECKS)
+    CHECKS.update(CUTOVER_CHECKS)
+    # The specified acceptance groups include the new production boundaries.
+    # Each extra check runs once; explicit PS/QA/P IDs remain available for rechecks.
+    additions = {"E01": list(STORE_CHECKS.values()), "E05": list(ARCHIVE_CHECKS.values())}
+    if not args.real_model:
+        for key, extra in additions.items():
+            if key not in args.case.split(","):
+                continue
+            original = CHECKS[key]
+            def grouped(original=original, extra=extra):
+                original()
+                for check in extra:
+                    check()
+            grouped.__doc__ = original.__doc__
+            CHECKS[key] = grouped
 
     cases = _load_cases()
     if args.case:

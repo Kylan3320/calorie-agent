@@ -1,7 +1,27 @@
 """Shared durable document semantics using existing pending IDs and tokens."""
 from copy import deepcopy
+from contextvars import ContextVar
+from functools import wraps
+
+REQUEST_TASKS = ContextVar("request_tasks", default=None)
+
+def request_scope(fn):
+    @wraps(fn)
+    def scoped(*args, **kwargs):
+        if REQUEST_TASKS.get() is not None:
+            return fn(*args, **kwargs)
+        token = REQUEST_TASKS.set({})
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            REQUEST_TASKS.reset(token)
+    return scoped
 
 class StateStore:
+    def prefetch_message(self, message):
+        """Optional batched document read; business semantics remain in load_document."""
+        pass
+
     def load_document(self, kind, user_id, scope=""):
         from .bitable_adapter import stable_uuid
         key = f"{kind}:{user_id}:{scope}"

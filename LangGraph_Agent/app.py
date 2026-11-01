@@ -1,61 +1,24 @@
-"""Tencent SCF webhook entry for Calorie Agent V4 (ported from V2 app/legacy_app Handler).
-
-Endpoints:
-  GET  /health                  -> liveness
-  POST /webhook/feishu/events   -> verify/challenge, quick ACK, process in request thread
-
-Reminder timers bind agent.storage.reminders.handler in a separate Event function.
-"""
-
+"""SCF HTTP ingress and separate serial message/maintenance entry points."""
 from __future__ import annotations
-
+import hmac
 import json
 import os
 import sys
-import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from urllib.parse import urlsplit, parse_qs
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-_DEPS = ROOT / "deps"
-if _DEPS.exists():
-    sys.path.insert(0, str(_DEPS))  # vendored dependencies built by deploy/build_zip.sh
+if (ROOT / "deps").exists():
+    sys.path.insert(0, str(ROOT / "deps"))
 
-from agent import load_config, run  # noqa: E402
-from agent.graph import session_lock
-from agent.policy import resolve_preset  # noqa: E402
-from agent.storage import (  # noqa: E402
-    BitableStore,
-    FakeStore,
-    feishu_client,
-    message_key,
-    reply_uuid,
-    usage_event_token,
-)
+from agent import load_config
+from agent.storage.execution_pipeline import configured_pipeline
+from agent.storage.telemetry import EVENTS, MESSAGE_ID
 
 SERVICE_NAME = "calorie-agent-v4"
-_MESSAGE_STATE_LOCK = threading.Lock()
-_MESSAGE_STATE: dict[str, tuple[str, float]] = {}
-_MESSAGE_STATE_TTL_SECONDS = 3600
-_STORE: Any = None
-_STORE_LOCK = threading.Lock()
-
-
-def _get_store() -> Any:
-    global _STORE
-    with _STORE_LOCK:
-        if _STORE is None:
-            config = load_config()
-            preset = resolve_preset(config.preset, config.allowed_tools)
-            if preset.store_kind == "fake":
-                _STORE = FakeStore()
-            else:
-                _STORE = BitableStore(offset_hours=config.timezone_offset_hours)
-        return _STORE
-
 
 def _verify_rollover_style_token(payload_token: Any) -> bool:
     expected = os.getenv("FEISHU_VERIFICATION_TOKEN", "")
@@ -94,238 +57,206 @@ def _parse_text_message(payload: dict[str, Any]) -> dict[str, str] | None:
         "chat_id": str(message.get("chat_id") or ""),
         "user_id": str(sender_id.get("open_id") or sender_id.get("user_id") or ""),
         "text": str(content.get("text") or "").strip(),
+        "create_time": str(message.get("create_time") or ""),
     }
 
 
-def _message_state_key(message: dict[str, str]) -> str:
-    return message_key(message)
-
-
-def _prune_message_state(now: float) -> None:
-    expired = [key for key, (_, timestamp) in _MESSAGE_STATE.items() if now - timestamp > _MESSAGE_STATE_TTL_SECONDS]
-    for key in expired:
-        _MESSAGE_STATE.pop(key, None)
-
-
-def _try_mark_message_processing(message: dict[str, str]) -> bool:
-    key = _message_state_key(message)
-    if not key:
-        return True
-    now = time.monotonic()
-    with _MESSAGE_STATE_LOCK:
-        _prune_message_state(now)
-        existing = _MESSAGE_STATE.get(key)
-        if existing:
-            status, timestamp = existing
-            if status == "failed":
-                _MESSAGE_STATE[key] = ("processing", now)
-                return True
-            return False
-        _MESSAGE_STATE[key] = ("processing", now)
-        return True
-
-
-def _mark_message_done(message: dict[str, str], status: str) -> None:
-    key = _message_state_key(message)
-    if not key:
-        return
-    with _MESSAGE_STATE_LOCK:
-        _MESSAGE_STATE[key] = (status, time.monotonic())
-
-
-def _env_check() -> dict[str, bool]:
-    names = [
-        "FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_VERIFICATION_TOKEN",
-        "DEEPSEEK_API_KEY", "BITABLE_APP_TOKEN", "BITABLE_FOOD_TABLE_ID",
-        "BITABLE_INTAKE_TABLE_ID", "BITABLE_STANDARD_TABLE_ID",
-        "BITABLE_PENDING_TABLE_ID", "BITABLE_USAGE_TABLE_ID",
-    ]
-    return {name: bool(os.getenv(name, "").strip()) for name in names}
-
 
 class Handler(BaseHTTPRequestHandler):
-    def _send_json(self, payload: dict[str, Any], status: int = 200) -> None:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    def _send_json(self, payload, status=200):
+        body = json.dumps(payload, ensure_ascii=False).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
-        if self.path in ("/", "/health"):
-            self._send_json({
-                "status": "ok",
-                "service": SERVICE_NAME,
-                "version": "v4.0.1",
-                "build_id": (ROOT / "BUILD_ID").read_text().strip() if (ROOT / "BUILD_ID").exists() else "development",
-                "model": load_config().model,
-                "retriever": load_config().knowledge_retriever,
-                "env": os.getenv("APP_ENV", "production"),
-                "env_check": _env_check(),
-            })
+    def _service_auth(self):
+        expected = os.getenv("CALORIE_SERVICE_TOKEN", "")
+        supplied = self.headers.get("X-Calorie-Service-Token") or self.headers.get("Authorization", "").removeprefix("Bearer ")
+        return bool(expected) and hmac.compare_digest(supplied, expected)
+
+    def do_GET(self):
+        parsed = urlsplit(self.path)
+        if parsed.path in ("/", "/health"):
+            self._send_json({"status": "ok", "service": SERVICE_NAME,
+                             "build_id": (ROOT / "BUILD_ID").read_text().strip() if (ROOT / "BUILD_ID").exists() else "development",
+                             "model": load_config().model, "retriever": load_config().knowledge_retriever,
+                             "version": "v4.0.1", "env": os.getenv("APP_ENV", "production"),
+                             "env_check": {name: bool(os.getenv(name, "").strip()) for name in (
+                                 "FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_VERIFICATION_TOKEN",
+                                 "DEEPSEEK_API_KEY", "BITABLE_APP_TOKEN", "BITABLE_FOOD_TABLE_ID",
+                                 "BITABLE_INTAKE_TABLE_ID", "BITABLE_STANDARD_TABLE_ID",
+                                 "BITABLE_PENDING_TABLE_ID", "BITABLE_USAGE_TABLE_ID", "COS_BUCKET", "COS_PREFIX")}})
+        elif parsed.path == "/internal/result":
+            if not self._service_auth():
+                self._send_json({"status": "error", "reason": "invalid_service_token"}, 403)
+                return
+            try:
+                rid = parse_qs(parsed.query).get("receipt_id", [""])[0]
+                state = configured_pipeline(self.headers).result(rid)
+                self._send_json(state or {"status": "pending"})
+            except Exception as exc:
+                self._send_json({"status": "error", "reason": str(exc)[:200]}, 503)
         else:
-            self._send_json({"status": "not_found"}, status=404)
+            self._send_json({"status": "not_found"}, 404)
 
-    def do_POST(self) -> None:  # noqa: N802
-        if self.path != "/webhook/feishu/events":
-            self._send_json({"status": "not_found"}, status=404)
-            return
-
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length) if length else b"{}"
+    def do_POST(self):
+        received_at = time.time()
+        events_token = EVENTS.set([])
+        message_token = MESSAGE_ID.set(None)
         try:
-            payload = json.loads(raw.decode("utf-8"))
-        except json.JSONDecodeError:
-            self._send_json({"status": "ignored", "reason": "invalid_json"})
+            self._post(received_at)
+        finally:
+            print(json.dumps({"event": "latency_webhook", "events": EVENTS.get(), "duration_ms": round((time.time()-received_at)*1000, 3)}, ensure_ascii=False))
+            EVENTS.reset(events_token)
+            MESSAGE_ID.reset(message_token)
+
+    def _post(self, received_at):
+        if self.path not in {"/webhook/feishu/events", "/internal/intake", "/internal/presented", "/internal/reminder"}:
+            self._send_json({"status": "not_found"}, 404)
+            return
+        try:
+            payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        except (ValueError, UnicodeDecodeError):
+            self._send_json({"status": "error", "reason": "invalid_json"}, 400)
             return
         if not isinstance(payload, dict):
-            self._send_json({"status": "ignored", "reason": "invalid_payload"})
+            self._send_json({"status": "error", "reason": "invalid_payload"}, 400)
             return
-        if "encrypt" in payload:
-            self._send_json({"status": "error", "reason": "encrypt_mode_not_supported"}, status=400)
-            return
-
-        header = payload.get("header") if isinstance(payload.get("header"), dict) else {}
-        token = payload.get("token") or header.get("token")
-        if not _verify_rollover_style_token(token):
-            self._send_json({"status": "error", "reason": "invalid_token"}, status=403)
-            return
-
-        challenge = _extract_challenge(payload)
-        if challenge:
-            self._send_json({"challenge": challenge})
-            return
-
-        message = _parse_text_message(payload)
-        if message is None:
-            self._send_json({"status": "ignored", "reason": "not_text_event"})
-            return
-
-        store = _get_store()
-        message = {**message, "user_id": _resolve_user_alias(store, message.get("user_id", ""))}
-        try:
-            config = load_config()
-            preset = resolve_preset(config.preset, config.allowed_tools)
-            store = _get_store()
-            receipt = store.create_pending(message, "message_received", "", None, "unknown",
-                                           payload={"message": message, "intake_date": store.today_string(), "received_at": time.time()}) if preset.allow_write else None
-            if receipt and receipt["status"] == "not_configured":
-                raise RuntimeError("pending_tasks is required before accepting messages")
-        except Exception as exc:
-            _log_event("message_not_accepted", message, {"error": str(exc)[:300]})
-            self._send_json({"status": "error", "reason": "accept_failed"}, status=503)
-            return
-        self._send_json({"status": "accepted", "message_id": message["message_id"], "chat_id": message["chat_id"]})
-        if not receipt or receipt["status"] != "completed":
-            _process_message_synchronously(message, receipt)
-
-
-def _resolve_user_alias(store: Any, user_id: str) -> str:
-    return store.load_user_aliases().get(user_id, user_id) if user_id else user_id
-
-
-def _process_message_synchronously(message: dict[str, str], receipt: dict | None = None) -> bool:
-    with session_lock(message["user_id"], message["chat_id"]):
-        if receipt:
-            tasks = [t for t in _get_store().load_unfinished_executions()
-                     if t["user_id"] == message["user_id"] and t["chat_id"] == message["chat_id"]]
-            for task in sorted(tasks, key=lambda t: (t["created_at"], t["payload"].get("received_at", 0))):
-                if not _execute_message(task["payload"]["message"], task if task["intent"] == "message_received" else None):
-                    return False
-            return True
-        return _execute_message(message)
-
-
-def _execute_message(message: dict[str, str], receipt: dict | None = None) -> bool:
-    if not _try_mark_message_processing(message):
-        _log_event("duplicate_skipped", message, {})
-        return False
-    started = time.monotonic()
-    result, store, config = {}, None, None
-    reply_sent = False
-    error = ""
-    for attempt in range(2):
-        try:
-            config = load_config()
-            preset = resolve_preset(config.preset, config.allowed_tools)
-            store = _get_store()
-            if receipt:
-                message = receipt["payload"]["message"]
+        if self.path == "/webhook/feishu/events":
+            if "encrypt" in payload:
+                self._send_json({"status": "error", "reason": "encrypt_mode_not_supported"}, 400)
+                return
+            header = payload.get("header") if isinstance(payload.get("header"), dict) else {}
+            if not _verify_rollover_style_token(payload.get("token") or header.get("token")):
+                self._send_json({"status": "error", "reason": "invalid_token"}, 403)
+                return
+            challenge = _extract_challenge(payload)
+            if challenge:
+                self._send_json({"challenge": challenge})
+                return
+            message = _parse_text_message(payload)
+            if message is None:
+                self._send_json({"status": "ignored", "reason": "not_text_event"})
+                return
+            source, kind, reference = "feishu", "message", None
+        else:
+            if not self._service_auth():
+                self._send_json({"status": "error", "reason": "invalid_service_token"}, 403)
+                return
+            if self.path == "/internal/reminder":
+                from agent.storage.reminders import reminder_intake
+                try:
+                    message, reference = reminder_intake(payload.get("scheduled_time"))
+                except ValueError as exc:
+                    self._send_json({"status": "error", "reason": str(exc)}, 400)
+                    return
+                source, kind = "timer", "reminder"
             else:
-                message = {**message, "user_id": _resolve_user_alias(store, message.get("user_id", ""))}
-            if preset.allow_write and receipt:
-                settings = store.load_document("user_settings", message["user_id"])
-                if settings.get("feishu_chat_id") != message["chat_id"]:
-                    settings["feishu_chat_id"] = message["chat_id"]
-                    store.save_document("user_settings", message["user_id"], "", settings)
-            result = run(message, store=store, config=config,
-                         intake_date=receipt["payload"]["intake_date"] if receipt else None)
-            if result["status"] == "error":
-                raise RuntimeError(";".join(result["errors"]))
-            if preset.send_reply and result["reply"] and message.get("chat_id"):
-                feishu_client.send_text(message["chat_id"], result["reply"], uuid_key=reply_uuid(message))
-                reply_sent = True
-                from agent.graph import mark_reply_presented
-                mark_reply_presented(store, message["user_id"], message["chat_id"], result)
-            if receipt:
-                store.mark_pending_status(receipt, "completed")
-            _mark_message_done(message, "done")
-            error = ""
-            break
+                source = payload.get("source")
+                if source not in {"cli", "dsh", "console"}:
+                    self._send_json({"status": "error", "reason": "invalid_source"}, 400)
+                    return
+                message = payload.get("message", {})
+                kind = "presented" if self.path == "/internal/presented" else "message"
+                reference = payload.get("reference")
+        MESSAGE_ID.set(message.get("message_id"))
+        config = load_config()
+        if config.preset != "live":
+            if self.path != "/webhook/feishu/events":
+                self._send_json({"status": "error", "reason": "live_preset_required"}, 503)
+                return
+            from agent import run
+            from agent.storage import create_store
+            result = run(message, store=create_store(config), config=config)
+            self._send_json({"status": "shadow_completed", "result_status": result["status"]})
+            return
+        try:
+            pipeline = configured_pipeline(self.headers)
+            receipt = pipeline.accept(message, source=source, received_at=received_at, kind=kind, reference=reference)
+            # Durable inbox followed by accepted asynchronous Invoke, then ACK.
+            pipeline.wake(receipt, self.headers)
         except Exception as exc:
-            error = f"{type(exc).__name__}:{exc}"
-            _log_event("message_attempt_failed", message, {"attempt": attempt + 1, "error": error[:300]})
-    if error:
-        _mark_message_done(message, "failed")
-    latency_ms = int((time.monotonic() - started) * 1000)
-    if store and config and resolve_preset(config.preset, config.allowed_tools).allow_write:
-        store.append_usage_event({
-            "event_id": usage_event_token(message_key(message)), "event_type": "message_processed",
-            "message_id": message_key(message), "user_id": message.get("user_id", ""),
-            "preset": config.preset, "planner": config.planner, "status": "error" if error else "ok",
-            "error_type": error[:200], "action_count": len(result.get("native_calls", [])),
-            "reply_sent": reply_sent, "latency_ms": latency_ms})
-    _log_event("message_failed" if error else "message_processed", message,
-               {"status": "error" if error else "ok", "reply_sent": reply_sent,
-                "error": error[:300], "latency_ms": latency_ms})
-    return not error
+            print(json.dumps({"event": "message_not_accepted", "message_id": message.get("message_id"), "error": str(exc)[:300]}, ensure_ascii=False))
+            self._send_json({"status": "error", "reason": "accept_or_handoff_failed"}, 503)
+            return
+        self._send_json({"status": "accepted", "receipt_id": receipt["receipt_id"],
+                         "sequence": receipt["sequence"], "message_id": receipt["message"]["message_id"],
+                         "chat_id": receipt["message"]["chat_id"]})
 
 
-def retry_pending_messages() -> int:
-    store = _get_store()
-    failed = 0
-    for task in store.load_unfinished_executions():
-        if task["intent"] == "message_received":
-            failed += not _process_message_synchronously(task["payload"]["message"], task)
-    return int(failed)
+def ingress_handler(event, context=None):
+    """Event-SCF function URL adapter sharing the HTTP handler's auth/ACK path."""
+    import base64
+    import io
+    from email.message import Message
+    from urllib.parse import urlencode
+    body = event.get("body") or ""
+    if isinstance(body, dict):
+        body = json.dumps(body, ensure_ascii=False)
+    raw = base64.b64decode(body) if event.get("isBase64Encoded") else str(body).encode()
+    request = object.__new__(Handler)
+    request.path = event.get("rawPath") or event.get("path") or "/"
+    query = event.get("rawQueryString") or urlencode(event.get("queryStringParameters") or event.get("queryString") or {})
+    if query:
+        request.path += "?" + query
+    request.headers = Message()
+    for key, value in (event.get("headers") or {}).items():
+        request.headers[key] = str(value)
+    request.headers.replace_header("Content-Length", str(len(raw))) if request.headers.get("Content-Length") else request.headers.__setitem__("Content-Length", str(len(raw)))
+    request.rfile = io.BytesIO(raw)
+    response = {}
+    def respond(payload, status=200):
+        response.update(statusCode=status, headers={"Content-Type": "application/json; charset=utf-8"},
+                        body=json.dumps(payload, ensure_ascii=False), isBase64Encoded=False)
+    request._send_json = respond
+    method = event.get("httpMethod") or event.get("requestContext", {}).get("http", {}).get("method") or "POST"
+    if method == "GET":
+        request.do_GET()
+    elif method == "POST":
+        request.do_POST()
+    else:
+        respond({"status": "method_not_allowed"}, 405)
+    return response
 
 
-def _log_event(event_type: str, message: dict[str, str], fields: dict[str, Any]) -> None:
-    payload = {
-        "event": event_type,
-        "service": SERVICE_NAME,
-        "message_id": message.get("message_id", ""),
-        "ts": int(time.time() * 1000),
-        **fields,
-    }
-    print(json.dumps(payload, ensure_ascii=False))
+def message_handler(event, context=None):
+    events_token = EVENTS.set(list(event.get("ingress_events", [])))
+    message_token = MESSAGE_ID.set(event.get("message_id"))
+    try:
+        if event.get("type") != "calorie_message":
+            from agent.storage.reminders import handler
+            return handler(event, context)
+        return configured_pipeline().worker(event)
+    finally:
+        print(json.dumps({"event": "latency_worker", "receipt_id": event.get("receipt_id"),
+                          "message_id": event.get("message_id"), "events": EVENTS.get()}, ensure_ascii=False))
+        MESSAGE_ID.reset(message_token)
+        EVENTS.reset(events_token)
 
 
-def main() -> None:
-    port = int(os.getenv("PORT") or os.getenv("SCF_CUSTOM_CONTAINER_PORT") or 9000)
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(json.dumps({"event": "server_started", "service": SERVICE_NAME, "port": port}))
-    server.serve_forever()
+def maintenance_handler(event, context=None):
+    pipeline = configured_pipeline()
+    recovery = pipeline.recover()
+    from agent.storage.cos_archive import archive_pending
+    archive = archive_pending()
+    return {"recovery": recovery, "archive": archive}
 
 
 def reminder_handler(event, context=None):
-    """Event-SCF entry; this module sets the bundled deps path before imports."""
+    # All message writes, timer checks and manual recovery run in this function,
+    # configured with platform concurrency one. Maintenance only wakes it.
+    if event.get("type") == "calorie_message":
+        return message_handler(event, context)
     from agent.storage.reminders import handler
     return handler(event, context)
 
 
+def main():
+    port = int(os.getenv("PORT") or os.getenv("SCF_CUSTOM_CONTAINER_PORT") or 9000)
+    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+
+
 if __name__ == "__main__":
-    if "--retry-pending" in sys.argv:
-        raise SystemExit(1 if retry_pending_messages() else 0)
     main()
