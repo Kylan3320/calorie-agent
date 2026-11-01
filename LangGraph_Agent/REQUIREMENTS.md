@@ -7,8 +7,8 @@
 飞书自然语言饮食记录助手，支持记录、查询、撤销、追问补全、知识问答及历史聚合。
 营养事实来自食物库、摄入快照或知识原文，模型负责理解和规划。
 
-已确认的本次升级目标尚未实现：优先减少整餐记录的输入和追问，补齐份量、复用、纠错、多轮管理、计划、目标及可配置提醒。
-执行范围、行为与最小验收以 [PERSONAL_CALORIE_SPEC.md](PERSONAL_CALORIE_SPEC.md) 为准；下列变更决策在对应批次替换旧实现，contracts 随代码同步。
+本次升级目标：优先减少整餐记录的输入和追问，补齐份量、复用、纠错、多轮管理、计划、目标及可配置提醒。
+已交付个人饮食功能见 [PERSONAL_CALORIE_SPEC.md](PERSONAL_CALORIE_SPEC.md)。交流体验改进的本地实现及离线验收已完成，最终发布验收待完成，行为及最小验收见 [CONVERSATION_EXPERIENCE_SPEC.md](CONVERSATION_EXPERIENCE_SPEC.md)，实际状态见 [reports/CONVERSATION_DELIVERY.md](reports/CONVERSATION_DELIVERY.md)；本次涉及的回复、知识解释及提案展示以该后续规格为准，未涉及业务规则继续沿用。contracts 随代码同步接口事实。
 
 ## 有效决策
 
@@ -21,31 +21,24 @@
 | D8/D25 | 以本人使用为目标；同一人多个账号可通过 Bitable user_aliases 归一为主账号，env USER_ID_ALIASES 兜底，表行优先。未映射账号按自身 user_id 使用独立数据；追问在发起会话内完成，不增加权限系统。 |
 | D9 | secrets、表 ID 和部署绑定走环境变量；工程配置用 config.yaml；每日目标由 Bitable 标准表管理。 |
 | D10 | 旧 V2/V3 包冻结；新实现归本仓库。 |
-| D11 | 三预设：live 真实读写并发送回复；shadow_fakewrite 内存读写、不发送；shadow_readonly 真实业务只读、不发送。 |
+| D11 | 三预设：live 真实读写，飞书入口发送回复；shadow_fakewrite 使用 FakeStore、不访问真实 Bitable；shadow_readonly 不写真实 Bitable 的业务、会话或指标状态。后两者不发送飞书消息。 |
 | D12 | 保留轻量 usage 指标，不做 feedback/retention 体系。 |
 | D13/D14 | 历史数据走聚合工具；静态知识走 knowledge_retriever。生产检索引擎用 LightRAG，FAQ 可通过配置显式切换。 |
 | D15 | Embedding 首选硅基流动 bge-m3，备选智谱、阿里；密钥走环境变量。 |
 | D16 | 生产语料存 Bitable 知识表，起步目标为审校后的 50～100 条 FAQ；seed 用于初始化及评测。 |
-| D17 | 升级目标：知识原文作为证据，可据此综合表达；业务数字绑定工具字段及对象/时间，知识数字和结论须有本轮检索依据，摘要不提供数值证据。 |
+| D17 | 交流体验改进目标：模型依据工具事实自然表达，营养计算和业务写入由工具执行，验收核对数值、对象、日期及状态。知识定量结论使用实际依据；检索不足时继续给一般解释，简短指出影响结论的具体缺口；来源取自实际检索资料。默认记餐/改量回执为简短确认＋本餐热量，估算时说明，逐项营养按需展开。详见交流体验规格。 |
 | D19 | DSH 上游作为依赖，不 fork 内核；本地 UI 用本仓库驱动直连 Python 后端。默认 live 写真实表格，Web 通过 CONSOLE_USER_ID 绑定使用账号。FastAPI 保留配置、调试、轨迹及评测入口。 |
 | D21 | 保留 /dsh、/calorie 双引擎；切换仅影响之后新建的会话。DSH 编码引擎需配置 API key，不做对话中途热切换或共享收件箱。 |
-| D22/D23 | 升级目标：薄荷提供搜索、详情及单位数据；唯一明确匹配直接使用，实际歧义才确认。份量区分可食重和估算，优先保留来源热量；摄入事实仍归 Bitable，不接薄荷饮食记录存储。 |
+| D22/D23 | 升级目标：薄荷提供搜索、详情及单位数据；语义明确匹配直接使用，不凭结果条数或排名判断无歧义。份量区分可食重和估算，优先保留来源热量；摄入事实仍归 Bitable，不接薄荷饮食记录存储。 |
 | D24 | 薄荷密钥不进浏览器；本地缺营养或份量依据时经 storage 查询并缓存，回复保留来源；权限不足可用已确认个人份量，不能猜换算或自动升级套餐。评测注入传输。 |
 
 ## 当前实现能力
 
-| 能力 | 业务保证 |
-|---|---|
-| record_food | 单/多食物计算营养并写快照；缺克重追问，歧义不猜测；未知食物可搜索薄荷并确认入库。 |
-| query_today | 汇总今日有效摄入、目标及剩余，数字与快照和标准一致。 |
-| undo_last | 用户确认后软删除最近有效记录，查询不再计入。 |
-| query_food_nutrition | 优先查询今日摄入快照，再按食物库计算。 |
-| query_knowledge | 从检索原文回答；未命中或失败不编造、不虚称已收集问题。 |
-| query_history | 按时间窗及可选食物聚合历史快照，不按现有食物库重算。 |
-| 追问与幂等 | 缺失信息在同一会话补全；同一消息重复处理不重复写入或发送回复。 |
+原生create_agent循环提供record_meal、revise_intake、query_today、query_food_nutrition、query_knowledge、query_history、calculate_meal、update_user_settings。支持整餐部分完成、按食物可食单位估算、命名常用餐及历史快照按比例复用、指定项纠错/软删除、长期/当日逐字段目标、偏好、份量与可开关提醒。
 
-当前用例入口为 `harness/eval/runner.py`；本次升级按功能规格的最小验收执行，替换被改变的旧行为期望。
-线上变更验证涉及的能力及实际落表结果，验收事实与本地模拟结果分别说明。
+会话与原生执行日志经Bitable保存，压缩使用内置SummarizationMiddleware，恢复不依赖进程内状态。各入口共用同一业务运行时；三预设按D11。
+
+验收统一入口harness/eval/runner.py；个人功能既有U01–U07结果保留，本轮仅交流体验规格E01–E06及所列发布检查。实际交付事实分别记录于reports/PERSONAL_DELIVERY.md与reports/CONVERSATION_DELIVERY.md，不以本地假模型结果替代真实模型、飞书、Bitable或LightRAG验收。
 
 ## 范围外
 

@@ -6,6 +6,8 @@ Idempotency formulas and field defaults come from contracts/bitable_schema.md.
 from __future__ import annotations
 
 import hashlib
+import base64
+import zlib
 import json
 import os
 import re
@@ -18,6 +20,20 @@ from typing import Any
 from . import feishu_client, timeutil
 from .food_match import normalize_food_name
 from .timeutil import extract_number, extract_text, round_number
+
+
+def _encode_pending_payload(payload):
+    raw = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    return json.dumps({"encoding": "zlib-base64", "data": base64.b64encode(zlib.compress(raw)).decode("ascii")})
+
+
+def _decode_pending_payload(text):
+    payload = json.loads(text or "{}")
+    if isinstance(payload, dict) and payload.get("encoding") == "zlib-base64":
+        payload = json.loads(zlib.decompress(base64.b64decode(payload["data"], validate=True)))
+    if not isinstance(payload, dict):
+        raise ValueError("pending payload must be a JSON object")
+    return payload
 
 # --- field name defaults (env-overridable, V2 compatible) ---------------------
 
@@ -46,6 +62,7 @@ INTAKE_FIELD_DEFAULTS = {
     "kcal": ("BITABLE_FIELD_INTAKE_KCAL", "kcal"),
     "status": ("BITABLE_FIELD_INTAKE_STATUS", "status"),
     "created_at": ("BITABLE_FIELD_INTAKE_CREATED_AT", "created_at"),
+    "snapshot": ("BITABLE_FIELD_INTAKE_SNAPSHOT", "snapshot"),
 }
 
 STANDARD_FIELDS = {
@@ -217,7 +234,7 @@ def _record_url(app_token: str, table: str) -> str:
     )
 
 
-def _list_records(app_token: str, table: str, field_names: list[str] | None = None) -> list[tuple[str, dict[str, Any]]]:
+def _list_records(app_token: str, table: str, field_names: list[str] | None = None, *, filter_formula: str = "") -> list[tuple[str, dict[str, Any]]]:
     """List all records as (record_id, fields) tuples, paging through 500 at a time."""
     token = feishu_client.get_tenant_access_token()
     rows: list[tuple[str, dict[str, Any]]] = []
@@ -226,6 +243,8 @@ def _list_records(app_token: str, table: str, field_names: list[str] | None = No
         query: dict[str, str] = {"page_size": "500"}
         if page_token:
             query["page_token"] = page_token
+        if filter_formula:
+            query["filter"] = filter_formula
         if field_names:
             query["field_names"] = json.dumps(field_names, ensure_ascii=False)
         data = feishu_client.http_json_get(
@@ -272,7 +291,10 @@ def _knowledge_entry_from_bitable(record: dict[str, Any]) -> dict[str, Any] | No
     }
 
 
-class BitableStore:
+from .state_store import StateStore
+
+
+class BitableStore(StateStore):
     """Real store. All Bitable/Feishu HTTP goes through feishu_client."""
 
     def __init__(self, offset_hours: float | None = None) -> None:
@@ -290,6 +312,7 @@ class BitableStore:
         self.usage_table = os.getenv("BITABLE_USAGE_TABLE_ID", "")
         self.knowledge_table = os.getenv("BITABLE_KNOWLEDGE_TABLE_ID", "")
         self.alias_table = os.getenv("BITABLE_ALIASES_TABLE_ID", "")
+        self._intake_created_at_writable = None
 
     def kind(self) -> str:
         return "bitable"
@@ -384,6 +407,9 @@ class BitableStore:
             "fat_per_100g": fat,
             "source": extract_text(fields.get("source")),
             "boohee_id": extract_text(fields.get("boohee_id")),
+            "kcal_per_100g": extract_number(fields.get("kcal_per_100g")),
+            "units": json.loads(extract_text(fields.get("units")) or "[]"),
+            "detail_loaded": extract_text(fields.get("detail_loaded")) == "true",
         }
 
     def load_foods(self) -> list[dict[str, Any]]:
@@ -502,6 +528,7 @@ class BitableStore:
                 "fat": extract_number(fields.get(_intake_field("fat"))) or 0.0,
                 "kcal": extract_number(fields.get(_intake_field("kcal"))) or 0.0,
             },
+            "snapshot": json.loads(extract_text(fields.get(_intake_field("snapshot"))) or "{}"),
         }
 
     def _iter_intake_rows(self) -> list[tuple[str, dict[str, Any]]]:
@@ -662,9 +689,20 @@ class BitableStore:
                         _intake_field("kcal"): nutrition["kcal"],
                         _intake_field("status"): "valid",
                         _intake_field("created_at"): timeutil.now_millis(),
+                        _intake_field("snapshot"): json.dumps(item.get("snapshot", {}), ensure_ascii=False),
                     }
                 }
             )
+        if self._intake_created_at_writable is None:
+            url = _record_url(self.app_token, table).rsplit("/", 1)[0] + "/fields?page_size=100"
+            response = feishu_client.http_json_get(url, {"Authorization": f"Bearer {feishu_client.get_tenant_access_token()}"})
+            if response.get("code") != 0:
+                raise RuntimeError("cannot read intake field types")
+            kind = next((f["type"] for f in response["data"]["items"] if f["field_name"] == _intake_field("created_at")), None)
+            self._intake_created_at_writable = kind is not None and kind < 1000
+        if not self._intake_created_at_writable:
+            for row in records:
+                row["fields"].pop(_intake_field("created_at"), None)
         data = self._batch_create(table, records, client_token=intake_client_token(message))
         body = data.get("data") if isinstance(data.get("data"), dict) else {}
         created = body.get("records") if isinstance(body.get("records"), list) else []
@@ -712,57 +750,24 @@ class BitableStore:
 
     # --- standard ---------------------------------------------------------
 
-    def get_standard(self, user_id: str) -> dict[str, Any]:
+    def base_standard(self, user_id: str) -> dict[str, Any]:
+        standard = {**DEFAULT_DAILY_STANDARD, "source": "default"}
         if not self.standard_table:
-            return {**DEFAULT_DAILY_STANDARD, "source": "default"}
-        if not self.app_token:
-            raise RuntimeError("BITABLE_APP_TOKEN is not configured.")
-
-        user_id = str(user_id or "").strip()
-        names = _unique_non_empty([_std_field(key) for key in STANDARD_FIELDS])
-        start = self._today_start_millis()
-        today_text = self._today_string()
-        best_score = -1
-        best_fields: dict[str, Any] | None = None
-        for _record_id, fields in _list_records(self.app_token, self.standard_table, names):
-            row_user_id = extract_text(fields.get(_std_field("user_id")))
-            if user_id and row_user_id and row_user_id != user_id:
+            return standard
+        rows = []
+        today = self.today_string()
+        for _,fields in _list_records(self.app_token, self.standard_table):
+            uid = extract_text(fields.get(_std_field("user_id")))
+            if uid and uid != user_id: continue
+            value = fields.get(_std_field("date"))
+            if value not in (None, "") and not self._date_value_in_range(value, self._today_start_millis(), self._today_start_millis()+86400000, today, today+"~")[1]:
                 continue
-            date_value = fields.get(_std_field("date"))
-            date_text = extract_text(date_value)
-            if date_text:
-                number = extract_number(date_value)
-                if number is not None:
-                    if not (start <= int(number) < start + 86400000):
-                        continue
-                elif date_text not in {today_text, "today", "今日"}:
-                    continue
-
-            standard_type = extract_text(fields.get(_std_field("type"))).lower()
-            score = 0
-            if user_id and row_user_id == user_id:
-                score += 100
-            elif not row_user_id:
-                score += 10
-            if date_value not in (None, ""):
-                score += 20
-            if standard_type in {"daily", "default", "默认", "每日", "每日标准"}:
-                score += 5
-            if score > best_score:
-                best_score = score
-                best_fields = fields
-
-        if best_fields is None:
-            return {**DEFAULT_DAILY_STANDARD, "source": "default"}
-        standard = {**DEFAULT_DAILY_STANDARD, "source": "bitable"}
-        for key in ("carbs", "protein", "fat"):
-            value = extract_number(best_fields.get(_std_field(key)))
-            if value is not None:
-                standard[key] = value
-        kcal = extract_number(best_fields.get(_std_field("kcal")))
-        if kcal is None:
-            kcal = round_number(standard["carbs"] * 4 + standard["protein"] * 4 + standard["fat"] * 9)
-        standard["kcal"] = kcal
+            rows.append(((bool(value), bool(uid)), fields))
+        for _,fields in sorted(rows, key=lambda x:x[0]):
+            for key in ("carbs", "protein", "fat", "kcal"):
+                value = extract_number(fields.get(_std_field(key)))
+                if value is not None: standard[key] = value
+            standard["source"] = "bitable"
         return standard
 
     # --- pending ----------------------------------------------------------
@@ -785,7 +790,7 @@ class BitableStore:
             if (intent == "missing_food" and existing["status"] == "pending"
                     and not existing["payload"].get("candidates") and (payload or {}).get("candidates")):
                 self._update_record(self.pending_table, existing["record_id"], {
-                    _pending_field("payload"): json.dumps(payload, ensure_ascii=False, allow_nan=False)})
+                    _pending_field("payload"): _encode_pending_payload(payload)})
                 existing["payload"] = payload
             return existing
         now = timeutil.now_millis()
@@ -802,10 +807,10 @@ class BitableStore:
             _pending_field("food_name"): food_name,
             _pending_field("meal_type"): meal_type or "unknown",
             _pending_field("raw_text"): message.get("text", ""),
-            _pending_field("payload"): json.dumps(payload or {}, ensure_ascii=False, allow_nan=False),
+            _pending_field("payload"): _encode_pending_payload(payload or {}),
             _pending_field("status"): "pending",
             _pending_field("created_at"): now,
-            _pending_field("expires_at"): 0 if intent in {"message_execution", "message_received"} else now + int(ttl_hours * 3600 * 1000),
+            _pending_field("expires_at"): 0 if intent in {"message_execution", "message_received", "agent_session", "user_settings", "reminder_receipt"} else now + int(ttl_hours * 3600 * 1000),
         }
         if grams is not None:
             fields[_pending_field("grams")] = grams
@@ -827,15 +832,13 @@ class BitableStore:
         if not self.app_token or not self.pending_table:
             return None
         names = [_pending_field(key) for key in PENDING_FIELDS]
-        for record_id, fields in _list_records(self.app_token, self.pending_table, names):
+        for record_id, fields in _list_records(self.app_token, self.pending_table, names, filter_formula="CurrentValue.[" + _pending_field("id") + "]=" + json.dumps(pending_id)):
             if extract_text(fields.get(_pending_field("id"))) == pending_id:
                 return self._pending_task(record_id, fields)
         return None
 
     def _pending_task(self, record_id: str, fields: dict[str, Any]) -> dict[str, Any]:
-        payload = json.loads(extract_text(fields.get(_pending_field("payload"))) or "{}")
-        if not isinstance(payload, dict):
-            raise ValueError("pending payload must be a JSON object")
+        payload = _decode_pending_payload(extract_text(fields.get(_pending_field("payload"))))
         return {
             "record_id": record_id,
             "pending_id": extract_text(fields.get(_pending_field("id"))),
@@ -853,33 +856,6 @@ class BitableStore:
             "expires_at": extract_number(fields.get(_pending_field("expires_at"))) or 0.0,
         }
 
-    def load_active_pending(self, user_id: str, chat_id: str) -> dict[str, Any] | None:
-        if not self.app_token or not self.pending_table:
-            return None
-        user_id = str(user_id or "").strip()
-        chat_id = str(chat_id or "").strip()
-        names = _unique_non_empty([_pending_field(key) for key in PENDING_FIELDS])
-        now = timeutil.now_millis()
-        best: dict[str, Any] | None = None
-        for record_id, fields in _list_records(self.app_token, self.pending_table, names):
-            if extract_text(fields.get(_pending_field("status"))).lower() != "pending":
-                continue
-            if extract_text(fields.get(_pending_field("intent"))) in {"message_execution", "message_received"}:
-                continue
-            row_user_id = extract_text(fields.get(_pending_field("user_id")))
-            if user_id and row_user_id and row_user_id != user_id:
-                continue
-            row_chat_id = extract_text(fields.get(_pending_field("chat_id")))
-            if chat_id and row_chat_id and row_chat_id != chat_id:
-                continue
-            expires_at = extract_number(fields.get(_pending_field("expires_at"))) or 0.0
-            if expires_at and expires_at < now:
-                continue
-            task = self._pending_task(record_id, fields)
-            if best is None or float(task.get("created_at") or 0) > float(best.get("created_at") or 0):
-                best = task
-        return best
-
     def mark_pending_status(self, task: dict[str, Any], status: str) -> dict[str, Any]:
         return self._update_record(self.pending_table, str(task.get("record_id") or ""), {_pending_field("status"): status})
 
@@ -893,7 +869,7 @@ class BitableStore:
 
     def save_execution(self, task: dict[str, Any], payload: dict[str, Any], *, completed: bool = False) -> None:
         self._update_record(self.pending_table, task["record_id"], {
-            _pending_field("payload"): json.dumps(payload, ensure_ascii=False, allow_nan=False),
+            _pending_field("payload"): _encode_pending_payload(payload),
             _pending_field("status"): "completed" if completed else "pending",
             _pending_field("expires_at"): 0,
         })
@@ -942,6 +918,62 @@ class BitableStore:
             )
         except Exception as exc:  # noqa: BLE001 - metrics must never break the chain
             print(f"[usage_event_error] {type(exc).__name__}: {exc}")
+
+
+    def intake_items(self, user_id, start_date="", end_date="", include_deleted=False):
+        from datetime import datetime, timedelta, timezone
+        result = []
+        for rid, fields in self._iter_intake_rows():
+            if extract_text(fields.get(_intake_field("user_id"))) != user_id:
+                continue
+            status = extract_text(fields.get(_intake_field("status")))
+            if not include_deleted and not _is_valid_intake_status(status):
+                continue
+            value = fields.get(_intake_field("date"))
+            number = extract_number(value)
+            day = (datetime.fromtimestamp(number / 1000, timezone(timedelta(hours=self.offset_hours))).date().isoformat()
+                   if number is not None else extract_text(value))
+            if (start_date and day < start_date) or (end_date and day >= end_date):
+                continue
+            item = self._intake_summary_item(rid, fields)
+            item.update(date=day, user_id=user_id, status=status,
+                        food_id=extract_text(fields.get(_intake_field("food_id"))))
+            result.append(item)
+        return sorted(result, key=lambda r: (r["created_at"], r["record_id"]))
+
+    def revise_intake(self, user_id, record_id, item=None):
+        row = next((r for r in self.intake_items(user_id, include_deleted=True) if r["record_id"] == record_id), None)
+        if row is None:
+            raise ValueError("intake target unavailable")
+        fields = {_intake_field("status"): "deleted"} if item is None else {
+            _intake_field("grams"): item["grams"],
+            _intake_field("snapshot"): json.dumps(item["snapshot"], ensure_ascii=False),
+            **{_intake_field(k): v for k,v in item["nutrition"].items()}}
+        self._update_record(self.intake_table, record_id, fields)
+        return {**row, **(item or {"status": "deleted"})}
+
+    def cache_food(self, food):
+        global _FOODS_CACHE
+        existing = next((f for f in self.load_foods() if f.get("food_id") == food["food_id"]), None)
+        if not existing:
+            self.write_food(food)
+            _FOODS_CACHE = None
+            existing = next((f for f in self.load_foods() if f.get("food_id") == food["food_id"]), None)
+        if existing is None:
+            raise RuntimeError("cached food missing after create")
+        self._update_record(self.food_table, existing["record_id"], {
+            _food_candidate_names("carbs")[0]: food["carbs_per_100g"],
+            _food_candidate_names("protein")[0]: food["protein_per_100g"],
+            _food_candidate_names("fat")[0]: food["fat_per_100g"],
+            "boohee_id": food.get("boohee_id", ""), "source": food.get("source", ""),
+            "kcal_per_100g": food.get("kcal_per_100g"),
+            "units": json.dumps(food.get("units", []), ensure_ascii=False),
+            "detail_loaded": "true" if food.get("detail_loaded") else "false"})
+        _FOODS_CACHE = None
+
+    def list_documents(self, kind):
+        return [self._pending_task(rid, f) for rid,f in _list_records(self.app_token, self.pending_table)
+                if extract_text(f.get(_pending_field("intent"))) == kind]
 
 
 def usage_event_token(message_id: str) -> str:

@@ -4,7 +4,7 @@ Endpoints:
   GET  /health                  -> liveness
   POST /webhook/feishu/events   -> verify/challenge, quick ACK, process in request thread
 
-P0 intentionally has no /tasks/* cron endpoints (see REQUIREMENTS.md OUT OF SCOPE).
+Reminder timers bind agent.storage.reminders.handler in a separate Event function.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ if _DEPS.exists():
     sys.path.insert(0, str(_DEPS))  # vendored dependencies built by deploy/build_zip.sh
 
 from agent import load_config, run  # noqa: E402
+from agent.graph import session_lock
 from agent.policy import resolve_preset  # noqa: E402
 from agent.storage import (  # noqa: E402
     BitableStore,
@@ -157,6 +158,9 @@ class Handler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "service": SERVICE_NAME,
                 "version": "v4.0.1",
+                "build_id": (ROOT / "BUILD_ID").read_text().strip() if (ROOT / "BUILD_ID").exists() else "development",
+                "model": load_config().model,
+                "retriever": load_config().knowledge_retriever,
                 "env": os.getenv("APP_ENV", "production"),
                 "env_check": _env_check(),
             })
@@ -198,13 +202,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"status": "ignored", "reason": "not_text_event"})
             return
 
+        store = _get_store()
+        message = {**message, "user_id": _resolve_user_alias(store, message.get("user_id", ""))}
         try:
             config = load_config()
             preset = resolve_preset(config.preset, config.allowed_tools)
             store = _get_store()
-            message = {**message, "user_id": _resolve_user_alias(store, message.get("user_id", ""))}
             receipt = store.create_pending(message, "message_received", "", None, "unknown",
-                                           payload={"message": message, "intake_date": store.today_string()}) if preset.allow_write else None
+                                           payload={"message": message, "intake_date": store.today_string(), "received_at": time.time()}) if preset.allow_write else None
             if receipt and receipt["status"] == "not_configured":
                 raise RuntimeError("pending_tasks is required before accepting messages")
         except Exception as exc:
@@ -221,6 +226,18 @@ def _resolve_user_alias(store: Any, user_id: str) -> str:
 
 
 def _process_message_synchronously(message: dict[str, str], receipt: dict | None = None) -> bool:
+    with session_lock(message["user_id"], message["chat_id"]):
+        if receipt:
+            tasks = [t for t in _get_store().load_unfinished_executions()
+                     if t["user_id"] == message["user_id"] and t["chat_id"] == message["chat_id"]]
+            for task in sorted(tasks, key=lambda t: (t["created_at"], t["payload"].get("received_at", 0))):
+                if not _execute_message(task["payload"]["message"], task if task["intent"] == "message_received" else None):
+                    return False
+            return True
+        return _execute_message(message)
+
+
+def _execute_message(message: dict[str, str], receipt: dict | None = None) -> bool:
     if not _try_mark_message_processing(message):
         _log_event("duplicate_skipped", message, {})
         return False
@@ -237,6 +254,11 @@ def _process_message_synchronously(message: dict[str, str], receipt: dict | None
                 message = receipt["payload"]["message"]
             else:
                 message = {**message, "user_id": _resolve_user_alias(store, message.get("user_id", ""))}
+            if preset.allow_write and receipt:
+                settings = store.load_document("user_settings", message["user_id"])
+                if settings.get("feishu_chat_id") != message["chat_id"]:
+                    settings["feishu_chat_id"] = message["chat_id"]
+                    store.save_document("user_settings", message["user_id"], "", settings)
             result = run(message, store=store, config=config,
                          intake_date=receipt["payload"]["intake_date"] if receipt else None)
             if result["status"] == "error":
@@ -244,6 +266,8 @@ def _process_message_synchronously(message: dict[str, str], receipt: dict | None
             if preset.send_reply and result["reply"] and message.get("chat_id"):
                 feishu_client.send_text(message["chat_id"], result["reply"], uuid_key=reply_uuid(message))
                 reply_sent = True
+                from agent.graph import mark_reply_presented
+                mark_reply_presented(store, message["user_id"], message["chat_id"], result)
             if receipt:
                 store.mark_pending_status(receipt, "completed")
             _mark_message_done(message, "done")
@@ -255,12 +279,12 @@ def _process_message_synchronously(message: dict[str, str], receipt: dict | None
     if error:
         _mark_message_done(message, "failed")
     latency_ms = int((time.monotonic() - started) * 1000)
-    if store and config:
+    if store and config and resolve_preset(config.preset, config.allowed_tools).allow_write:
         store.append_usage_event({
             "event_id": usage_event_token(message_key(message)), "event_type": "message_processed",
             "message_id": message_key(message), "user_id": message.get("user_id", ""),
             "preset": config.preset, "planner": config.planner, "status": "error" if error else "ok",
-            "error_type": error[:200], "action_count": len(result.get("plan", {}).get("actions", [])),
+            "error_type": error[:200], "action_count": len(result.get("native_calls", [])),
             "reply_sent": reply_sent, "latency_ms": latency_ms})
     _log_event("message_failed" if error else "message_processed", message,
                {"status": "error" if error else "ok", "reply_sent": reply_sent,
@@ -293,6 +317,12 @@ def main() -> None:
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(json.dumps({"event": "server_started", "service": SERVICE_NAME, "port": port}))
     server.serve_forever()
+
+
+def reminder_handler(event, context=None):
+    """Event-SCF entry; this module sets the bundled deps path before imports."""
+    from agent.storage.reminders import handler
+    return handler(event, context)
 
 
 if __name__ == "__main__":

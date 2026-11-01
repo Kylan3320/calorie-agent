@@ -1,4 +1,4 @@
-"""Local CLI (FakeStore by default, no network):
+"""Local CLI (FakeStore by default, DeepSeek credentials/network required):
 
     python3 cli.py 米饭200g
     python3 cli.py --planner deepseek 记录鸡蛋100g，查下今天还剩多少
@@ -21,7 +21,7 @@ from agent.policy import resolve_preset
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Calorie Agent V4 local CLI")
-    parser.add_argument("--planner", choices=["deterministic", "deepseek"], default=None)
+    parser.add_argument("--planner", choices=["deepseek"], default=None)
     parser.add_argument("--preset", choices=["live", "shadow_fakewrite", "shadow_readonly"], default=None)
     parser.add_argument("text", nargs="*")
     args = parser.parse_args(argv)
@@ -31,18 +31,19 @@ def main(argv: list[str] | None = None) -> int:
         config = dataclasses.replace(config, planner=args.planner)
     if args.preset:
         config = dataclasses.replace(config, preset=args.preset)
-    # CLI 默认走本地假存储 + 确定性规划，保证零配置可跑
+    # CLI 默认使用本地假存储；模型与业务运行时和其他入口一致。
     if config.preset == "live" and args.preset is None:
         config = dataclasses.replace(config, preset="shadow_fakewrite")
-    if config.planner == "deepseek" and args.planner is None:
-        config = dataclasses.replace(config, planner="deterministic")
 
     preset = resolve_preset(config.preset, config.allowed_tools)
     store = FakeStore() if preset.store_kind == "fake" else BitableStore(offset_hours=config.timezone_offset_hours)
     texts = [" ".join(args.text)] if args.text else _interactive()
+    session_id = "cli:" + uuid.uuid4().hex
     for text in texts:
-        result = run({"message_id": f"cli-{uuid.uuid4().hex}", "user_id": "local_user", "chat_id": "cli", "text": text}, store=store, config=config)
+        result = run({"message_id": f"cli-{uuid.uuid4().hex}", "user_id": "local_user", "chat_id": session_id, "text": text}, store=store, config=config)
         _print_result(result)
+        from agent.graph import mark_reply_presented
+        mark_reply_presented(store, "local_user", session_id, result)
     return 0
 
 
@@ -59,8 +60,7 @@ def _interactive() -> Iterator[str]:
 
 
 def _print_result(result: dict[str, Any]) -> None:
-    print("plan:      ", json.dumps(result.get("plan", {}), ensure_ascii=False))
-    print("policy:    ", json.dumps(result.get("policy_decision", {}), ensure_ascii=False))
+    print("native calls:", json.dumps(result.get("native_calls", []), ensure_ascii=False))
     print("reply:     ", result.get("reply", ""))
     print("reply_source:", result.get("reply_source", ""))
     print("guard:     ", json.dumps(result.get("guard_result", {}), ensure_ascii=False))

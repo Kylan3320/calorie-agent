@@ -58,7 +58,10 @@ DEFAULT_FOODS = [
 ]
 
 
-class FakeStore:
+from .state_store import StateStore
+
+
+class FakeStore(StateStore):
     """In-memory business store with a fixed intake date and simulated persistence."""
 
     def __init__(
@@ -197,6 +200,7 @@ class FakeStore:
                 "grams": row["grams"],
                 "created_at": row["created_at"],
                 "nutrition": dict(row["nutrition"]),
+                "snapshot": deepcopy(row.get("snapshot", {})),
             }
             items.append(item)
             for key in totals:
@@ -231,6 +235,7 @@ class FakeStore:
                 "food_name": item.get("matched_name", ""),
                 "grams": item.get("grams", 0),
                 "nutrition": dict(item["nutrition"]),
+                "snapshot": deepcopy(item.get("snapshot", {})),
                 "status": "valid",
                 "created_at": self._next_created_at(),
             }
@@ -265,7 +270,7 @@ class FakeStore:
 
     # --- standard ---------------------------------------------------------------
 
-    def get_standard(self, user_id: str) -> dict[str, Any]:
+    def base_standard(self, user_id: str) -> dict[str, Any]:
         return {**DEFAULT_DAILY_STANDARD, "source": "fake"}
 
     def summarize_history(self, user_id: str, start_date: str, end_date: str, food_query: str = "") -> dict[str, Any]:
@@ -349,24 +354,10 @@ class FakeStore:
             "payload": deepcopy(payload or {}),
             "status": "pending",
             "created_at": self._next_created_at(),
-            "expires_at": 0 if intent in {"message_execution", "message_received"} else now_millis() + int(ttl_hours * 3600 * 1000),
+            "expires_at": 0 if intent in {"message_execution", "message_received", "agent_session", "user_settings", "reminder_receipt"} else now_millis() + int(ttl_hours * 3600 * 1000),
         }
         self.pending.append(task)
         return deepcopy(task)
-
-    def load_active_pending(self, user_id: str, chat_id: str) -> dict[str, Any] | None:
-        active = [
-            task
-            for task in self.pending
-            if task["status"] == "pending"
-            and task["intent"] not in {"message_execution", "message_received"}
-            and (not task["expires_at"] or task["expires_at"] > now_millis())
-            and (not user_id or not task["user_id"] or task["user_id"] == user_id)
-            and (not chat_id or not task["chat_id"] or task["chat_id"] == chat_id)
-        ]
-        if not active:
-            return None
-        return deepcopy(max(active, key=lambda task: task["created_at"]))
 
     def mark_pending_status(self, task: dict[str, Any], status: str) -> dict[str, Any]:
         for row in self.pending:
@@ -405,3 +396,28 @@ class FakeStore:
 
     def append_usage_event(self, event: dict[str, Any]) -> None:
         self.usage_events.append(dict(event))
+
+    def intake_items(self, user_id, start_date="", end_date="", include_deleted=False):
+        return deepcopy([r for r in self.intake if r["user_id"] == user_id
+            and (include_deleted or _is_valid_intake_status(r["status"]))
+            and (not start_date or r["date"] >= start_date) and (not end_date or r["date"] < end_date)])
+
+    def revise_intake(self, user_id, record_id, item=None):
+        row = next((r for r in self.intake if r["record_id"] == record_id and r["user_id"] == user_id), None)
+        if not row:
+            raise ValueError("intake target unavailable")
+        if item is None:
+            row["status"] = "deleted"
+        else:
+            row.update(grams=item["grams"], nutrition=deepcopy(item["nutrition"]), snapshot=deepcopy(item["snapshot"]))
+        return deepcopy(row)
+
+    def cache_food(self, food):
+        existing = next((f for f in self.foods if f.get("food_id") == food.get("food_id")), None)
+        if existing is not None:
+            existing.update(deepcopy(food))
+        else:
+            self.foods.append(deepcopy(food))
+
+    def list_documents(self, kind):
+        return [deepcopy(t) for t in self.pending if t["intent"] == kind]
