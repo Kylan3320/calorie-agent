@@ -1,6 +1,4 @@
-# 评测集：映射 PRD《测试集与数据指标》核心场景（确定性规划器 + FakeStore）。
-# 断言只锁不变量（工具状态序列、关键回复片段、写入计数、自洽性），不锁具体营养数值。
-# PRD 的"表格字段异常"用例依赖真实 Bitable，属于线上验收项，不在本文件（见 REQUIREMENTS.md §6）。
+# 对话回归场景；数值正确性、策略及接口保证由 checks 补充。
 
 cases:
   - id: T01
@@ -20,7 +18,7 @@ cases:
       - text: 午餐 米饭200g 鸡胸肉150g，查下今天还剩多少
         expect:
           tool_statuses: [[record_food, ok], [record_food, ok], [query_today, ok]]
-          reply_contains: ["我做了3步", "今日累计"]
+          reply_contains: ["本次处理：", "今日累计"]
           store_rows: 2
           totals_consistent: true
 
@@ -59,7 +57,7 @@ cases:
           store_rows: 1   # 软删除：行仍在，status=deleted
 
   - id: T05
-    name: 缺克重追问闭环（PRD S4）
+    name: 缺克重追问闭环
     smoke: true
     steps:
       - text: 米饭
@@ -72,7 +70,7 @@ cases:
           store_rows: 1
 
   - id: T06
-    name: 重复推送幂等（PRD S6）
+    name: 重复推送幂等
     steps:
       - text: 鸡蛋100g
         msg_id: T06-same-message
@@ -81,11 +79,12 @@ cases:
       - text: 鸡蛋100g
         msg_id: T06-same-message
         expect:
-          tool_statuses: [[record_food, duplicate_skipped]]
-          reply_contains: ["重复"]
+          tool_statuses: [[record_food, ok]]
+          reply_contains: ["已记录"]
+          store_rows: 1
 
   - id: T07
-    name: 食物歧义返回候选（PRD E03）
+    name: 食物歧义返回候选
     steps:
       - text: 记录 米 100g
         expect:
@@ -93,7 +92,7 @@ cases:
           reply_contains: ["相近食物"]
 
   - id: T08
-    name: 未知食物进 pending（PRD E02/S5 变体）
+    name: 未知食物进 pending
     steps:
       - text: 记录 沙拉汁 30g
         expect:
@@ -116,7 +115,7 @@ cases:
           reply_contains: ["约为"]
 
   - id: T10
-    name: 闲聊不写库（PRD E01）
+    name: 闲聊不写库
     smoke: true
     steps:
       - text: 你好

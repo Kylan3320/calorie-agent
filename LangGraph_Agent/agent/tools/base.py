@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+import math
 
 from ..storage.food_match import choose_food_match
 from ..storage.timeutil import round_number
@@ -14,6 +15,15 @@ class ToolContext:
     store: Any  # BitableStore | FakeStore (contracts/tool_protocol.md)
     config: Any
     context: dict[str, Any]  # graph-level facts: active_pending, etc.
+
+
+def positive_grams(value: Any) -> float | None:
+    if value is None:
+        return None
+    grams = float(value)
+    if not math.isfinite(grams) or grams <= 0:
+        raise ValueError("grams must be a finite positive number")
+    return grams
 
 
 def calculate_food_intake(food: dict[str, Any], grams: float) -> dict[str, float]:

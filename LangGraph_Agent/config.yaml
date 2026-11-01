@@ -5,7 +5,7 @@ preset: live
 planner: deepseek
 model: deepseek-v4-flash
 
-# 知识检索器：faq（M1 生产默认）| 后续 lightrag（M3）
+# 知识检索器：faq（仓库默认）| lightrag（生产 Layer 通过环境变量选择）
 knowledge_retriever: faq
 
 # 工具白名单（live 预设生效；shadow 预设有各自的固定范围）

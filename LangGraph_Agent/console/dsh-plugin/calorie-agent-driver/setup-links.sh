@@ -3,13 +3,14 @@
 # 模块实例（类同一性）。DSH_REPO 可用环境变量覆盖。
 set -euo pipefail
 
-DSH_REPO="${DSH_REPO:-/Users/boohee/Documents/DSH}"
+DSH_REPO="${DSH_REPO:?请设置 DSH_REPO 为已构建的 DSH 仓库绝对路径}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET="$DIR/node_modules/@deepseek-ai"
 mkdir -p "$TARGET"
 
 link() {
   local src="$1" dst="$2"
+  [[ -e "$src" ]] || { echo "缺少 DSH 依赖：$src" >&2; exit 1; }
   if [ ! -e "$dst" ]; then
     ln -s "$src" "$dst"
     echo "linked $(basename "$dst")"
@@ -25,5 +26,13 @@ link "$DSH_REPO/packages/core/session"    "$TARGET/dsh-session"
 link "$DSH_REPO/packages/llm/llm"         "$TARGET/dsh-llm"
 link "$DSH_REPO/packages/core/scope"      "$TARGET/dsh-scope"
 link "$DSH_REPO/packages/core/agent-loop" "$TARGET/dsh-agent-loop"
+
+cd "$DIR"
+node --input-type=module -e '
+const api = await import("@deepseek-ai/dsh-agent-loop");
+for (const name of ["ReactLoopAgent", "turnBoundaryProjectionDefinition"]) {
+  if (!api[name]) throw new Error(`DSH 构建缺少导出：${name}`);
+}
+'
 
 echo "node_modules links ready at $TARGET"

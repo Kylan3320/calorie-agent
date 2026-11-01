@@ -1,15 +1,4 @@
-"""Boohee open-platform client: the ONLY outbound call to Boohee (D22/D24).
-
-M1 scope: food keyword search as the local-database fallback. Auth is the
-X-Api-Key header (token+signing path intentionally unused). Results are
-normalized to our foods canon (per-100g, carbs/protein/fat); kcal is computed
-by our own 4/4/9 formula at intake time, never stored from the remote.
-
-Degradation is silent-by-design at the caller level: any failure (missing key,
-network, non-zero code) returns [] and the record flow falls back to the
-original not_found path. A process-level TTL cache keeps quota usage decaying;
-`transport` is injectable for eval (no network in tests, D24).
-"""
+"""Boohee food search: normalized per-100g facts, TTL cache and explicit failures."""
 
 from __future__ import annotations
 
@@ -18,6 +7,7 @@ import os
 import time
 import urllib.parse
 import urllib.request
+import urllib.error
 from collections.abc import Callable
 from typing import Any
 
@@ -32,21 +22,26 @@ _TRANSPORT: HttpGet | None = None
 HttpGet = Callable[[str, dict[str, str]], dict[str, Any]]
 
 
+class BooheeError(RuntimeError):
+    pass
+
+
 def set_transport(transport: HttpGet | None) -> None:
     """Test seam: override the HTTP transport (eval must not touch the network, D24)."""
     global _TRANSPORT
     _TRANSPORT = transport
+    _cache.clear()
 
 
 def search_food(keyword: str, *, per_page: int = 5, transport: HttpGet | None = None) -> list[dict[str, Any]]:
     """Search Boohee foods; returns normalized candidates:
-    [{boohee_id, name, carbs_per_100g, protein_per_100g, fat_per_100g}]. Empty on any failure."""
+    [{boohee_id, name, carbs_per_100g, protein_per_100g, fat_per_100g}]."""
     keyword = str(keyword or "").strip()
     if not keyword or len(keyword) > 30:
         return []
     api_key = os.getenv("BOOHEE_API_KEY", "")
-    if not api_key and _TRANSPORT is None:
-        return []  # 未配置且无测试传输：静默降级回本地 not_found 流程
+    if not api_key and _TRANSPORT is None and transport is None:
+        return []
     cache_key = f"{keyword.lower()}:{per_page}"
     now = time.monotonic()
     cached = _cache.get(cache_key)
@@ -57,12 +52,10 @@ def search_food(keyword: str, *, per_page: int = 5, transport: HttpGet | None = 
     url = f"{BOOHEE_SEARCH_URL}?{urllib.parse.urlencode({'keyword': keyword, 'per_page': per_page})}"
     try:
         data = getter(url, {"X-Api-Key": api_key, "Accept": "*/*"})
-    except Exception as exc:  # noqa: BLE001 - remote fallback must never break the record flow
-        print(f"[boohee] search failed for {keyword!r}: {type(exc).__name__}: {exc}")
-        return []
+    except Exception as exc:
+        raise BooheeError(f"{type(exc).__name__}: {exc}") from exc
     if not isinstance(data, dict) or data.get("code") != 0:
-        print(f"[boohee] search non-zero response for {keyword!r}: {str(data)[:200]}")
-        return []
+        raise BooheeError(f"unexpected response: {str(data)[:200]}")
     foods = (data.get("data") or {}).get("foods") if isinstance(data.get("data"), dict) else None
     candidates = [item for item in (_normalize_food(f) for f in (foods or []) if isinstance(f, dict)) if item]
     candidates = candidates[:_MAX_CANDIDATES]
@@ -112,11 +105,12 @@ def _default_http_get(url: str, headers: dict[str, str]) -> dict[str, Any]:
         try:
             with urllib.request.urlopen(request, timeout=BOOHEE_TIMEOUT_SECONDS) as response:
                 return json.loads(response.read().decode("utf-8"))
-        except Exception:
-            if attempt == 0:
+        except (urllib.error.URLError, TimeoutError) as exc:
+            retryable = not isinstance(exc, urllib.error.HTTPError) or exc.code == 429 or 500 <= exc.code < 600
+            if attempt == 0 and retryable:
                 time.sleep(0.5)
                 continue
             raise
 
 
-__all__ = ["cached_candidates", "search_food", "set_transport"]
+__all__ = ["BooheeError", "cached_candidates", "search_food", "set_transport"]

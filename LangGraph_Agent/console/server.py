@@ -1,13 +1,4 @@
-"""本地网页配置台：配置编辑（分层溯源）/ Playground / 轨迹查看 / 评测按钮。
-
-    .venv/bin/python3 -m console.server          # http://127.0.0.1:8765
-
-思想来自 DeepSeek Harness（学思想不搬内核，REQUIREMENTS.md D7/D18）：
-- 配置三层可见：schema 默认 < config.yaml < 环境变量覆盖，逐字段显示来源。
-- Playground 直接调 agent.graph.run（不发飞书消息），默认 FakeStore，可切真实表格。
-- 轨迹页读取 calorie_agent_trace.v1 JSONL（Playground 的每次运行也会写轨迹）。
-- 评测按钮直接跑 harness/eval/runner.py（smoke/full/单用例）。
-"""
+"""Local DSH bridge, configuration editor, playground, traces and eval UI."""
 
 from __future__ import annotations
 
@@ -19,6 +10,7 @@ import subprocess
 import sys
 import time
 import uuid
+import yaml
 from pathlib import Path
 from typing import Any
 
@@ -38,8 +30,9 @@ ENV_KEYS = [
     "BITABLE_APP_TOKEN", "BITABLE_FOOD_TABLE_ID", "BITABLE_INTAKE_TABLE_ID",
     "BITABLE_STANDARD_TABLE_ID", "BITABLE_PENDING_TABLE_ID", "BITABLE_USAGE_TABLE_ID",
     "PRESET", "DEEPSEEK_MODEL", "APP_TIMEZONE_OFFSET_HOURS", "TRACE_PATH",
+    "CONSOLE_USER_ID", "KNOWLEDGE_RETRIEVER", "BITABLE_KNOWLEDGE_TABLE_ID",
+    "BITABLE_ALIASES_TABLE_ID", "BOOHEE_API_KEY", "SILICONFLOW_API_KEY",
 ]
-ENV_FILE_CANDIDATES = [Path("/tmp/v4_env.json")]
 
 # 工具展示与保存的稳定顺序（SUPPORTED_TOOLS 是 set，迭代序不定；新增工具自动排在尾部）
 _TOOL_ORDER = ("record_food", "query_today", "query_food_nutrition", "undo_last")
@@ -49,30 +42,9 @@ app = FastAPI(title="Calorie Agent Console", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
 _SESSIONS: dict[str, dict[str, Any]] = {}
-_ENV_FILE_LOADED = False
-
-
-def _load_env_file() -> None:
-    """本地调试便利：把 /tmp/v4_env.json 的键值注入 os.environ（已有值的键不覆盖）。"""
-    global _ENV_FILE_LOADED
-    if _ENV_FILE_LOADED:
-        return
-    _ENV_FILE_LOADED = True
-    for candidate in ENV_FILE_CANDIDATES:
-        if not candidate.exists():
-            continue
-        try:
-            data = json.loads(candidate.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        for key, value in data.items():
-            if isinstance(value, str) and key not in os.environ:
-                os.environ[key] = value
-        break
 
 
 def _session(request: Request) -> tuple[str, dict[str, Any]]:
-    _load_env_file()
     sid = request.cookies.get("cal_console_sid") or ""
     if sid not in _SESSIONS:
         sid = uuid.uuid4().hex
@@ -142,7 +114,12 @@ def dashboard() -> str:
 # ---------------------------------------------------------------- 路由：配置
 
 def _field_source(name: str, env_key: str) -> str:
-    return f"环境变量 {env_key} 覆盖中" if os.getenv(env_key) else "config.yaml"
+    if name in {"preset", "knowledge_retriever"} and os.getenv(env_key):
+        return f"环境变量 {env_key} 覆盖中"
+    raw = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8")) or {}
+    if raw.get(name) is not None and raw.get(name) != "":
+        return "config.yaml"
+    return f"环境变量 {env_key}" if os.getenv(env_key) else "默认值"
 
 
 @app.get("/config", response_class=HTMLResponse)
@@ -156,7 +133,6 @@ def config_page() -> str:
     preset_opts = "".join(f'<option value="{p}"{" selected" if p == config.preset else ""}>{p}</option>' for p in PRESETS)
     planner_opts = "".join(f'<option value="{p}"{" selected" if p == config.planner else ""}>{p}</option>' for p in PLANNERS)
     body = (
-        # 注意：全部表单用 multipart 编码。Starlette 对无 charset 的 urlencoded 中文按 latin-1 解码会乱码，multipart 无此问题。
         '<form method="post" action="/config/save" enctype="multipart/form-data">'
         '<div class="card"><h3>工程配置（config.yaml，保存后本机立即生效；线上需重新部署）</h3>'
         f'<p><label>preset</label> <select name="preset">{preset_opts}</select> <span class="dim">{_esc(_field_source("preset", "PRESET"))}</span></p>'
@@ -196,23 +172,11 @@ def config_save(
         backup = ROOT / "config.yaml.bak"
         if not backup.exists():
             backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-    lines = [
-        "# 工程配置（secrets 与表 ID 走环境变量，见 REQUIREMENTS.md §5）",
-        "# 修改本文件后需重新部署云函数。",
-        "",
-        f"preset: {preset}",
-        f"planner: {planner}",
-        f"model: {model.strip() or 'deepseek-v4-flash'}",
-        "",
-        "# 工具白名单（live 预设生效；shadow 预设有各自的固定范围）",
-        "allowed_tools:",
-        *(f"  - {t}" for t in tools),
-        "",
-        "# 本地时区偏移（小时），用于“今天”的口径",
-        f"timezone_offset_hours: {offset:g}",
-        "",
-    ]
-    path.write_text("\n".join(lines), encoding="utf-8")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
+    raw = raw or {}
+    raw.update(preset=preset, planner=planner, model=model.strip() or "deepseek-v4-flash",
+               allowed_tools=list(tools), timezone_offset_hours=offset)
+    path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
     reset_config_cache()
     return RedirectResponse("/config", status_code=303)
 
@@ -268,7 +232,7 @@ def playground_run(
         started = time.monotonic()
         try:
             result = run(
-                {"message_id": f"console-{uuid.uuid4().hex[:12]}", "user_id": "console_user", "chat_id": "console", "text": text},
+                {"message_id": f"console-{uuid.uuid4().hex}", "user_id": _console_user_id(store), "chat_id": f"console:{sid}", "text": text},
                 store=store,
                 config=config,
             )
@@ -344,17 +308,25 @@ def _playground_page(
 
 # ---------------------------------------------------------------- 桥接 API（DSH 插件调用）
 
+def _console_user_id(store: Any) -> str:
+    if store.kind() == "fake":
+        return "console_user"
+    user_id = os.getenv("CONSOLE_USER_ID", "").strip()
+    if not user_id:
+        raise ValueError("CONSOLE_USER_ID is required for Bitable access")
+    return store.load_user_aliases().get(user_id, user_id)
+
+
 @app.post("/api/agent")
 def api_agent(payload: dict) -> Any:
-    """DSH calorie_agent 工具的对接点：一条用户文本 -> 完整 agent 图运行结果。
-
-    请求: {text, planner?, preset?, store_kind?}；回复只返回给调用方，绝不发送飞书。
-    默认 preset=live + 真实表格（与飞书同口径）；preset=shadow_fakewrite 强制内存存储。
-    """
-    _load_env_file()
+    """Run a message with stable DSH session/message IDs; see tool_protocol.md."""
     text = str(payload.get("text") or "").strip()
     if not text:
         return {"status": "error", "reply": "", "errors": ["text is required"]}
+    session_id = str(payload.get("session_id") or "").strip()
+    message_id = str(payload.get("message_id") or "").strip()
+    if not session_id or not message_id:
+        return {"status": "error", "reply": "", "errors": ["session_id and message_id are required"]}
     preset = str(payload.get("preset") or "live")
     if preset not in PRESETS:
         return {"status": "error", "reply": "", "errors": [f"unknown preset: {preset}"]}
@@ -375,10 +347,13 @@ def api_agent(payload: dict) -> Any:
 
         store = BitableStore(offset_hours=config.timezone_offset_hours)
     else:
-        store = FakeStore()
+        key = f"dsh:{session_id}"
+        if key not in _SESSIONS:
+            _SESSIONS[key] = {"store": FakeStore(), "history": []}
+        store = _SESSIONS[key]["store"]
     try:
         result = run(
-            {"message_id": f"dsh-{uuid.uuid4().hex[:12]}", "user_id": "console_user", "chat_id": "dsh", "text": text},
+            {"message_id": f"dsh:{session_id}:{message_id}", "user_id": _console_user_id(store), "chat_id": f"dsh:{session_id}", "text": text},
             store=store,
             config=config,
         )
@@ -406,7 +381,6 @@ def api_agent(payload: dict) -> Any:
 
 @app.get("/trace", response_class=HTMLResponse)
 def trace_page(request: Request, q: str = "", limit: int = 50) -> str:
-    _load_env_file()
     path = Path(os.getenv("TRACE_PATH") or "/tmp/traces.jsonl")
     entries: list[dict[str, Any]] = []
     note = ""

@@ -13,17 +13,14 @@ from ..state import AgentState
 _BLOCKED_REASON_TEXT = {
     "write_not_allowed_in_preset": "当前是只读模式，不会执行写入。",
     "too_many_actions": "这条消息包含的动作太多，请拆开发送。",
+    "pending_no_longer_active": "这条待确认任务已结束或过期，请重新发起请求。",
 }
 
 
 def reply_composer(state: AgentState) -> dict[str, Any]:
-    pending_route = state.get("pending_route") or {}
     decision = state.get("policy_decision") or {}
     results = state.get("tool_results") or []
     errors = state.get("errors") or []
-
-    if pending_route.get("handled"):
-        return {"final_reply": str(pending_route.get("reply") or ""), "reply_source": "pending", "action_summary": ""}
 
     if decision and not decision.get("allowed"):
         return {
@@ -53,10 +50,8 @@ def reply_composer(state: AgentState) -> dict[str, Any]:
         if errors:
             reply = "刚才处理时遇到问题，请稍后重试或换个说法。"
         else:
-            reply = "没有识别到需要处理的内容。你可以试试：记录鸡蛋100g / 查下今天还剩多少 / 撤销上一条。"
-        print(f"[composer] EMPTY BODY fallback: results={results} errors={errors}")
+            reply = "没有识别到需要处理的内容。你可以记录食物和克重、查询今日摄入，或撤销上一条。"
         return {"final_reply": reply, "reply_source": "safe_fallback", "action_summary": ""}
-    print(f"[composer] reply_source=agent reply={reply[:80]!r}")
     return {"final_reply": reply, "reply_source": "agent", "action_summary": summary}
 
 
@@ -64,7 +59,7 @@ def _compose_summary(labels: list[str]) -> str:
     labels = [label for label in labels if label]
     if len(labels) <= 1:
         return ""
-    return f"我做了{len(labels)}步：" + "，再".join(labels) + "。"
+    return "本次处理：" + "，再".join(labels) + "。"
 
 
 def _compose_result(item: dict[str, Any]) -> tuple[str, str]:
@@ -72,8 +67,25 @@ def _compose_result(item: dict[str, Any]) -> tuple[str, str]:
     status = str(item.get("status") or "")
     data = item.get("data") if isinstance(item.get("data"), dict) else {}
 
+    if status == "error":
+        return "这一步处理失败，尚未确认结果，请稍后重试。", ""
+    if status == "pending_cancelled":
+        return "已取消这条待补全记录。", ""
+    if status == "pending_deferred":
+        return "已保留这条待补全记录，你可以稍后补充。", ""
+
     if tool == "record_food":
+        if status == "food_library_added":
+            food = data["imported"]
+            return (
+                f"已把「{food['name']}」加入食物库（每100g：{food['kcal_per_100g']:g} kcal，"
+                f"碳水 {food['carbs_per_100g']:g}g、蛋白质 {food['protein_per_100g']:g}g、脂肪 {food['fat_per_100g']:g}g）。"
+                f"现在发「{food['name']} + 克重」即可记录。数据来源：薄荷健康。"
+            ), "确认食物入库"
         if status == "ok":
+            write = data.get("intake_write_result") or {}
+            if write.get("status") != "created" or write.get("created_count", 0) <= 0:
+                return "这条记录的写入结果尚未确认，请查询记录核对。", ""
             nutrition = data.get("nutrition") if isinstance(data.get("nutrition"), dict) else {}
             body = (
                 f"已记录{data.get('matched_name', '')} {float(data.get('grams') or 0):g}g："
@@ -82,10 +94,14 @@ def _compose_result(item: dict[str, Any]) -> tuple[str, str]:
                 f"蛋白质 {float(nutrition.get('protein') or 0):g}g、"
                 f"脂肪 {float(nutrition.get('fat') or 0):g}g）。"
             )
+            if data.get("source") == "boohee":
+                body += "数据来源：薄荷健康。"
             return body, f"记录{data.get('matched_name', '')}{float(data.get('grams') or 0):g}g"
         if status == "duplicate_skipped":
             return "这条消息之前处理过，已跳过重复写入。", "识别重复消息并跳过"
         if status == "pending_created":
+            if item.get("error"):
+                return "暂时无法查询外部食物库，这条记录尚未写入，请稍后重试。", ""
             pending = data.get("pending_result") if isinstance(data.get("pending_result"), dict) else {}
             if pending.get("intent") == "missing_food":
                 return f"食物库里还没有「{data.get('food_query', '')}」，暂时无法记录这一条。", "创建待补全提醒"
@@ -103,8 +119,8 @@ def _compose_result(item: dict[str, Any]) -> tuple[str, str]:
                 ), "请求确认薄荷候选"
             names = [str(c.get("food_name") or "") for c in data.get("candidates", []) if isinstance(c, dict)]
             names = [name for name in names if name]
-            hint = "、".join(names[:3]) if names else "相近食物"
-            return f"「{data.get('food_query', '')}」找到多个相近食物：{hint}。请用更确切的名称再发一次。", "请求确认食物"
+            hint = "、".join(f"{i + 1}. {name}" for i, name in enumerate(names)) if names else "相近食物"
+            return f"「{data.get('food_query', '')}」找到多个相近食物：{hint}。请回复序号，或用更确切的名称重新记录。", "请求确认食物"
         return "", ""
 
     if tool == "query_today" and status == "ok":
@@ -132,7 +148,7 @@ def _compose_result(item: dict[str, Any]) -> tuple[str, str]:
                 f"脂肪 {float(nutrition.get('fat') or 0):g}g）。"
             ), "查询食物库营养"
         if status == "needs_confirmation":
-            names = [str(c.get("food") or {}).get("name", "") for c in data.get("candidates", []) if isinstance(c, dict)]
+            names = [str((c.get("food") or {}).get("name", "")) for c in data.get("candidates", []) if isinstance(c, dict)]
             names = [name for name in names if name]
             hint = "、".join(names[:3]) if names else "相近食物"
             return f"「{data.get('food_query', '')}」找到多个相近食物：{hint}。请用更确切的名称再问一次。", "请求确认食物"
@@ -192,10 +208,8 @@ def _compose_result(item: dict[str, Any]) -> tuple[str, str]:
                 answer = f"{answer}\n来源：{source}"
             return answer, "查询饮食知识"
         if status == "not_found":
-            return "知识库里还没有收录这个问题，我已经记下来，补充后就能回答了。你也可以换个问法试试。", "查询饮食知识"
+            return "知识库里还没有收录这个问题，你可以换个问法试试。", "查询饮食知识"
         return "知识检索暂时不可用，请稍后再试。", ""
-    if status == "error":
-        return "这一步处理失败，请稍后重试。", ""
     return "", ""
 
 

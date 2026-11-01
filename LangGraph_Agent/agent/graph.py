@@ -33,8 +33,8 @@ from .storage import BitableStore, FakeStore
 from .policy import resolve_preset
 
 
-@lru_cache(maxsize=4)
-def _compiled(planner_backend: str):
+@lru_cache(maxsize=1)
+def _compiled():
     graph = StateGraph(AgentState)
     graph.add_node("input_normalizer", input_normalizer)
     graph.add_node("context_loader", context_loader)
@@ -51,8 +51,8 @@ def _compiled(planner_backend: str):
     graph.add_edge("context_loader", "pending_router")
     graph.add_conditional_edges(
         "pending_router",
-        lambda state: "composer" if (state.get("pending_route") or {}).get("handled") else "planner",
-        {"composer": "reply_composer", "planner": "planner"},
+        lambda state: "policy" if state.get("plan") else "planner",
+        {"policy": "policy_gate", "planner": "planner"},
     )
     graph.add_edge("planner", "policy_gate")
     graph.add_conditional_edges("policy_gate", route_after_policy, {"executor": "tool_executor", "composer": "reply_composer"})
@@ -68,6 +68,7 @@ def run(
     *,
     store: Any = None,
     config: Config | None = None,
+    intake_date: str | None = None,
 ) -> dict[str, Any]:
     """Process one inbound message dict ({message_id,user_id,chat_id,text}) and
     return {status, reply, ...facts}. Reply sending stays in the caller (app.py)."""
@@ -76,13 +77,18 @@ def run(
     if store is None:
         store = FakeStore() if preset.store_kind == "fake" else BitableStore(offset_hours=config.timezone_offset_hours)
 
-    app = _compiled(config.planner)
+    execution = store.load_execution(message) if preset.allow_write else None
+    if execution and execution["status"] == "completed":
+        return execution["payload"]["result"]
+    app = _compiled()
     state = initial_state(message)
-    state.update({"config": config, "store": store, "preset": preset})
+    state.update({"config": config, "store": store, "preset": preset, "execution": execution, "intake_date": intake_date})
     final = app.invoke(state)
 
     errors = list(final.get("errors") or [])
-    return {
+    if not final["guard_result"]["passed"]:
+        errors.append("reply_guard_failed")
+    result = {
         "status": "error" if errors else "ok",
         "reply": str(final.get("final_reply") or ""),
         "reply_source": str(final.get("reply_source") or ""),
@@ -96,6 +102,10 @@ def run(
         "errors": errors,
         "trace_written": bool(final.get("trace_written")),
     }
+    execution = final.get("execution")
+    if execution and not errors and final["guard_result"]["passed"]:
+        store.save_execution(execution, {**execution["payload"], "result": result}, completed=True)
+    return result
 
 
 __all__ = ["run"]

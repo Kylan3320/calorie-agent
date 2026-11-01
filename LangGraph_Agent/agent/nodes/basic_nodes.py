@@ -14,7 +14,6 @@ from typing import Any
 from ..state import AgentState
 
 TRACE_SCHEMA_VERSION = "calorie_agent_trace.v1"
-_ROOT = Path(__file__).resolve().parents[2]
 
 
 def input_normalizer(state: AgentState) -> dict[str, Any]:
@@ -29,29 +28,33 @@ def context_loader(state: AgentState) -> dict[str, Any]:
     message = state.get("message") or {}
     errors = list(state.get("errors") or [])
     active_pending = None
+    execution = state.get("execution")
+    if execution:
+        return {"context": {"active_pending": execution["payload"].get("active_pending")}}
     try:
         active_pending = store.load_active_pending(message.get("user_id", ""), message.get("chat_id", ""))
-    except Exception as exc:  # noqa: BLE001 - context loss must not kill the chain
-        errors.append(f"context_loader_failed:{type(exc).__name__}:{exc}")
+    except Exception as exc:
+        raise RuntimeError("pending_context_unavailable") from exc
     print(f"[context_loader] active_pending={'yes:' + str(active_pending.get('intent')) if active_pending else 'none'} errors={errors}")
     return {"context": {"active_pending": active_pending}, "errors": errors}
 
 
 def trace_writer(state: AgentState) -> dict[str, Any]:
-    payload = _trace_payload(state)
+    latency_ms = _latency(state)
+    payload = _trace_payload({**state, "latency_ms": latency_ms})
     line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     # trace 同步打到 stdout：云函数请求日志里立即可见（容器内文件仅作留档）
     print(f"[trace] {line}")
     if str(os.getenv("TRACE_ENABLED", "true")).lower() in {"false", "0", "no"}:
-        return {"trace_written": False, "latency_ms": _latency(state)}
+        return {"trace_written": False, "latency_ms": latency_ms}
     path = Path(os.getenv("TRACE_PATH") or "/tmp/traces.jsonl")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
     except OSError as exc:
-        return {"trace_written": False, "latency_ms": _latency(state), "errors": [*list(state.get("errors") or []), f"trace_write_failed:{exc}"]}
-    return {"trace_written": True, "latency_ms": _latency(state)}
+        return {"trace_written": False, "latency_ms": latency_ms, "errors": [*list(state.get("errors") or []), f"trace_write_failed:{exc}"]}
+    return {"trace_written": True, "latency_ms": latency_ms}
 
 
 def _latency(state: AgentState) -> int:

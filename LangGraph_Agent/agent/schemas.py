@@ -49,9 +49,7 @@ class AgentAction:
         if tool not in SUPPORTED_TOOLS:
             raise ValueError(f"unsupported tool: {tool}")
         parameters = _dict(payload.get("parameters") or payload.get("params"))
-        safety = str(payload.get("safety") or _infer_safety(tool)).strip()
-        if safety not in SAFETY_LEVELS:
-            safety = _infer_safety(tool)
+        safety = _infer_safety(tool)
         depends_on = [str(item) for item in _list(payload.get("depends_on")) if str(item)]
         return cls(
             action_id=str(payload.get("action_id") or f"a{index + 1}"),
@@ -135,8 +133,9 @@ class GuardResult:
 
 
 def _infer_safety(tool: str) -> str:
-    if tool in {"query_today", "query_food_nutrition", "query_knowledge", "query_history"}:
-        return "read_only"
-    if tool == "undo_last":
-        return "destructive"
-    return "write"
+    from .tools.registry import get_tool
+
+    entry = get_tool(tool)
+    if entry is None:
+        raise ValueError(f"unregistered tool: {tool}")
+    return entry["safety"]

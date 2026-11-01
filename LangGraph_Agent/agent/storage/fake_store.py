@@ -5,14 +5,18 @@ Used by local eval and the shadow_fakewrite preset. Never touches the network.
 
 from __future__ import annotations
 
-import re
-import unicodedata
+import os
+from copy import deepcopy
 from typing import Any
 
-from .bitable_adapter import DEFAULT_DAILY_STANDARD, intake_client_token, stable_uuid
+from .bitable_adapter import (
+    DEFAULT_DAILY_STANDARD, VALID_FOOD_STATUS, _is_valid_intake_status,
+    intake_client_token, message_key, normalize_food_key, stable_uuid,
+)
 from .food_match import normalize_food_name
 from .knowledge_seed import KNOWLEDGE_SEED
-from .timeutil import round_number
+from .knowledge_retriever import normalize_text
+from .timeutil import extract_text, now_millis, round_number
 
 DEFAULT_FOODS = [
     {
@@ -55,7 +59,7 @@ DEFAULT_FOODS = [
 
 
 class FakeStore:
-    """In-memory store with the exact BitableStore behavior contract."""
+    """In-memory business store with a fixed intake date and simulated persistence."""
 
     def __init__(
         self,
@@ -63,7 +67,9 @@ class FakeStore:
         today: str = "2026-09-05",
         intake_seed: list[dict[str, Any]] | None = None,
     ) -> None:
-        self.foods = [dict(food) for food in (foods or DEFAULT_FOODS)]
+        self.foods = [dict(food) for food in (foods if foods is not None else DEFAULT_FOODS)]
+        self.knowledge = [{**entry, "entry_id": stable_uuid(f"calorie-agent:knowledge:{normalize_text(entry['question'])}")}
+                          for entry in KNOWLEDGE_SEED]
         self.today = today
         self.intake: list[dict[str, Any]] = []
         self.pending: list[dict[str, Any]] = []
@@ -112,10 +118,30 @@ class FakeStore:
     # --- foods --------------------------------------------------------------
 
     def load_foods(self) -> list[dict[str, Any]]:
-        return [dict(food) for food in self.foods]
+        return [deepcopy(food) for food in self.foods
+                if str(food.get("name") or "").strip()
+                and extract_text(food.get("status")).lower() in {"", *VALID_FOOD_STATUS}
+                and all(food.get(key) is not None for key in ("carbs_per_100g", "protein_per_100g", "fat_per_100g"))]
 
     def load_knowledge(self) -> list[dict[str, Any]]:
-        return [dict(entry) for entry in KNOWLEDGE_SEED]
+        return [dict(entry) for entry in self.knowledge if entry.get("status", "active") in {"", "active"}]
+
+    def sync_knowledge(self, entries: list[dict[str, Any]]) -> dict[str, int]:
+        existing = {row.get("entry_id"): row for row in self.knowledge if row.get("entry_id")}
+        created = updated = 0
+        for entry in entries:
+            fields = {key: str(entry.get(key) or "") for key in
+                      ("entry_id", "question", "answer", "aliases", "tags", "source")}
+            fields["status"] = "active"
+            old = existing.get(fields["entry_id"])
+            if old is None:
+                self.knowledge.append(fields)
+                existing[fields["entry_id"]] = fields
+                created += 1
+            elif any(old.get(key) != value for key, value in fields.items()):
+                old.update(fields)
+                updated += 1
+        return {"created_count": created, "updated_count": updated}
 
     def write_food(self, food: dict[str, Any]) -> dict[str, Any]:
         """Add one food-library row (Boohee M1); same contract as BitableStore."""
@@ -128,9 +154,9 @@ class FakeStore:
             return {"status": "invalid", "food_id": "", "name": name}
         if not name:
             return {"status": "invalid", "food_id": "", "name": name}
-        normalized = re.sub(r"[\s,，、;；/|]+", "", unicodedata.normalize("NFKC", name).lower())
+        normalized = normalize_food_key(name)
         food_id = stable_uuid(f"calorie-agent:food:{normalized}")
-        if any(row["food_id"] == food_id for row in self.foods):
+        if any(row["food_id"] == food_id for row in self.load_foods()):
             return {"status": "duplicate", "food_id": food_id, "name": name}
         token = stable_uuid(f"calorie-agent:food-create:{normalized}")
         if token in self.seen_client_tokens:
@@ -157,7 +183,7 @@ class FakeStore:
         items = []
         totals = {"carbs": 0.0, "protein": 0.0, "fat": 0.0, "kcal": 0.0}
         for row in sorted(self.intake, key=lambda item: item["created_at"]):
-            if row["status"] != "valid":
+            if not _is_valid_intake_status(row["status"]):
                 continue
             if user_id and row["user_id"] and row["user_id"] != user_id:
                 continue
@@ -183,7 +209,7 @@ class FakeStore:
         items: list[dict[str, Any]],
         meal_type: str = "unknown",
     ) -> dict[str, Any]:
-        message_id = str(message.get("message_id") or "")
+        message_id = message_key(message)
         token = intake_client_token(message)
         if message_id and any(row["message_id"] == message_id for row in self.intake):
             return {"status": "duplicate_skipped", "created_count": 0, "records": []}
@@ -196,11 +222,11 @@ class FakeStore:
         for item in items:
             row = {
                 "record_id": f"rec_{len(self.intake) + 1}",
-                "date": self.today,
+                "date": str(item.get("date") or self.today),
                 "user_id": message.get("user_id", ""),
                 "message_id": message_id,
                 "raw_text": message.get("text", ""),
-                "meal_type": meal_type or "unknown",
+                "meal_type": item.get("meal_type") or meal_type or "unknown",
                 "food_id": item.get("food_id", ""),
                 "food_name": item.get("matched_name", ""),
                 "grams": item.get("grams", 0),
@@ -212,26 +238,30 @@ class FakeStore:
             created.append({"record_id": row["record_id"]})
         return {"status": "created", "created_count": len(created), "records": created}
 
-    def undo_last(self, user_id: str) -> dict[str, Any]:
-        valid = [row for row in self.intake if row["status"] == "valid"]
+    def last_intake(self, user_id: str) -> dict[str, Any] | None:
+        valid = [row for row in self.intake if _is_valid_intake_status(row["status"])]
         if user_id:
-            valid = [row for row in valid if not row["user_id"] or row["user_id"] == user_id]
+            valid = [row for row in valid if row["user_id"] == user_id]
         if not valid:
-            return {"status": "nothing_to_undo", "item": None}
+            return None
         row = max(valid, key=lambda item: item["created_at"])
+        return {key: deepcopy(row[key]) for key in
+                ("record_id", "message_id", "meal_type", "food_name", "grams", "created_at", "nutrition")}
+
+    def undo_last(self, user_id: str, record_id: str = "") -> dict[str, Any]:
+        if not record_id:
+            item = self.last_intake(user_id)
+            if item is None:
+                return {"status": "nothing_to_undo", "item": None}
+            record_id = item["record_id"]
+        row = next((row for row in self.intake if row["record_id"] == record_id
+                    and (not user_id or row["user_id"] == user_id)), None)
+        if row is None or (row["status"] != "deleted" and not _is_valid_intake_status(row["status"])):
+            return {"status": "nothing_to_undo", "item": None}
         row["status"] = "deleted"
-        return {
-            "status": "deleted",
-            "item": {
-                "record_id": row["record_id"],
-                "message_id": row["message_id"],
-                "meal_type": row["meal_type"],
-                "food_name": row["food_name"],
-                "grams": row["grams"],
-                "created_at": row["created_at"],
-                "nutrition": dict(row["nutrition"]),
-            },
-        }
+        item = {key: deepcopy(row[key]) for key in
+                ("record_id", "message_id", "meal_type", "food_name", "grams", "created_at", "nutrition")}
+        return {"status": "deleted", "item": item}
 
     # --- standard ---------------------------------------------------------------
 
@@ -243,7 +273,7 @@ class FakeStore:
         days: dict[str, dict[str, Any]] = {}
         total = {"count": 0, "grams": 0.0, "kcal": 0.0, "carbs": 0.0, "protein": 0.0, "fat": 0.0}
         for row in self.intake:
-            if row["status"] != "valid":
+            if not _is_valid_intake_status(row["status"]):
                 continue
             if user_id and row["user_id"] and row["user_id"] != user_id:
                 continue
@@ -287,55 +317,89 @@ class FakeStore:
         food_name: str,
         grams: float | None,
         meal_type: str = "unknown",
+        payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        msg_key = message_key(message)
+        pending_id = stable_uuid(f"calorie-agent:pending:{msg_key}:{intent}:{food_name}")
+        existing = next((task for task in self.pending if task["pending_id"] == pending_id), None)
+        if existing is not None:
+            if (intent == "missing_food" and existing["status"] == "pending"
+                    and not existing["payload"].get("candidates") and (payload or {}).get("candidates")):
+                existing["payload"] = deepcopy(payload)
+            return deepcopy(existing)
         token = stable_uuid(
-            f"calorie-agent:pending-create:{message.get('message_id', '')}:{intent}:{food_name}"
+            f"calorie-agent:pending-create:{msg_key}:{intent}:{food_name}"
         )
-        if token in self.seen_client_tokens:
-            existing = next(
-                (task for task in self.pending if task["intent"] == intent and task["food_name"] == food_name and task["status"] == "pending"),
-                None,
-            )
-            if existing:
-                return {"status": "created", "pending_id": existing["pending_id"], "intent": intent, "food_name": food_name, "grams": grams}
         self.seen_client_tokens.add(token)
-        pending_id = stable_uuid(f"calorie-agent:pending:{message.get('message_id', '')}:{intent}:{food_name}")
-        self.pending.append(
-            {
-                "record_id": f"pending_{len(self.pending) + 1}",
-                "pending_id": pending_id,
-                "user_id": message.get("user_id", ""),
-                "chat_id": message.get("chat_id", ""),
-                "source_message_id": message.get("message_id", ""),
-                "intent": intent,
-                "food_name": food_name,
-                "grams": grams,
-                "meal_type": meal_type or "unknown",
-                "raw_text": message.get("text", ""),
-                "status": "pending",
-                "created_at": self._next_created_at(),
-                "expires_at": 0,
-            }
-        )
-        return {"status": "created", "pending_id": pending_id, "intent": intent, "food_name": food_name, "grams": grams}
+        try:
+            ttl_hours = max(float(os.getenv("PENDING_TASK_TTL_HOURS", "24")), 1)
+        except ValueError:
+            ttl_hours = 24.0
+        task = {
+            "record_id": f"pending_{len(self.pending) + 1}",
+            "pending_id": pending_id,
+            "user_id": message.get("user_id", ""),
+            "chat_id": message.get("chat_id", ""),
+            "source_message_id": msg_key,
+            "intent": intent,
+            "food_name": food_name,
+            "grams": grams,
+            "meal_type": meal_type or "unknown",
+            "raw_text": message.get("text", ""),
+            "payload": deepcopy(payload or {}),
+            "status": "pending",
+            "created_at": self._next_created_at(),
+            "expires_at": 0 if intent in {"message_execution", "message_received"} else now_millis() + int(ttl_hours * 3600 * 1000),
+        }
+        self.pending.append(task)
+        return deepcopy(task)
 
     def load_active_pending(self, user_id: str, chat_id: str) -> dict[str, Any] | None:
         active = [
             task
             for task in self.pending
             if task["status"] == "pending"
+            and task["intent"] not in {"message_execution", "message_received"}
+            and (not task["expires_at"] or task["expires_at"] > now_millis())
             and (not user_id or not task["user_id"] or task["user_id"] == user_id)
             and (not chat_id or not task["chat_id"] or task["chat_id"] == chat_id)
         ]
         if not active:
             return None
-        return max(active, key=lambda task: task["created_at"])
+        return deepcopy(max(active, key=lambda task: task["created_at"]))
 
     def mark_pending_status(self, task: dict[str, Any], status: str) -> dict[str, Any]:
         for row in self.pending:
             if row["record_id"] == task.get("record_id"):
                 row["status"] = status
-        return {"code": 0}
+                return {"code": 0}
+        raise ValueError("pending task does not exist")
+
+    def get_pending(self, pending_id: str) -> dict[str, Any] | None:
+        return deepcopy(next((task for task in self.pending if task["pending_id"] == pending_id), None))
+
+    def load_execution(self, message: dict[str, str]) -> dict[str, Any] | None:
+        pending_id = stable_uuid(f"calorie-agent:pending:{message_key(message)}:message_execution:")
+        return deepcopy(next((task for task in self.pending if task["pending_id"] == pending_id), None))
+
+    def begin_execution(self, message: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
+        return self.create_pending(message, "message_execution", "", None, payload=payload)
+
+    def save_execution(self, task: dict[str, Any], payload: dict[str, Any], *, completed: bool = False) -> None:
+        row = next((row for row in self.pending if row["record_id"] == task["record_id"]), None)
+        if row is None:
+            raise ValueError("execution task does not exist")
+        row.update(payload=deepcopy(payload), status="completed" if completed else "pending", expires_at=0)
+
+    def load_unfinished_executions(self) -> list[dict[str, Any]]:
+        tasks: dict[str, dict[str, Any]] = {}
+        for task in self.pending:
+            if task["intent"] not in {"message_execution", "message_received"} or task["status"] != "pending":
+                continue
+            key = task["source_message_id"]
+            if key not in tasks or task["intent"] == "message_received":
+                tasks[key] = task
+        return deepcopy(sorted(tasks.values(), key=lambda task: task["created_at"]))
 
     # --- usage ------------------------------------------------------------------
 

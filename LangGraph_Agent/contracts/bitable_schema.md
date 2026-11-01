@@ -1,7 +1,7 @@
 # 契约：Bitable 表结构与幂等键
 
-唯一权威：改表字段/幂等键必须同交付更新本文件。字段名可用环境变量覆盖（V2 兼容），
-以下写的是默认列名。沿用 V2 已验证的多维表格，不新建体系。
+唯一权威：改表字段/幂等键必须同交付更新本文件。字段名可用环境变量覆盖，
+以下写的是默认列名。沿用现有表格。
 
 ## 表与字段
 
@@ -9,7 +9,7 @@
 `food_id`、`food_name`、`alias`（逗号/顿号分隔多别名）、`carbs_per_100g`、`protein_per_100g`、
 `fat_per_100g`、`status`。有效 status：空 / active / 启用 / 正常 / 可用。缺名或缺任一
 每 100g 营养的行跳过。
-薄荷 M1 新增列：`source`（数据来源：boohee / 空=人工）、`boohee_id`（薄荷食物 code，
+薄荷来源列：`source`（数据来源：boohee / 空=人工）、`boohee_id`（薄荷食物 code，
 用于去重与追溯）。写入走 `write_food`（见 tool_protocol.md）。
 
 ### intake_records（摄入主表，BITABLE_INTAKE_TABLE_ID）
@@ -26,14 +26,24 @@
 ### pending_tasks（待补全，BITABLE_PENDING_TABLE_ID）
 `pending_id`、`user_id`、`chat_id`、`source_message_id`、`intent`、`food_name`、`grams`、
 `meal_type`、`raw_text`、`status`（pending/completed/cancelled）、`created_at`、
-`expires_at`（默认 TTL 24h）。P0 的 intent：`missing_grams`、`missing_food`、`confirm_undo`。
+`expires_at`（业务追问默认 TTL 24h）、`payload`（文本，JSON 对象，空值视为 {}）。
+intent：`missing_grams`、`missing_food`、`confirm_undo`、`message_received`、`message_execution`。
+
+- 业务 payload 保存已展示候选（food 完整每100g快照和顺序）或撤销 target（含 record_id）。
+- message_received 在飞书 ACK 前保存原消息及 intake_date，回复发送成功后 completed。
+- message_execution 在副作用前保存首份计划、可信追问上下文及 intake_date，逐动作保存成功事实，最后保存图结果。
+- 两种内部任务 expires_at=0、不参与追问；失败保留 pending，显式恢复，不改变原计划或记录日期。
+- 创建重复任务沿用首次快照和状态；仅尚未提供候选的 missing_food 可补充首次候选，不替换已提供的候选。
+
+部署本次代码前，须在现有 pending 表新增 `payload` 文本列（可用 BITABLE_FIELD_PENDING_PAYLOAD 覆盖）。
+已有行无需回填；旧撤销确认没有 target 时不执行，请取消后重新发起。
 
 ### usage_events（轻量指标，BITABLE_USAGE_TABLE_ID）
 `event_id`、`event_type`（message_processed）、`message_id`、`user_id`、`preset`、
 `planner`、`status`（ok/error）、`error_type`、`action_count`、`reply_sent`、
 `latency_ms`、`created_at`。
 
-### user_aliases（账号别名映射，BITABLE_ALIASES_TABLE_ID；2026-09-07 方案 B）
+### user_aliases（账号别名映射，BITABLE_ALIASES_TABLE_ID）
 `alias_open_id`（别名账号 open_id）、`canonical_user_id`（主账号 open_id）、
 `status`（空/active 有效）。同一人多账号共享同一份数据：webhook 解析消息后按
 `load_user_aliases()` 把别名 open_id 归一为主账号。不加行的飞书账号 = 独立数据
@@ -51,13 +61,17 @@
 | pending_id | `stable_uuid("calorie-agent:pending:{message_key}:{intent}:{food_name}")` |
 | pending client_token | `stable_uuid("calorie-agent:pending-create:{message_key}:{intent}:{food_name}")` |
 | food_id | `stable_uuid("calorie-agent:food:{normalized_name}")` |
-| 建食物 client_token（薄荷 M1 已启用） | `stable_uuid("calorie-agent:food-create:{normalized_name}")` |
+| 建食物 client_token | `stable_uuid("calorie-agent:food-create:{normalized_name}")` |
+| 知识创建 batch token | `stable_uuid("calorie-agent:knowledge-create:{sorted_entry_ids_joined_by_colon}")` |
 | usage event_id | `stable_uuid("calorie-agent:usage:{message_key}")` |
 
-## 写入双层防重（必须同时保留）
+## 创建防重与状态更新
 
-1. 写前查重：按 message_id 列出 intake 表比对，命中 → `duplicate_skipped`。
-2. client_token：同上表传入 batch_create，飞书服务端再拦一次。
+摄入创建：写前按 message_id 查询 intake 表比对，命中 → `duplicate_skipped`。
+再按上表传入 client_token。先取得 message_key，再使用 message_key:agent:N 作为动作消息键。
+N 对应已持久化的首份计划，重试不按新规划重排；同名同量的多个食物动作仍保持独立。
+收件、执行记录及业务追问均复用上表的 pending_id/client_token 公式，以 intent 区分用途。
+状态更新按固定 record_id 设置目标状态，不创建新幂等体系。
 
 ## 状态过滤口径
 
@@ -67,5 +81,6 @@
 
 ## API 注意
 
-- 单次 batch_create 上限一批；列表接口 page_size=500 翻页拉全。
-- 客户端对 429/5xx 做一次退避重试（V2 没有重试，V4 补上）。
+- 知识初始化按 entry_id 查重，已有条目更新、新条目创建；
+- 列表接口 page_size=500 翻页拉全。
+- 客户端对 429/5xx 做一次退避重试。

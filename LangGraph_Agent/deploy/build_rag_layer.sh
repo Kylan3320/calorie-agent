@@ -6,12 +6,13 @@
 # 前置：deploy/rag_index/ 已由 deploy/ingest_knowledge.py 生成。
 # 依赖按 cp310 + manylinux2014 下载（与 SCF 运行时一致），并做体积精简：
 #   删 pandas/xlsxwriter（仅 Excel 导出用）、google-genai（仅 gemini.py 用）、
-#   lightrag/api|parser（服务器与文档解析，库方式不需要）、__pycache__、dist-info。
+#   lightrag/api（服务器）、__pycache__、dist-info；保留 parser 内部依赖。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LAYER_ROOT="$ROOT/deploy/rag-layer"
 PIP="$ROOT/.venv/bin/pip"
+INDEX_SOURCE="${RAG_INDEX_SOURCE:-$ROOT/deploy/rag_index}"
 
 rm -rf "$LAYER_ROOT"
 mkdir -p "$LAYER_ROOT"
@@ -42,11 +43,11 @@ print("tiktoken cache ready")
 PY
 
 echo "[4/6] 拷贝索引产物..."
-if [[ ! -d "$ROOT/deploy/rag_index" ]]; then
-  echo "缺少 deploy/rag_index（先跑 deploy/ingest_knowledge.py）" >&2
+if [[ ! -d "$INDEX_SOURCE" ]]; then
+  echo "缺少索引目录 $INDEX_SOURCE（先跑 deploy/ingest_knowledge.py）" >&2
   exit 1
 fi
-cp -r "$ROOT/deploy/rag_index" "$LAYER_ROOT/rag_index"
+cp -r "$INDEX_SOURCE" "$LAYER_ROOT/rag_index"
 date -u +%Y%m%d%H%M%S > "$LAYER_ROOT/rag_index/INDEX_VERSION"
 
 echo "[5/6] 打包..."

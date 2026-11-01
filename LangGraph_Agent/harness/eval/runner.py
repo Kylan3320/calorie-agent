@@ -4,13 +4,14 @@
     python3 harness/eval/runner.py --smoke    # smoke subset
     python3 harness/eval/runner.py --case T05 # single case
 
-Assertions lock invariants (tool status sequences, key reply fragments, write
-counts, totals self-consistency), never concrete nutrition numbers.
+Dialogue cases and focused contract checks share this entry point.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import sys
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ from agent import FakeStore, run  # noqa: E402
 from agent.config import Config  # noqa: E402
 from agent.storage import boohee_client  # noqa: E402
 from agent.storage.timeutil import round_number  # noqa: E402
+from harness.eval.checks import CHECKS  # noqa: E402
 
 EVAL_CONFIG = Config(
     preset="shadow_fakewrite",
@@ -45,7 +47,8 @@ _MOCK_BOOHEE_RESPONSE = {
 
 
 def _set_mock_boohee(enabled: bool) -> None:
-    boohee_client.set_transport((lambda url, headers: _MOCK_BOOHEE_RESPONSE) if enabled else None)
+    response = _MOCK_BOOHEE_RESPONSE if enabled else {"code": 0, "data": {"foods": []}}
+    boohee_client.set_transport(lambda url, headers: response)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -59,11 +62,18 @@ def main(argv: list[str] | None = None) -> int:
         cases = [case for case in cases if case.get("id") == args.case]
     elif args.smoke:
         cases = [case for case in cases if case.get("smoke")]
+    if not cases:
+        print("No cases selected; check the case ID or suite configuration.")
+        return 2
 
     passed = 0
     failed = 0
     for case in cases:
-        ok, failures = _run_case(case)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                ok, failures = _run_case(case)
+        except Exception as exc:
+            ok, failures = False, [f"{type(exc).__name__}: {exc}"]
         mark = "PASS" if ok else "FAIL"
         print(f"[{mark}] {case.get('id')} {case.get('name')}")
         for failure in failures:
@@ -80,10 +90,15 @@ def _load_cases() -> list[dict[str, Any]]:
     path = Path(__file__).resolve().parent / "cases.yaml"
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle)
-    return [case for case in data.get("cases", []) if isinstance(case, dict)]
+    return [case for case in data.get("cases", []) if isinstance(case, dict)] + [
+        {"id": key, "name": check.__doc__, "check": check} for key, check in CHECKS.items()
+    ]
 
 
 def _run_case(case: dict[str, Any]) -> tuple[bool, list[str]]:
+    if "check" in case:
+        case["check"]()
+        return True, []
     seed = []
     for row in case.get("intake_seed") or []:
         seed.append(
@@ -129,8 +144,9 @@ def _check(
     def fail(message: str) -> None:
         failures.append(f"{step_label}: {message}")
 
-    if expect.get("status") and result.get("status") != expect["status"]:
-        fail(f"status={result.get('status')} expected {expect['status']} errors={result.get('errors')}")
+    expected_status = expect.get("status", "ok")
+    if result.get("status") != expected_status:
+        fail(f"status={result.get('status')} expected {expected_status} errors={result.get('errors')}")
 
     actual_statuses = [[item.get("tool"), item.get("status")] for item in result.get("tool_results", [])]
     expected_statuses = expect.get("tool_statuses")
@@ -145,10 +161,24 @@ def _check(
         if fragment in reply:
             fail(f"reply should not contain {fragment!r}; reply={reply!r}")
 
-    if result.get("reply_source") == "safe_fallback" and not expect.get("allow_safe_fallback"):
+    if not expect.get("allow_safe_fallback"):
         guard = result.get("guard_result", {})
         if not guard.get("passed"):
             fail(f"reply_guard blocked the reply: violations={guard.get('violations')} reply={reply!r}")
+
+    rows_by_id = {row["record_id"]: row for row in store.intake}
+    for fact in result.get("tool_results", []):
+        if fact["tool"] != "record_food" or fact["status"] != "ok":
+            continue
+        data = fact["data"]
+        write = data["intake_write_result"]
+        records = write.get("records", [])
+        if not records or len(records) != write["created_count"]:
+            fail("record success has no persisted record IDs")
+        for record in records:
+            row = rows_by_id.get(record["record_id"])
+            if row is None or row["grams"] != data["grams"] or row["nutrition"] != data["nutrition"]:
+                fail("record success does not match the stored snapshot")
 
     write_count = _count_writes(result)
     if expect.get("write_count") is not None and write_count != expect["write_count"]:
