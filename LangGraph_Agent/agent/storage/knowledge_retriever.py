@@ -1,8 +1,8 @@
 """knowledge_retriever seam (contracts/knowledge_schema.md).
 
 config.yaml `knowledge_retriever:` selects the implementation:
-- `faq` (M1, production default): store.load_knowledge() + food_match-style scoring.
-- `lightrag` (M3): prebuilt index via aquery_data, chunks原文 as evidence only.
+- `faq`: active Bitable entries (seeded in FakeStore).
+- `lightrag`: a published knowledge snapshot, queried via aquery_data.
 
 Unknown kinds raise — a config error must surface, never silently degrade.
 """
@@ -114,6 +114,8 @@ def _writable_index_dir() -> str:
     把索引镜像到 /tmp 再用；Layer 更新（INDEX_VERSION 变化）时自动重拷。
     请求可能并发到达同一实例：版本检查+拷贝必须持锁且可重入。"""
     src = os.getenv("RAG_INDEX_DIR", "/opt/rag_index")
+    if not os.path.isdir(src):
+        raise RuntimeError(f"RAG index directory is missing: {src}")
     probe = os.path.join(src, ".write_probe")
     try:
         with open(probe, "w") as handle:
@@ -126,7 +128,7 @@ def _writable_index_dir() -> str:
         dst = "/tmp/rag_index"
         src_version = _read_version(src)
         dst_version = _read_version(dst)
-        if src_version == dst_version:
+        if src_version and src_version == dst_version and os.path.isdir(dst):
             return dst  # 另一个线程已完成镜像
         import shutil
 
@@ -261,11 +263,6 @@ def _build_lightrag() -> Any:
         import numpy as np
 
         return np.array([item["embedding"] for item in ordered], dtype=np.float32)
-
-    async def fake_embed_dimensions(**kwargs: Any) -> int:
-        return int(os.getenv("RAG_EMBEDDING_DIM", "1024"))
-
-    import numpy as np
 
     embed_func = __import__("lightrag.utils", fromlist=["EmbeddingFunc"]).EmbeddingFunc(
         embedding_dim=int(os.getenv("RAG_EMBEDDING_DIM", "1024")),

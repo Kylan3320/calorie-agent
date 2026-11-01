@@ -10,13 +10,13 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# 检索器合法值单一来源在 agent/storage/knowledge_retriever.py（一个概念一条导入路径）
+# 检索器合法值由 agent/storage/knowledge_retriever.py 维护。
 
 PRESETS = ("live", "shadow_fakewrite", "shadow_readonly")
 PLANNERS = ("deterministic", "deepseek")
 DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_TIMEZONE_OFFSET_HOURS = 8.0
-DEFAULT_ALLOWED_TOOLS = ("record_food", "query_today", "query_food_nutrition", "undo_last", "query_knowledge")
+DEFAULT_ALLOWED_TOOLS = ("record_food", "query_today", "query_food_nutrition", "undo_last", "query_knowledge", "query_history")
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,8 @@ def load_config() -> Config:
     if not isinstance(allowed, list) or not allowed:
         allowed = list(DEFAULT_ALLOWED_TOOLS)
     try:
-        offset = float(raw.get("timezone_offset_hours") or os.getenv("APP_TIMEZONE_OFFSET_HOURS") or DEFAULT_TIMEZONE_OFFSET_HOURS)
+        offset_value = raw.get("timezone_offset_hours")
+        offset = float(offset_value if offset_value is not None else os.getenv("APP_TIMEZONE_OFFSET_HOURS") or DEFAULT_TIMEZONE_OFFSET_HOURS)
     except (TypeError, ValueError):
         offset = DEFAULT_TIMEZONE_OFFSET_HOURS
     return Config(

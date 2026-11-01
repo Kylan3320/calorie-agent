@@ -19,6 +19,8 @@ class AgentState(TypedDict, total=False):
     normalized_text: str
     # facts
     context: dict[str, Any]
+    execution: Any
+    intake_date: str | None
     pending_route: dict[str, Any]
     plan: dict[str, Any]
     planner_fallback: bool

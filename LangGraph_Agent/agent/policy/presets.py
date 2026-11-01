@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..schemas import AgentPlan, PolicyDecision
+from ..tools.registry import TOOL_REGISTRY
 
-READONLY_TOOLS = {"query_today", "query_food_nutrition", "query_knowledge", "query_history"}
-ALL_TOOLS = {"record_food", "query_today", "query_food_nutrition", "undo_last", "query_knowledge", "query_history"}
+READONLY_TOOLS = {name for name, entry in TOOL_REGISTRY.items() if entry["safety"] == "read_only"}
+ALL_TOOLS = set(TOOL_REGISTRY)
 
 FORBIDDEN_WRITE_FLAGS = {
     "delete",
@@ -74,17 +75,18 @@ def evaluate_policy(plan: AgentPlan, preset: Preset) -> PolicyDecision:
         blocked.append({"action_id": "", "tool": "", "safety": "", "reason": "too_many_actions"})
 
     for action in plan.actions:
+        safety = TOOL_REGISTRY[action.tool]["safety"]
         if action.tool not in preset.allowed_tools:
             blocked.append(
                 {"action_id": action.action_id, "tool": action.tool, "safety": action.safety, "reason": f"tool_not_allowed:{action.tool}"}
             )
             continue
-        if not preset.allow_write and action.safety in {"write", "destructive"}:
+        if not preset.allow_write and safety in {"write", "destructive"}:
             blocked.append(
                 {"action_id": action.action_id, "tool": action.tool, "safety": action.safety, "reason": "write_not_allowed_in_preset"}
             )
             continue
-        if action.safety == "destructive":
+        if safety == "destructive":
             confirmation_required = True
             continue
         if action.tool == "record_food":

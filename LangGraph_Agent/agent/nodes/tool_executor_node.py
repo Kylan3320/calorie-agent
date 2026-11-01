@@ -1,8 +1,4 @@
-"""Tool executor node: run whitelisted actions via the registry.
-
-Per-action idempotency: each action gets message_id suffix ":agent:{n}" so a
-retried message never double-writes (V2 convention, contracts/bitable_schema.md).
-"""
+"""Execute the persisted plan through the registry and checkpoint execution facts."""
 
 from __future__ import annotations
 
@@ -11,54 +7,52 @@ from typing import Any
 
 from ..schemas import AgentPlan, ToolResult
 from ..state import AgentState
+from ..storage import message_key
 from ..tools import ToolContext, get_tool
 
 
 def tool_executor(state: AgentState) -> dict[str, Any]:
-    plan = AgentPlan.from_dict(state.get("plan") or {})
-    decision = state.get("policy_decision") or {}
-    message = state.get("message") or {}
-    store = state.get("store")
-    ctx = ToolContext(store=store, config=state.get("config"), context=state.get("context") or {})
-    results: list[dict[str, Any]] = []
-
-    destructive = [action for action in plan.actions if action.safety == "destructive"]
-    if decision.get("confirmation_required") and destructive:
-        action = destructive[0]
-        pending = store.create_pending(message, "confirm_undo", "undo_last", None, "unknown")
-        results.append(
-            ToolResult(
-                action.tool,
-                "needs_confirmation_plan",
-                {
-                    "undo_result": {"status": "needs_confirmation"},
-                    "pending_result": {"status": pending.get("status"), "intent": "confirm_undo"},
-                },
-                action_id=action.action_id,
-            ).to_dict()
-        )
-    else:
-        for index, action in enumerate(plan.actions):
-            entry = get_tool(action.tool)
-            if not entry:
-                results.append(
-                    ToolResult(action.tool, "error", error=f"tool_not_registered:{action.tool}", action_id=action.action_id).to_dict()
-                )
-                continue
-            action_message = {**message, "message_id": f"{message.get('message_id', '')}:agent:{index + 1}"}
-            try:
-                result = entry["runner"](action_message, dict(action.parameters), ctx)
-                result = replace(result, action_id=action.action_id)
-            except Exception as exc:  # noqa: BLE001 - tool failure becomes a fact, not a crash
-                result = ToolResult(action.tool, "error", error=f"{type(exc).__name__}:{exc}", action_id=action.action_id)
+    plan = AgentPlan.from_dict(state["plan"])
+    message, store = state["message"], state["store"]
+    route = state.get("pending_route") or {}
+    execution = state.get("execution")
+    ctx = ToolContext(store, state["config"], {**state["context"], "pending_route": route,
+                      "intake_date": execution["payload"]["intake_date"] if execution else store.today_string()})
+    results = list(execution["payload"].get("results", [])) if execution else []
+    errors = list(state.get("errors") or [])
+    task = state["context"].get("active_pending")
+    for index, action in enumerate(plan.actions):
+        if index < len(results):
+            continue
+        action_message = {**message, "message_id": f"{message_key(message)}:agent:{index + 1}"}
+        try:
+            if route.get("route") in {"cancel", "defer"}:
+                result = ToolResult(action.tool, "pending_cancelled" if route["route"] == "cancel" else "pending_deferred")
+            else:
+                result = get_tool(action.tool)["runner"](action_message, action.parameters, ctx)
+            result = replace(result, action_id=action.action_id)
+            if result.status == "error" or result.error:
+                errors.append(result.error or f"{action.tool}:error")
+                results.append(result.to_dict())
+                break
             results.append(result.to_dict())
-
-    observations = [
-        {"action_id": item.get("action_id", ""), "tool": item.get("tool", ""), "status": item.get("status", "")}
-        for item in results
-    ]
-    print(f"[executor] statuses={[(o['tool'], o['status']) for o in observations]}")
-    return {"tool_results": results, "observations": observations}
+            if execution:
+                execution["payload"] = {**execution["payload"], "results": results}
+                store.save_execution(execution, execution["payload"])
+        except Exception as exc:
+            errors.append(f"{action.tool}:{type(exc).__name__}:{exc}")
+            if len(results) == index:
+                results.append(ToolResult(action.tool, "error", error=errors[-1], action_id=action.action_id).to_dict())
+            break
+    if task and route.get("handled") and not errors and route["route"] != "defer":
+        try:
+            current = store.get_pending(task["pending_id"])
+            if current and current["status"] == "pending":
+                store.mark_pending_status(task, "cancelled" if route["route"] == "cancel" else "completed")
+        except Exception as exc:
+            errors.append(f"pending_completion_failed:{type(exc).__name__}:{exc}")
+    observations = [{"action_id": r.get("action_id", ""), "tool": r["tool"], "status": r["status"]} for r in results]
+    return {"tool_results": results, "observations": observations, "errors": errors, "execution": execution}
 
 
 __all__ = ["tool_executor"]

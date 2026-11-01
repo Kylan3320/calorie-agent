@@ -68,6 +68,7 @@ PENDING_FIELDS = {
     "grams": ("BITABLE_FIELD_PENDING_GRAMS", "grams"),
     "meal_type": ("BITABLE_FIELD_PENDING_MEAL_TYPE", "meal_type"),
     "raw_text": ("BITABLE_FIELD_PENDING_RAW_TEXT", "raw_text"),
+    "payload": ("BITABLE_FIELD_PENDING_PAYLOAD", "payload"),
     "status": ("BITABLE_FIELD_PENDING_STATUS", "status"),
     "created_at": ("BITABLE_FIELD_PENDING_CREATED_AT", "created_at"),
     "expires_at": ("BITABLE_FIELD_PENDING_EXPIRES_AT", "expires_at"),
@@ -381,6 +382,8 @@ class BitableStore:
             "carbs_per_100g": carbs,
             "protein_per_100g": protein,
             "fat_per_100g": fat,
+            "source": extract_text(fields.get("source")),
+            "boohee_id": extract_text(fields.get("boohee_id")),
         }
 
     def load_foods(self) -> list[dict[str, Any]]:
@@ -392,7 +395,7 @@ class BitableStore:
                 return list(_FOODS_CACHE[1])
         foods: list[dict[str, Any]] = []
         for _record_id, fields in _list_records(self.app_token, table):
-            food = self._food_record_from_bitable({"fields": fields})
+            food = self._food_record_from_bitable({"record_id": _record_id, "fields": fields})
             if food:
                 foods.append(food)
         with _FOODS_CACHE_LOCK:
@@ -416,6 +419,32 @@ class BitableStore:
         with _KNOWLEDGE_CACHE_LOCK:
             _KNOWLEDGE_CACHE = (now, list(entries))
         return list(entries)
+
+    def sync_knowledge(self, entries: list[dict[str, Any]]) -> dict[str, int]:
+        """Create/update supplied entries by entry_id; leave other knowledge untouched."""
+        global _KNOWLEDGE_CACHE
+        table = self._require(self.knowledge_table, "BITABLE_KNOWLEDGE_TABLE_ID", "knowledge_base")
+        existing = {extract_text(fields.get("entry_id")): (record_id, fields)
+                    for record_id, fields in _list_records(self.app_token, table)}
+        creates = []
+        updated = 0
+        for entry in entries:
+            fields = {key: str(entry.get(key) or "") for key in
+                      ("entry_id", "question", "answer", "aliases", "tags", "source")}
+            fields["status"] = "active"
+            if fields["entry_id"] in existing:
+                record_id, old = existing[fields["entry_id"]]
+                if any(extract_text(old.get(key)) != value for key, value in fields.items()):
+                    self._update_record(table, record_id, fields)
+                    updated += 1
+            else:
+                creates.append({"fields": fields})
+        if creates:
+            ids = ":".join(sorted(row["fields"]["entry_id"] for row in creates))
+            self._batch_create(table, creates, client_token=stable_uuid(f"calorie-agent:knowledge-create:{ids}"))
+        with _KNOWLEDGE_CACHE_LOCK:
+            _KNOWLEDGE_CACHE = None
+        return {"created_count": len(creates), "updated_count": updated}
 
     def write_food(self, food: dict[str, Any]) -> dict[str, Any]:
         """Add one food-library row (Boohee M1 confirm-import; tool_protocol.md).
@@ -599,25 +628,31 @@ class BitableStore:
         meal_type: str = "unknown",
     ) -> dict[str, Any]:
         table = self._require(self.intake_table, "BITABLE_INTAKE_TABLE_ID", "intake")
-        if self.intake_exists(str(message.get("message_id") or "")):
+        msg_key = message_key(message)
+        if self.intake_exists(msg_key):
             return {"status": "duplicate_skipped", "created_count": 0, "records": []}
         if not items:
             return {"status": "nothing_to_write", "created_count": 0, "records": []}
 
         date_value: int | str = self._today_start_millis()
-        if os.getenv("BITABLE_FIELD_INTAKE_DATE_VALUE_TYPE", "timestamp") == "text":
+        date_type = os.getenv("BITABLE_FIELD_INTAKE_DATE_VALUE_TYPE", "timestamp")
+        if date_type == "text":
             date_value = self._today_string()
         records = []
         for item in items:
             nutrition = item["nutrition"]
+            item_date = item.get("date")
+            record_date = date_value
+            if item_date:
+                record_date = str(item_date) if date_type == "text" else self._date_to_start_millis(str(item_date))
             records.append(
                 {
                     "fields": {
-                        _intake_field("date"): date_value,
+                        _intake_field("date"): record_date,
                         _intake_field("user_id"): message.get("user_id", ""),
-                        _intake_field("message_id"): message.get("message_id", ""),
+                        _intake_field("message_id"): msg_key,
                         _intake_field("raw_text"): message.get("text", ""),
-                        _intake_field("meal_type"): meal_type or "unknown",
+                        _intake_field("meal_type"): item.get("meal_type") or meal_type or "unknown",
                         _intake_field("food_id"): item.get("food_id", ""),
                         _intake_field("food_name"): item.get("matched_name", ""),
                         _intake_field("grams"): item.get("grams", 0),
@@ -633,15 +668,17 @@ class BitableStore:
         data = self._batch_create(table, records, client_token=intake_client_token(message))
         body = data.get("data") if isinstance(data.get("data"), dict) else {}
         created = body.get("records") if isinstance(body.get("records"), list) else []
-        return {"status": "created", "created_count": len(created) or len(records), "records": created}
+        if len(created) != len(records):
+            raise RuntimeError(f"intake batch_create returned {len(created)} records for {len(records)} writes")
+        return {"status": "created", "created_count": len(created), "records": created}
 
-    def undo_last(self, user_id: str) -> dict[str, Any]:
+    def last_intake(self, user_id: str) -> dict[str, Any] | None:
         user_id = str(user_id or "").strip()
         best_sort: tuple[float, int] | None = None
         best_item: dict[str, Any] | None = None
         for index, (record_id, fields) in enumerate(self._iter_intake_rows()):
             row_user_id = extract_text(fields.get(_intake_field("user_id")))
-            if user_id and row_user_id and row_user_id != user_id:
+            if user_id and row_user_id != user_id:
                 continue
             if not _is_valid_intake_status(fields.get(_intake_field("status"))):
                 continue
@@ -651,10 +688,27 @@ class BitableStore:
             if best_sort is None or sort_key > best_sort:
                 best_sort = sort_key
                 best_item = item
-        if not best_item:
-            return {"status": "nothing_to_undo", "item": None}
-        self._update_record(self.intake_table, best_item["record_id"], {_intake_field("status"): "deleted"})
-        return {"status": "deleted", "item": best_item}
+        return best_item
+
+    def undo_last(self, user_id: str, record_id: str = "") -> dict[str, Any]:
+        if not record_id:
+            item = self.last_intake(user_id)
+            if item is None:
+                return {"status": "nothing_to_undo", "item": None}
+            record_id = item["record_id"]
+        for row_id, fields in self._iter_intake_rows():
+            if row_id != record_id:
+                continue
+            if user_id and extract_text(fields.get(_intake_field("user_id"))) != user_id:
+                break
+            status = extract_text(fields.get(_intake_field("status"))).lower()
+            if status != "deleted" and not _is_valid_intake_status(status):
+                break
+            item = self._intake_summary_item(row_id, fields)
+            if status != "deleted":
+                self._update_record(self.intake_table, row_id, {_intake_field("status"): "deleted"})
+            return {"status": "deleted", "item": item}
+        return {"status": "nothing_to_undo", "item": None}
 
     # --- standard ---------------------------------------------------------
 
@@ -720,11 +774,20 @@ class BitableStore:
         food_name: str,
         grams: float | None,
         meal_type: str = "unknown",
+        payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not self.app_token or not self.pending_table:
             return {"status": "not_configured", "intent": intent, "food_name": food_name, "grams": grams}
         msg_key = message_key(message)
         pending_id = stable_uuid(f"calorie-agent:pending:{msg_key}:{intent}:{food_name}")
+        existing = self.get_pending(pending_id)
+        if existing is not None:
+            if (intent == "missing_food" and existing["status"] == "pending"
+                    and not existing["payload"].get("candidates") and (payload or {}).get("candidates")):
+                self._update_record(self.pending_table, existing["record_id"], {
+                    _pending_field("payload"): json.dumps(payload, ensure_ascii=False, allow_nan=False)})
+                existing["payload"] = payload
+            return existing
         now = timeutil.now_millis()
         try:
             ttl_hours = max(float(os.getenv("PENDING_TASK_TTL_HOURS", "24")), 1)
@@ -734,22 +797,45 @@ class BitableStore:
             _pending_field("id"): pending_id,
             _pending_field("user_id"): message.get("user_id", ""),
             _pending_field("chat_id"): message.get("chat_id", ""),
-            _pending_field("source_message_id"): message.get("message_id", ""),
+            _pending_field("source_message_id"): msg_key,
             _pending_field("intent"): intent,
             _pending_field("food_name"): food_name,
             _pending_field("meal_type"): meal_type or "unknown",
             _pending_field("raw_text"): message.get("text", ""),
+            _pending_field("payload"): json.dumps(payload or {}, ensure_ascii=False, allow_nan=False),
             _pending_field("status"): "pending",
             _pending_field("created_at"): now,
-            _pending_field("expires_at"): now + int(ttl_hours * 3600 * 1000),
+            _pending_field("expires_at"): 0 if intent in {"message_execution", "message_received"} else now + int(ttl_hours * 3600 * 1000),
         }
         if grams is not None:
             fields[_pending_field("grams")] = grams
         client_token = stable_uuid(f"calorie-agent:pending-create:{msg_key}:{intent}:{food_name}")
-        self._batch_create(self.pending_table, [{"fields": fields}], client_token=client_token)
-        return {"status": "created", "pending_id": pending_id, "intent": intent, "food_name": food_name, "grams": grams}
+        try:
+            self._batch_create(self.pending_table, [{"fields": fields}], client_token=client_token)
+        except Exception:
+            # A timeout or a concurrent request may have committed the same token.
+            existing = self.get_pending(pending_id)
+            if existing is not None:
+                return existing
+            raise
+        task = self.get_pending(pending_id)
+        if task is None:
+            raise RuntimeError("created pending task could not be read back")
+        return task
+
+    def get_pending(self, pending_id: str) -> dict[str, Any] | None:
+        if not self.app_token or not self.pending_table:
+            return None
+        names = [_pending_field(key) for key in PENDING_FIELDS]
+        for record_id, fields in _list_records(self.app_token, self.pending_table, names):
+            if extract_text(fields.get(_pending_field("id"))) == pending_id:
+                return self._pending_task(record_id, fields)
+        return None
 
     def _pending_task(self, record_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        payload = json.loads(extract_text(fields.get(_pending_field("payload"))) or "{}")
+        if not isinstance(payload, dict):
+            raise ValueError("pending payload must be a JSON object")
         return {
             "record_id": record_id,
             "pending_id": extract_text(fields.get(_pending_field("id"))),
@@ -761,6 +847,7 @@ class BitableStore:
             "grams": extract_number(fields.get(_pending_field("grams"))),
             "meal_type": extract_text(fields.get(_pending_field("meal_type"))) or "unknown",
             "raw_text": extract_text(fields.get(_pending_field("raw_text"))),
+            "payload": payload,
             "status": extract_text(fields.get(_pending_field("status"))).lower(),
             "created_at": extract_number(fields.get(_pending_field("created_at"))) or 0.0,
             "expires_at": extract_number(fields.get(_pending_field("expires_at"))) or 0.0,
@@ -776,6 +863,8 @@ class BitableStore:
         best: dict[str, Any] | None = None
         for record_id, fields in _list_records(self.app_token, self.pending_table, names):
             if extract_text(fields.get(_pending_field("status"))).lower() != "pending":
+                continue
+            if extract_text(fields.get(_pending_field("intent"))) in {"message_execution", "message_received"}:
                 continue
             row_user_id = extract_text(fields.get(_pending_field("user_id")))
             if user_id and row_user_id and row_user_id != user_id:
@@ -793,6 +882,36 @@ class BitableStore:
 
     def mark_pending_status(self, task: dict[str, Any], status: str) -> dict[str, Any]:
         return self._update_record(self.pending_table, str(task.get("record_id") or ""), {_pending_field("status"): status})
+
+    def load_execution(self, message: dict[str, str]) -> dict[str, Any] | None:
+        pending_id = stable_uuid(f"calorie-agent:pending:{message_key(message)}:message_execution:")
+        return self.get_pending(pending_id)
+
+    def begin_execution(self, message: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
+        self._require(self.pending_table, "BITABLE_PENDING_TABLE_ID", "message execution")
+        return self.create_pending(message, "message_execution", "", None, payload=payload)
+
+    def save_execution(self, task: dict[str, Any], payload: dict[str, Any], *, completed: bool = False) -> None:
+        self._update_record(self.pending_table, task["record_id"], {
+            _pending_field("payload"): json.dumps(payload, ensure_ascii=False, allow_nan=False),
+            _pending_field("status"): "completed" if completed else "pending",
+            _pending_field("expires_at"): 0,
+        })
+
+    def load_unfinished_executions(self) -> list[dict[str, Any]]:
+        self._require(self.pending_table, "BITABLE_PENDING_TABLE_ID", "message execution")
+        names = [_pending_field(key) for key in PENDING_FIELDS]
+        tasks: dict[str, dict[str, Any]] = {}
+        for record_id, fields in _list_records(self.app_token, self.pending_table, names):
+            if extract_text(fields.get(_pending_field("intent"))) not in {"message_execution", "message_received"}:
+                continue
+            if extract_text(fields.get(_pending_field("status"))).lower() != "pending":
+                continue
+            task = self._pending_task(record_id, fields)
+            key = task["source_message_id"]
+            if key not in tasks or task["intent"] == "message_received":
+                tasks[key] = task
+        return sorted(tasks.values(), key=lambda task: task["created_at"])
 
     # --- usage events -------------------------------------------------------
 

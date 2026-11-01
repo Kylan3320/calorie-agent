@@ -216,7 +216,7 @@ class CalorieAgent {
     }
     let result
     try {
-      result = await this.callBackend(text, signal)
+      result = await this.callBackend(text, signal, `${turn}:${step}`)
     } catch (error) {
       if (signal.aborted) throw error
       // Backend unreachable: show it in the chat instead of an opaque error turn.
@@ -274,7 +274,7 @@ class CalorieAgent {
     return { kind: 'completed' }
   }
 
-  async callBackend(text, signal) {
+  async callBackend(text, signal, messageId) {
     const timeout = AbortSignal.timeout(this.driverConfig.timeoutMs ?? 180000)
     const fused = signal ? AbortSignal.any([signal, timeout]) : timeout
     const response = await fetch(this.driverConfig.endpoint, {
@@ -282,6 +282,8 @@ class CalorieAgent {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text,
+        session_id: this.id,
+        message_id: messageId,
         preset: this.driverConfig.preset || 'live',
         ...(this.driverConfig.planner ? { planner: this.driverConfig.planner } : {}),
         ...(this.driverConfig.storeKind ? { store_kind: this.driverConfig.storeKind } : {}),

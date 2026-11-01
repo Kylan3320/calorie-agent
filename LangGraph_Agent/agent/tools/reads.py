@@ -13,7 +13,7 @@ from ..schemas import ToolResult
 from ..storage.food_match import normalize_food_name
 from ..storage.knowledge_retriever import build_knowledge_retriever
 from ..storage.timeutil import round_number
-from .base import ToolContext, calculate_food_intake, match_food
+from .base import ToolContext, calculate_food_intake, match_food, positive_grams
 
 PERIOD_LABELS = {
     "today": "今天",
@@ -38,7 +38,7 @@ def run_query_food_nutrition(message: dict[str, str], params: dict[str, Any], ct
     food_query = str(params.get("food_query") or params.get("food_name") or "").strip()
     if not food_query:
         return ToolResult("query_food_nutrition", "error", error="food_query_required")
-    grams = _grams_or_none(params.get("grams"))
+    grams = positive_grams(params.get("grams"))
     user_id = message.get("user_id", "")
 
     stored = _query_stored_intake(ctx, food_query, user_id)
@@ -84,7 +84,8 @@ def run_query_knowledge(message: dict[str, str], params: dict[str, Any], ctx: To
     kind = str(getattr(ctx.config, "knowledge_retriever", "") or "faq")
     try:
         retriever = build_knowledge_retriever(kind)
-        result = retriever(query, ctx.store.load_knowledge())
+        entries = ctx.store.load_knowledge() if kind == "faq" else []
+        result = retriever(query, entries)
     except ValueError as exc:
         return ToolResult("query_knowledge", "error", error=f"knowledge_retriever_config:{exc}")
     result = {**result, "query": query, "retriever": kind}
@@ -165,14 +166,6 @@ def _query_stored_intake(ctx: ToolContext, food_query: str, user_id: str) -> dic
         ],
         "total": {"grams": round_number(total_grams), **totals},
     }
-
-
-def _grams_or_none(value: Any) -> float | None:
-    try:
-        grams = float(value)
-    except (TypeError, ValueError):
-        return None
-    return grams if grams > 0 else None
 
 
 __all__ = ["run_query_food_nutrition", "run_query_history", "run_query_knowledge", "run_query_today"]

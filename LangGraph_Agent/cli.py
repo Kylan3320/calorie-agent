@@ -11,9 +11,12 @@ import argparse
 import dataclasses
 import json
 import sys
+import uuid
+from collections.abc import Iterator
 from typing import Any
 
-from agent import FakeStore, load_config, run
+from agent import BitableStore, FakeStore, load_config, run
+from agent.policy import resolve_preset
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -34,17 +37,17 @@ def main(argv: list[str] | None = None) -> int:
     if config.planner == "deepseek" and args.planner is None:
         config = dataclasses.replace(config, planner="deterministic")
 
+    preset = resolve_preset(config.preset, config.allowed_tools)
+    store = FakeStore() if preset.store_kind == "fake" else BitableStore(offset_hours=config.timezone_offset_hours)
     texts = [" ".join(args.text)] if args.text else _interactive()
     for text in texts:
-        store = FakeStore()
-        result = run({"message_id": "cli", "user_id": "local_user", "chat_id": "cli", "text": text}, store=store, config=config)
+        result = run({"message_id": f"cli-{uuid.uuid4().hex}", "user_id": "local_user", "chat_id": "cli", "text": text}, store=store, config=config)
         _print_result(result)
     return 0
 
 
-def _interactive() -> list[str]:
+def _interactive() -> Iterator[str]:
     print("Calorie Agent V4 CLI（空行退出）")
-    texts = []
     while True:
         try:
             text = input("> ").strip()
@@ -52,8 +55,7 @@ def _interactive() -> list[str]:
             break
         if not text:
             break
-        texts.append(text)
-    return texts
+        yield text
 
 
 def _print_result(result: dict[str, Any]) -> None:

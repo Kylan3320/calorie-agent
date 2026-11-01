@@ -2,7 +2,7 @@
 
 Endpoints:
   GET  /health                  -> liveness
-  POST /webhook/feishu/events   -> Feishu events: verify/challenge, quick ACK, async process
+  POST /webhook/feishu/events   -> verify/challenge, quick ACK, process in request thread
 
 P0 intentionally has no /tasks/* cron endpoints (see REQUIREMENTS.md OUT OF SCOPE).
 """
@@ -39,7 +39,6 @@ SERVICE_NAME = "calorie-agent-v4"
 _MESSAGE_STATE_LOCK = threading.Lock()
 _MESSAGE_STATE: dict[str, tuple[str, float]] = {}
 _MESSAGE_STATE_TTL_SECONDS = 3600
-_MESSAGE_PROCESSING_STALE_SECONDS = 15
 _STORE: Any = None
 _STORE_LOCK = threading.Lock()
 
@@ -117,7 +116,7 @@ def _try_mark_message_processing(message: dict[str, str]) -> bool:
         existing = _MESSAGE_STATE.get(key)
         if existing:
             status, timestamp = existing
-            if status == "processing" and now - timestamp > _MESSAGE_PROCESSING_STALE_SECONDS:
+            if status == "failed":
                 _MESSAGE_STATE[key] = ("processing", now)
                 return True
             return False
@@ -199,96 +198,83 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"status": "ignored", "reason": "not_text_event"})
             return
 
+        try:
+            config = load_config()
+            preset = resolve_preset(config.preset, config.allowed_tools)
+            store = _get_store()
+            message = {**message, "user_id": _resolve_user_alias(store, message.get("user_id", ""))}
+            receipt = store.create_pending(message, "message_received", "", None, "unknown",
+                                           payload={"message": message, "intake_date": store.today_string()}) if preset.allow_write else None
+            if receipt and receipt["status"] == "not_configured":
+                raise RuntimeError("pending_tasks is required before accepting messages")
+        except Exception as exc:
+            _log_event("message_not_accepted", message, {"error": str(exc)[:300]})
+            self._send_json({"status": "error", "reason": "accept_failed"}, status=503)
+            return
         self._send_json({"status": "accepted", "message_id": message["message_id"], "chat_id": message["chat_id"]})
-        # V4.0.1：同步处理。日志随请求落入云函数日志（此前 daemon 线程的 stdout 会被
-        # SCF 冻结吞掉）；飞书慢响应重试由幂等层兜底（app 内去重 + intake 查重）。
-        _process_message_synchronously(message)
+        if not receipt or receipt["status"] != "completed":
+            _process_message_synchronously(message, receipt)
 
 
 def _resolve_user_alias(store: Any, user_id: str) -> str:
-    if not user_id:
-        return user_id
-    try:
-        return store.load_user_aliases().get(user_id, user_id)
-    except Exception as exc:  # noqa: BLE001 - 映射失败按独立账号处理，不阻断主链路
-        print(f"[user_alias] load failed: {type(exc).__name__}: {exc}")
-        return user_id
+    return store.load_user_aliases().get(user_id, user_id) if user_id else user_id
 
 
-def _process_message_synchronously(message: dict[str, str]) -> None:
-    print(f"[recv] {json.dumps(message, ensure_ascii=False)}")
+def _process_message_synchronously(message: dict[str, str], receipt: dict | None = None) -> bool:
     if not _try_mark_message_processing(message):
         _log_event("duplicate_skipped", message, {})
-        return
-
+        return False
     started = time.monotonic()
-    config = load_config()
-    preset = resolve_preset(config.preset, config.allowed_tools)
-    store = _get_store()
-    # 方案 B：同一人多账号——别名 open_id 归一为主账号（user_aliases 表 + env 兜底）
-    canonical_user = _resolve_user_alias(store, message.get("user_id", ""))
-    if canonical_user != message.get("user_id", ""):
-        message = {**message, "user_id": canonical_user}
-    try:
-        result = run(message, store=store, config=config)
-    except Exception as exc:  # noqa: BLE001
-        _mark_message_done(message, "failed")
-        _log_event(
-            "message_failed",
-            message,
-            {"error_type": type(exc).__name__, "error": str(exc)[:300], "latency_ms": int((time.monotonic() - started) * 1000)},
-        )
-        return
-
-    reply = str(result.get("reply") or "")
+    result, store, config = {}, None, None
     reply_sent = False
-    if preset.send_reply and reply and message.get("chat_id"):
-        feishu_client.send_text(message["chat_id"], reply, uuid_key=reply_uuid(message))
-        reply_sent = True
-
+    error = ""
+    for attempt in range(2):
+        try:
+            config = load_config()
+            preset = resolve_preset(config.preset, config.allowed_tools)
+            store = _get_store()
+            if receipt:
+                message = receipt["payload"]["message"]
+            else:
+                message = {**message, "user_id": _resolve_user_alias(store, message.get("user_id", ""))}
+            result = run(message, store=store, config=config,
+                         intake_date=receipt["payload"]["intake_date"] if receipt else None)
+            if result["status"] == "error":
+                raise RuntimeError(";".join(result["errors"]))
+            if preset.send_reply and result["reply"] and message.get("chat_id"):
+                feishu_client.send_text(message["chat_id"], result["reply"], uuid_key=reply_uuid(message))
+                reply_sent = True
+            if receipt:
+                store.mark_pending_status(receipt, "completed")
+            _mark_message_done(message, "done")
+            error = ""
+            break
+        except Exception as exc:
+            error = f"{type(exc).__name__}:{exc}"
+            _log_event("message_attempt_failed", message, {"attempt": attempt + 1, "error": error[:300]})
+    if error:
+        _mark_message_done(message, "failed")
     latency_ms = int((time.monotonic() - started) * 1000)
-    _mark_message_done(message, "done" if result.get("status") == "ok" else "failed")
+    if store and config:
+        store.append_usage_event({
+            "event_id": usage_event_token(message_key(message)), "event_type": "message_processed",
+            "message_id": message_key(message), "user_id": message.get("user_id", ""),
+            "preset": config.preset, "planner": config.planner, "status": "error" if error else "ok",
+            "error_type": error[:200], "action_count": len(result.get("plan", {}).get("actions", [])),
+            "reply_sent": reply_sent, "latency_ms": latency_ms})
+    _log_event("message_failed" if error else "message_processed", message,
+               {"status": "error" if error else "ok", "reply_sent": reply_sent,
+                "error": error[:300], "latency_ms": latency_ms})
+    return not error
 
-    # 可观测性：graph 错误 + 工具级错误都进 usage.error_type（如 Layer 缺失/薄荷失败/余额耗尽）
-    tool_errors = [
-        f"{item.get('tool')}:{item.get('error') or item.get('status')}"
-        for item in (result.get("tool_results") or [])
-        if isinstance(item, dict) and (item.get("status") == "error" or item.get("error"))
-    ]
-    all_errors = [str(e) for e in (result.get("errors") or [])] + tool_errors
 
-    store.append_usage_event(
-        {
-            "event_id": usage_event_token(message.get("message_id", "")),
-            "event_type": "message_processed",
-            "message_id": message.get("message_id", ""),
-            "user_id": message.get("user_id", ""),
-            "preset": config.preset,
-            "planner": config.planner,
-            "status": result.get("status", "ok"),
-            "error_type": ";".join(all_errors)[:200],
-            "action_count": len(result.get("plan", {}).get("actions", [])),
-            "reply_sent": reply_sent,
-            "latency_ms": latency_ms,
-        }
-    )
-    _log_event(
-        "message_processed",
-        message,
-        {
-            "status": result.get("status"),
-            "reply_source": result.get("reply_source"),
-            "action_count": len(result.get("plan", {}).get("actions", [])),
-            "guard_passed": (result.get("guard_result") or {}).get("passed"),
-            "reply_sent": reply_sent,
-            "reply_preview": reply[:120],
-            "latency_ms": latency_ms,
-            "trace_id": result.get("trace_id"),
-            "preset": config.preset,
-            "planner": config.planner,
-            "errors": result.get("errors", []),
-        },
-    )
+def retry_pending_messages() -> int:
+    store = _get_store()
+    failed = 0
+    for task in store.load_unfinished_executions():
+        if task["intent"] == "message_received":
+            failed += not _process_message_synchronously(task["payload"]["message"], task)
+    return int(failed)
 
 
 def _log_event(event_type: str, message: dict[str, str], fields: dict[str, Any]) -> None:
@@ -310,4 +296,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    if "--retry-pending" in sys.argv:
+        raise SystemExit(1 if retry_pending_messages() else 0)
     main()
