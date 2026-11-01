@@ -1,0 +1,235 @@
+{
+  "status": "production_published_feishu_available_with_unresolved_history_reply_issue",
+  "region": "ap-shanghai",
+  "namespace": "default",
+  "runtime": "Python3.10",
+  "package": "deploy/calorie-agent-v4.zip",
+  "freeze_command": "python deploy/production_release.py freeze",
+  "candidate": {
+    "prefix": "cos-probe/production-candidate/20261102/",
+    "bucket": "calorie-cos-probe-20261101-1440448581",
+    "reuse_existing_functions": [
+      {
+        "name": "calorie-cos-ingress-probe",
+        "handler": "app.ingress_handler",
+        "type": "Event",
+        "invoke": "CAM-authenticated function URL and synchronous cloud Invoke for CLI/DSH"
+      },
+      {
+        "name": "calorie-cos-msg-probe",
+        "handler": "app.message_handler",
+        "type": "Event"
+      },
+      {
+        "name": "calorie-cos-sync-probe",
+        "handler": "app.maintenance_handler",
+        "type": "Event"
+      }
+    ],
+    "calorie_message_function": "calorie-cos-msg-probe",
+    "role": "calorie-cos-probe-role",
+    "bitable_intake_table": "existing independent table named COS隔离验证20261101; exact ID must be read from account inventory and verified before writes",
+    "source_snapshot": "publish real foods/aliases/standards to the candidate COS prefix; use an independent precomputed intake baseline",
+    "safety": "do not point candidate archive to the production intake table; food and settings archive changes need independent candidate tables",
+    "remove_before_use": "disable prior probe COS ObjectCreated triggers; the new package excludes probe drivers",
+    "archive_timer": "candidate-maintenance-five-minutes: 0 */5 * * * * *; pause until after record/revise/today sequence, then resume",
+    "cleanup": "delete only exact candidate Bitable row IDs and candidate-only objects listed in acceptance manifest; never production rows",
+    "timer_intake": {
+      "CALORIE_SERVICE_AUTH": "cam",
+      "CALORIE_CLOUD_UIN": "100049554055",
+      "CALORIE_SERVICE_URL": "existing CAM-authenticated calorie-cos-ingress-probe function URL; retain CAM authentication",
+      "CALORIE_SERVICE_TOKEN": "dedicated shared application secret in ingress/message function configuration; generate/configure only after final confirmation, never record its value here",
+      "authorization": "LiveClient signs the exact method, path, query and serialized body with current SCF temporary role credentials. Function URL receives TC3 Authorization plus X-Scf-Cam-Uin/Timestamp/Token; application authentication uses X-Calorie-Service-Token.",
+      "permission": "reuse the existing candidate role scf:InvokeFunctionUrl permission scoped to candidate ingress; do not expose the URL publicly or point candidate timers at production"
+    },
+    "permission_extension": "calorie-cos-probe-role: scf:Invoke only calorie-cos-msg-probe; candidate COS remains inside existing cos-probe/ scope",
+    "active_prefix": "cos-probe/production-candidate/20261102/recheck-v2/",
+    "role_policy_readback": "exactly three restricted policies; actual candidate message Invoke accepted"
+  },
+  "production": {
+    "prefix": "calorie-agent/production/20261102/",
+    "bucket": "calorie-cos-probe-20261101-1440448581",
+    "reuse_existing_functions": [
+      {
+        "name": "calorie-agent-api-v3-test",
+        "type": "Web",
+        "bootstrap": "scf_bootstrap",
+        "port": 9000,
+        "webhook": "retain existing Feishu application webhook"
+      },
+      {
+        "name": "calorie-agent-reminder",
+        "type": "Event",
+        "handler": "app.message_handler"
+      }
+    ],
+    "calorie_message_function": "calorie-agent-reminder",
+    "triggers": [
+      {
+        "function": "calorie-agent-reminder",
+        "name": "existing-reminder-minute",
+        "type": "timer",
+        "cron": "0 * * * * * *",
+        "handler_behavior": "scheduled Time is submitted over the authenticated ingress HTTP reminder endpoint; durable receipt executes on the same serial message worker, with original scheduled date/minute and persistent automatic attempt count"
+      },
+      {
+        "function": "calorie-agent-archive",
+        "name": "calorie-maintenance-five-minutes",
+        "type": "timer",
+        "cron": "0 */5 * * * * *",
+        "handler_behavior": "recover unfinished receipts, dispatch message writer, then archive committed facts"
+      }
+    ],
+    "timer_intake": {
+      "endpoint": "CALORIE_SERVICE_URL must name the retained ingress Web endpoint; POST /internal/reminder accepts the application bearer token",
+      "message_function_environment": [
+        "CALORIE_SERVICE_URL",
+        "CALORIE_SERVICE_TOKEN"
+      ],
+      "ingress_function_environment": [
+        "CALORIE_SERVICE_TOKEN"
+      ],
+      "secret_setup": "Generate and configure a dedicated service token only after final confirmation; store the same secret in ingress and message-function configuration, never in this plan or delivery logs",
+      "behavior": "Timer submits its original scheduled Time under a canonical fixed tick ID; returns after durable ingress plus async Invoke acceptance without waiting for its own serial worker. Maintenance recovers the resulting receipt using the original minute.",
+      "CALORIE_SERVICE_AUTH": "bearer (existing public Web ingress; Authorization bearer service token)"
+    },
+    "roles_to_create_or_bind_after_approval": {
+      "ingress": "calorie-agent-cos-ingress-role",
+      "message": "calorie-agent-cos-message-role",
+      "archive": "calorie-agent-cos-archive-role"
+    },
+    "billing_scope": "one new 512MB Event archive function with 5-minute timer, and existing private COS bucket production-prefix usage; on-demand only, no provisioned instances or resource packages",
+    "approved_new_paid_resource": {
+      "name": "calorie-agent-archive",
+      "type": "Event",
+      "handler": "app.maintenance_handler",
+      "runtime": "Python3.10",
+      "memory_mb": 512,
+      "timeout_seconds": 120,
+      "effect": "independent five-minute recovery wakeup and Bitable archive; invocation/runtime charges; no provisioned instances"
+    },
+    "runtime_policy_documents": "deploy/cos-production-role-policies.json"
+  },
+  "every_function": {
+    "timeout_seconds": 120,
+    "maximum_concurrent_invocations": 1,
+    "scf_api_configuration": {
+      "UpdateFunctionConfiguration": {
+        "Timeout": 120,
+        "InstanceConcurrencyConfig": {
+          "DynamicEnabled": "FALSE",
+          "MaxConcurrency": 1
+        }
+      },
+      "PutReservedConcurrencyConfig": {
+        "ReservedConcurrencyMem": "exact function MemorySize in MB; one instance worth of quota"
+      }
+    },
+    "environment_to_merge_without_removing_existing_keys": [
+      "COS_BUCKET",
+      "COS_PREFIX",
+      "COS_REGION=ap-shanghai",
+      "CALORIE_MESSAGE_FUNCTION",
+      "INGRESS_MAINTENANCE=1 during cutover",
+      "KNOWLEDGE_RETRIEVER=lightrag",
+      "RAG_INDEX_DIR=/opt/rag_index",
+      "CALORIE_SERVICE_URL on message/reminder function",
+      "CALORIE_SERVICE_TOKEN on ingress and message/reminder functions (secret; final confirmation required)"
+    ],
+    "retain": [
+      "existing Feishu/DeepSeek secrets",
+      "production RAG layer and index",
+      "table field overrides",
+      "existing timezone and verification token"
+    ]
+  },
+  "permissions_to_review": [
+    {
+      "principal": "ingress execution role",
+      "actions": [
+        "cos:GetBucket",
+        "cos:GetBucketVersioning",
+        "cos:GetObject",
+        "cos:PutObject",
+        "scf:Invoke"
+      ],
+      "scope": "selected bucket ingress prefix and published source snapshot; Invoke only its designated message function"
+    },
+    {
+      "principal": "message execution role",
+      "actions": [
+        "cos:GetBucket",
+        "cos:GetBucketVersioning",
+        "cos:GetObject",
+        "cos:PutObject"
+      ],
+      "scope": "read ingress; read/write message prefix; Feishu send via existing app"
+    },
+    {
+      "principal": "archive execution role",
+      "actions": [
+        "cos:GetBucket",
+        "cos:GetBucketVersioning",
+        "cos:GetObject",
+        "cos:PutObject",
+        "scf:Invoke"
+      ],
+      "scope": "read ingress/message, write sync only; Invoke only message function; existing Bitable app permissions"
+    },
+    {
+      "principal": "CLI/DSH operator",
+      "actions": [
+        "scf:InvokeFunctionUrl"
+      ],
+      "scope": "candidate CAM ingress URL only when CALORIE_SERVICE_AUTH=cam; formal retained public Web ingress uses the application service token"
+    },
+    {
+      "principal": "release operator",
+      "actions": [
+        "scf:GetFunction",
+        "scf:ListTriggers",
+        "scf:GetReservedConcurrencyConfig",
+        "scf:UpdateFunctionCode",
+        "scf:UpdateFunctionConfiguration",
+        "scf:PutReservedConcurrencyConfig",
+        "scf:CreateTrigger",
+        "scf:UpdateTriggerStatus"
+      ],
+      "scope": "only named functions and listed triggers; archive CreateFunction/PassRole only after approval"
+    }
+  ],
+  "cutover_commands_in_order": [
+    "python deploy/production_release.py inspect --function calorie-agent-api-v3-test",
+    "python deploy/production_release.py inspect --function calorie-agent-reminder",
+    "complete LATENCY_OPTIMIZATION_SPEC.md 6.1 and 6.2 on candidate; freeze passing package and BUILD_ID",
+    "python deploy/production_release.py maintenance-on --function calorie-agent-api-v3-test",
+    "verify an actual new ingress attempt returns HTTP 503 before export; if the old deployed build lacks the maintenance gate, first deploy the reviewed gate-compatible legacy build or suspend the existing ingress route; changing an unused environment key does not freeze traffic",
+    "drain old worker and all unsent replies; verify no pending message_received/message_execution; retain waiting user facts",
+    "python deploy/migrate_cos.py ensure-schema",
+    "python deploy/migrate_cos.py export --snapshot reports/production-baseline.json --audit reports/production-source-audit.json",
+    "python deploy/migrate_cos.py import --prefix calorie-agent/production/20261102/ --snapshot reports/production-baseline.json --audit reports/production-import-audit.json",
+    "upload frozen package to each named production function; merge reviewed COS/env configuration; set each reserved memory to one function instance and web MaxConcurrency=1",
+    "enable message reminder timer and independent archive timer after checking exact handlers/roles/build IDs",
+    "python deploy/production_release.py maintenance-off --function calorie-agent-api-v3-test",
+    "read-only query through the formal Feishu entrance; compare independent old ledger; record migration and archive watermarks in reports/LATENCY_DELIVERY.md"
+  ],
+  "rollback": {
+    "before_first_cos_business_commit": "keep maintenance on, restore previously saved old code and previous merged configuration, then maintenance-off; no source rows were deleted",
+    "after_first_cos_business_commit": "maintenance-on; retain all COS commits; deploy only a build compatible with calorie.cos.v1 and current document schema; repair then maintenance-off",
+    "commands": [
+      "python deploy/production_release.py maintenance-on --function calorie-agent-api-v3-test",
+      "SCF_FUNCTION=calorie-agent-api-v3-test python deploy/api_deploy.py <verified-compatible-frozen-package.zip>",
+      "python deploy/production_release.py maintenance-off --function calorie-agent-api-v3-test"
+    ],
+    "excluded": "automatic reverse migration or deleting new COS facts"
+  },
+  "official_references": [
+    "https://cloud.tencent.com/document/product/583/51245",
+    "https://cloud.tencent.com/document/api/583/18580",
+    "https://cloud.tencent.cn/document/product/583/30228",
+    "https://open.feishu.cn/document/server-docs/docs/bitable-v1/app-table-record/create",
+    "https://cloud.tencent.com/document/product/583/96100"
+  ],
+  "final_delivery_record": "reports/LATENCY_DELIVERY.md",
+  "all_spec_checks_passed": false
+}

@@ -8,6 +8,10 @@ Unknown kinds raise — a config error must surface, never silently degrade.
 """
 
 from __future__ import annotations
+import httpx
+from .telemetry import span
+from .timeutil import remaining_timeout
+_HTTP_CLIENT = httpx.Client()
 
 import os
 import re
@@ -178,7 +182,8 @@ def retrieve_lightrag(query: str, entries: list[dict[str, Any]] | None = None) -
             return data["data"]
         return data if isinstance(data, dict) else {}
 
-    data = asyncio.run(_run())
+    with span("rag_retrieval", initialized=_LIGHTRAG_READY):
+        data = asyncio.run(_run())
     chunks = data.get("chunks") if isinstance(data, dict) else None
     hits: list[dict[str, Any]] = []
     for chunk in (chunks or [])[:TOP_K]:
@@ -223,14 +228,14 @@ def _build_lightrag() -> Any:
         import httpx
 
         # 抽取提示词长、DeepSeek 生成慢：120s（LightRAG 自带 240s 任务级超时）
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{base}/chat/completions",
-                json=body,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            resp.raise_for_status()
-            payload = resp.json()
+        import asyncio
+        def request():
+            with span("rag_keyword_model"):
+                resp = _HTTP_CLIENT.post(f"{base}/chat/completions",json=body,
+                    headers={"Authorization":f"Bearer {api_key}"},timeout=remaining_timeout(120))
+                resp.raise_for_status()
+                return resp.json()
+        payload = await asyncio.to_thread(request)
         return payload["choices"][0]["message"]["content"]
 
     async def siliconflow_embed(texts: list[str]) -> list[list[float]]:
@@ -251,14 +256,15 @@ def _build_lightrag() -> Any:
             raise RuntimeError("SILICONFLOW_API_KEY is not configured (RAG M3 embedding).")
         import httpx
 
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                "https://api.siliconflow.cn/v1/embeddings",
-                json={"model": os.getenv("SILICONFLOW_EMBEDDING_MODEL", "BAAI/bge-m3"), "input": texts},
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            resp.raise_for_status()
-            payload = resp.json()
+        import asyncio
+        def request():
+            with span("embedding", count=len(texts)):
+                resp = _HTTP_CLIENT.post("https://api.siliconflow.cn/v1/embeddings",
+                    json={"model":os.getenv("SILICONFLOW_EMBEDDING_MODEL","BAAI/bge-m3"),"input":texts},
+                    headers={"Authorization":f"Bearer {api_key}"},timeout=remaining_timeout(60))
+                resp.raise_for_status()
+                return resp.json()
+        payload = await asyncio.to_thread(request)
         ordered = sorted(payload["data"], key=lambda item: item["index"])
         # EmbeddingFunc.__call__ requires a single ndarray (it reads result.size)
         import numpy as np

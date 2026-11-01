@@ -1,6 +1,8 @@
 # Calorie Agent 交流体验改进规格
 
-状态：2026-11-01 本地实现及六组离线验收已完成，真实模型固定夹具与最终发布验收待完成。实际构建、线上失败及后续修正见 [reports/CONVERSATION_DELIVERY.md](reports/CONVERSATION_DELIVERY.md)。此前已通过业务结果继续保留。
+本文件保留自然交流业务要求及该阶段历史验收范围；2026-11-01 的实现和验证记录见 [历史交付记录](reports/CONVERSATION_DELIVERY.md)。当前部署、逐项验收状态及未解决项统一见 [生产交付记录](reports/LATENCY_DELIVERY.md)。
+
+后续存储、执行、迁移及生产接入验收以 [LATENCY_OPTIMIZATION_SPEC.md](LATENCY_OPTIMIZATION_SPEC.md) 为准；自然交流与业务标准继续沿用本页，实际接口随代码同步 contracts。第6节保留该阶段验收，不自动触发后续任务重跑；按当前任务和改动影响选择必要验证。
 
 ## 1. 目标与职责
 

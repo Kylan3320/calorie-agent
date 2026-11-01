@@ -63,14 +63,21 @@ def update_user_settings(rt, p):
             if missing:
                 rule["enabled"] = False
                 rules[rule_id] = rule
-                rt.prepare({"settings": settings, "kind": kind, "values": rule, "missing": missing})
+                rt.prepare({"settings": settings, "original_settings": deepcopy(rt.settings), "kind": kind, "values": rule, "missing": missing})
             else:
                 rules[rule_id] = rule
         else:
             raise ValueError("unsupported settings kind")
         if rt.prepared is None:
-            rt.prepare({"settings": settings, "kind": kind, "values": values, "missing": []})
+            rt.prepare({"settings": settings, "original_settings": deepcopy(rt.settings), "kind": kind, "values": values, "missing": []})
+    rt.check_deadline()
+    current = rt.store.load_document("user_settings", rt.user_id)
+    original = rt.prepared.get("original_settings", rt.settings)
+    if {k:v for k,v in current.items() if k != "feishu_chat_id"} != {k:v for k,v in original.items() if k != "feishu_chat_id"}:
+        raise ValueError("prepared settings have changed; start a new request")
     rt.settings = deepcopy(rt.prepared["settings"])
+    if "feishu_chat_id" in current:
+        rt.settings["feishu_chat_id"] = current["feishu_chat_id"]
     rt.store.save_document("user_settings", rt.user_id, "", rt.settings)
     return {"status": "pending" if rt.prepared["missing"] else "ok", "data": {
         "kind": rt.prepared["kind"], "values": rt.prepared["values"], "missing": rt.prepared["missing"],

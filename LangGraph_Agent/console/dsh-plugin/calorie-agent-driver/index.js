@@ -271,6 +271,14 @@ class CalorieAgent {
       { turn, step, message: createAssistantMessage({ content: [{ type: 'text', text: reply }], source }) },
       { surfaceOp: 'append', sourceEventSeqs: [] },
     )
+    if (result?.delivery_reference) {
+      const endpoint = this.driverConfig.endpoint.replace(/\/$/, '') + '/presented'
+      const reported = await fetch(endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delivery_reference: result.delivery_reference }), signal,
+      })
+      if (!reported.ok) throw new Error(`presentation report HTTP ${reported.status}`)
+    }
     return { kind: 'completed' }
   }
 

@@ -48,6 +48,8 @@ def resolve_item(rt, item, *, pending=None):
     candidates = deepcopy((pending or {}).get("candidates", []))
     food = deepcopy((pending or {}).get("food"))
     if item.get("choice") is not None:
+        if pending and pending.get("offered_message_id") == rt.message["message_id"]:
+            return None, {**pending, "reason":"请用户选择食物候选", "choice":None}
         n = item["choice"] - 1
         if not pending or not 0 <= n < len(candidates):
             raise ValueError("choice must refer to displayed pending candidates")
@@ -83,6 +85,7 @@ def resolve_item(rt, item, *, pending=None):
             food.update(boohee_client.food_detail(food["boohee_id"]))
             units = food.get("units", [])
             if rt.preset.allow_write:
+                rt.check_deadline()
                 rt.store.cache_food(food)
         except (boohee_client.BooheeError, OSError, TimeoutError) as e:
             error = str(e)
@@ -129,7 +132,9 @@ def scale_item(item, ratio):
     return scaled
 
 def select_rows(rt, refs, *, day="", meal_type="", latest=False):
-    rows = rt.store.intake_items(rt.user_id)
+    target_ids = refs or (rt.session.get("last_meal", []) if latest else [])
+    rows = (rt.store.intake_by_ids(rt.user_id, target_ids) if target_ids and hasattr(rt.store, "intake_by_ids")
+            else rt.store.intake_items(rt.user_id, day) if day else rt.store.intake_items(rt.user_id))
     known = set(rt.session.get("refs", []))
     if refs:
         # An opaque target must have been returned to this session by a tool.
@@ -146,7 +151,9 @@ def select_rows(rt, refs, *, day="", meal_type="", latest=False):
 
 def meal_totals(rt, items):
     keys = {i.get("snapshot", {}).get("meal_id", i.get("message_id", "")) for i in items}
-    rows = rt.store.intake_items(rt.user_id)
+    dates = sorted({i.get("date", rt.day) for i in items})
+    from datetime import date, timedelta
+    rows = rt.store.intake_items(rt.user_id, dates[0], (date.fromisoformat(dates[-1])+timedelta(days=1)).isoformat()) if dates else []
     result = []
     for key in sorted(keys - {""}):
         group = [r for r in rows if r.get("snapshot", {}).get("meal_id", r.get("message_id", "")) == key]
@@ -200,7 +207,11 @@ def record_meal(rt, p):
                     completed_ids.append(pid)
             else:
                 pid = pid or f"{rt.action_id}:item:{index + 1}"
+                offered = (original or {}).get("offered_message_id")
+                if not original or unfinished.get("candidates", []) != original.get("candidates", []):
+                    offered = rt.message["message_id"]
                 pending_items[pid] = {**unfinished, "pending_id": pid, "date": entry_day, "meal_type": entry_meal,
+                                      "offered_message_id": offered,
                                       "meal_id": (original or {}).get("meal_id", rt.action_message["message_id"]),
                                       "raw_text": (original or {}).get("raw_text", rt.message["text"])}
                 missing.append(pending_items[pid])
@@ -214,9 +225,11 @@ def record_meal(rt, p):
         rt.prepare({"items": items, "session": session, "missing": list(pending_items.values()), "cancelled": cancelled})
     prepared = rt.prepared
     items = prepared["items"]
+    rt.check_deadline()
     write = rt.store.write_intake(rt.action_message, items, "unknown")
-    rows = [r for r in rt.store.intake_items(rt.user_id, include_deleted=True)
-            if r["message_id"] == rt.action_message["message_id"]]
+    rows = (rt.store.intake_for_action(rt.user_id, rt.action_message["message_id"]) if hasattr(rt.store, "intake_for_action") else
+            [r for r in rt.store.intake_items(rt.user_id, include_deleted=True)
+             if r["message_id"] == rt.action_message["message_id"]])
     ids = [r["record_id"] for r in rows]
     if items and len(ids) != len(items):
         raise RuntimeError("intake readback does not match prepared batch")
@@ -225,9 +238,10 @@ def record_meal(rt, p):
     if ids:
         session["last_meal"] = ids
     rt.session = session
+    written = [{**from_row(r), **{k:r[k] for k in ("record_id","message_id","date","meal_type")}} for r in rows]
     return {"status": "ok" if items or prepared["cancelled"] else "pending", "data": {
-        "items": [{**i, "record_id": rid} for i,rid in zip(items, ids)], "total": totals(items),
-        "meal_totals": meal_totals(rt, [{**i, "message_id": rt.action_message["message_id"]} for i in items]),
+        "items": written, "total": totals(written),
+        "meal_totals": meal_totals(rt, written),
         "completed_count": len(items), "unfinished": prepared["missing"], "cancelled": prepared["cancelled"],
         "write_status": write["status"]}}
 
@@ -251,6 +265,13 @@ def revise_intake(rt, p):
             item["snapshot"]["meal_id"] = row.get("snapshot", {}).get("meal_id", row["message_id"])
         rt.prepare({"record_id": row["record_id"], "item": item, "date": row["date"], "original": row})
     plan = rt.prepared
+    rt.check_deadline()
+    current = next((r for r in rt.store.intake_items(rt.user_id, plan["date"], include_deleted=True)
+                    if r["record_id"] == plan["record_id"]), None)
+    original = plan["original"]
+    if current is None or any(current.get(k) != original.get(k) for k in
+                              ("agent_revision", "grams", "nutrition", "snapshot", "status")):
+        raise ValueError("prepared intake target has changed; start a new request")
     result = rt.store.revise_intake(rt.user_id, plan["record_id"], plan["item"])
     return {"status": "ok", "data": {"operation": "deleted" if plan["item"] is None else "revised", "item": result, "meal_totals": meal_totals(rt, [plan["original"]])}}
 

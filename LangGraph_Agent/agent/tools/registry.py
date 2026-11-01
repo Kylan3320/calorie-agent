@@ -16,8 +16,8 @@ class Args(BaseModel):
 class Item(Args):
     food_query: str = Field(description="完整食物名称，保留种类、生熟、品牌和配料特征；数量及单位规格（如只(中)、小碗）单独放quantity/unit，不拼进食物名")
     grams: float | None = Field(None, gt=0, description="用户明确的可食克重")
-    quantity: float | None = Field(None, gt=0)
-    unit: str = ""
+    quantity: float | None = Field(None, gt=0, description="用户原文数量；同时传unit")
+    unit: str = Field("", description="与quantity一起传用户原文单位，如个、只(中)；工具读取已有资料换算")
     quantity_text: str = ""
     pending_id: str | None = None
     choice: int | None = Field(None, ge=1, description="该未完项已展示候选的编号，从1起")
@@ -108,7 +108,11 @@ class Calculate(Args):
     items: list[Item]
 
 def query_today(rt, p):
-    summary = rt.store.today_summary(rt.user_id)
+    lean = p.get("detail","calories") == "calories"
+    summary = rt.store.today_summary(rt.user_id, calories_only=lean)
+    if lean:
+        rt.add_refs(summary["items"])
+        return {"status":"ok","data":{"date":summary["date"],"count":summary["count"],"total":{"kcal":summary["totals"]["kcal"]},"items":[{**{k:v for k,v in i.items() if k not in {"snapshot","nutrition"}},"nutrition":{"kcal":i["nutrition"]["kcal"]}} for i in summary["items"]],"detail":"calories"}}
     target = rt.store.get_standard(rt.user_id)
     rt.add_refs(summary["items"])
     return {"status": "ok", "data": {"date": summary["date"], "items": summary["items"], "total": summary["totals"],
@@ -159,10 +163,10 @@ def entry(name, schema, description, risk, runner):
 TOOL_REGISTRY = {t.name: t for t in [
     entry("record_meal", Record, "记录整餐多项食物；可确定项先写，其余合并追问。补全传pending_id及新增信息，候选choice绑定已展示快照；支持cancel_pending及历史/常用餐reuse和ratio。未给餐次用unknown。只有报告已食用或明确要求记录才执行，用户明确请求记录使用execute；待讨论的写入建议使用propose。", "write", meals.record_meal),
     entry("revise_intake", Revise, "按已返回的record_id改量或软删除指定摄入项；无ID时从本会话刚才那餐按food_query定位。目标不唯一先询问，明确修改/撤销直接execute。", "destructive", meals.revise_intake),
-    entry("query_today", Query, "查询今日有效明细、合计、逐字段生效目标和剩余；返回可操作record_id。", "read_only", query_today),
+    entry("query_today", Query, "查询今日有效摄入。默认calories给出完整热量合计，足够直接回答只问热量的请求。用户需要宏量、目标或剩余时用summary，需要逐项明细时用items；返回可操作record_id。", "read_only", query_today),
     entry("query_history", History, "查询指定日期/时间窗和餐次的有效摄入快照、聚合及record_id；用于历史餐复用与指代定位。end_date不含尾日。", "read_only", query_history),
     entry("query_food_nutrition", Nutrition, "查询指定摄入快照或一般食物营养及份量。", "read_only", query_nutrition),
-    entry("query_knowledge", Knowledge, "检索静态营养知识，返回本轮原文evidence和source；结论及数字必须有本轮证据。", "read_only", query_knowledge),
+    entry("query_knowledge", Knowledge, "检索营养知识，返回本轮原文evidence和source。回答中的食物份量、比例和营养数字取自检索原文；资料未覆盖的部分可提供一般定性解释，并简短说明具体证据缺口。", "read_only", query_knowledge),
     entry("calculate_meal", Calculate, "计算方案逐项营养、合计与当前目标/摄入的预算差额。替换食物或份量必须重算后展示。", "read_only", meals.calculate_meal),
     entry("update_user_settings", Settings, "更新明确指定的目标、偏好、常用份量、命名常用餐或提醒。目标默认长期，只改指定字段；提醒默认关闭，缺时间/餐次/本人飞书会话时不启用。主动写入建议用propose，只有紧邻请求确认的提案可confirm。", "write", settings.update_user_settings),
 ]}

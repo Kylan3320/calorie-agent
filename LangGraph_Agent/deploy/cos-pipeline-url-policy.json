@@ -1,0 +1,8 @@
+{
+  "version": "2.0",
+  "statement": [{
+    "effect": "allow",
+    "action": ["name/scf:InvokeFunctionUrl"],
+    "resource": ["qcs::scf:ap-shanghai:uin/100049554055:namespace/default/function/calorie-cos-ingress-probe"]
+  }]
+}

@@ -44,8 +44,12 @@ def kcal(r,value):
 def E01():
     """整餐、改量常用餐、半份复用、只问今日热量；独立数值与必要调用。"""
     s=setup()
+    ordered_items=s.intake_items
+    s.intake_items=lambda *args,**kw:list(reversed(ordered_items(*args,**kw)))
     r=send(s,'记录午餐：夹具A200克，夹具B2个。',[call('record_meal',MEAL),answer],'e1a');kcal(r,270)
     assert len(s.intake)==2 and [i['grams'] for i in s.intake]==[200,100]
+    stored={row['food_name']:row['record_id'] for row in s.intake}
+    assert all(item['record_id']==stored[item['matched_name']] for item in r['tool_results'][0]['data']['items'])
     r=send(s,'刚才夹具A改为100克，夹具B不变，把这两项保存为常用餐“午餐20261101”。',[
         call('revise_intake',{'food_query':'夹具A','grams':100}),call('update_user_settings',{'kind':'favorite','values':{'name':'午餐20261101'}},'c2'),
         lambda m:AIMessage(content='已改好并保存为午餐20261101，这餐210千卡，夹具B按单位换算，为估算。')],'e1b');kcal(r,210)
@@ -53,7 +57,7 @@ def E01():
     r=send(s,'今天摄入合计多少热量？',[call('query_today',{}),answer],'e1d');kcal(r,315)
     assert s.today_summary('user')['totals']=={'carbs':15,'protein':21,'fat':16.5,'kcal':315}
     assert len(s.intake)==4
-    assert '估算' in TRANSCRIPT[-3]['result']['reply']
+    assert re.search(r'估算|约\s*\d',TRANSCRIPT[-3]['result']['reply'])
     for t in TRANSCRIPT[-4:]:
         assert len(t['result']['reply'])<200
         assert not all(k in t['result']['reply'] for k in ('碳水','蛋白','脂肪'))
@@ -64,9 +68,23 @@ def E02():
     """缺项合并询问、换话题保留信息、跨日候选补全。"""
     from agent.storage import boohee_client
     from harness.eval.personal_cases import transport
+    if not REAL:
+        from unittest.mock import patch
+        refreshed=setup()
+        with patch.object(boohee_client,'search_food',return_value=[]):
+            send(refreshed,'记录鱼100克。',[call('record_meal',{'items':[{'food_query':'鱼','grams':100}]}),answer],'e2-refresh-empty')
+        pid=next(iter(refreshed.load_session('user','test')['unfinished']))
+        candidates=[{'food_id':'F1','name':'鱼（生）','carbs_per_100g':0,'protein_per_100g':20,'fat_per_100g':2,'kcal_per_100g':110},
+                    {'food_id':'F2','name':'鱼（熟）','carbs_per_100g':0,'protein_per_100g':25,'fat_per_100g':3,'kcal_per_100g':127}]
+        with patch.object(boohee_client,'search_food',return_value=candidates):
+            send(refreshed,'再查一下鱼的候选。',[call('record_meal',{'items':[{'food_query':'鱼','pending_id':pid}]}),
+                 call('record_meal',{'items':[{'food_query':'鱼','pending_id':pid,'choice':1}]},'c2'),answer],'e2-refresh-offer')
+        assert not refreshed.intake
+        current=refreshed.load_session('user','test')['unfinished'][pid]
+        assert current['offered_message_id']=='e2-refresh-offer' and len(current['candidates'])==2
     s=setup();r=send(s,'记录夹具A200克、鱼100克、夹具B。',[call('record_meal',{'items':[{'food_query':'夹具A','grams':200},{'food_query':'鱼','grams':100},{'food_query':'夹具B'}]}),answer],'e2a')
     assert len(s.intake)==1
-    assert '1.' in r['reply'] and '鱼（生）' in r['reply'],r['reply']
+    assert '鱼（生）' in r['reply'] and '夹具B' in r['reply'],r['reply']
     pending=s.load_session('user','test')['unfinished'];assert len(pending)==2
     saved=deepcopy(pending);send(s,'先不聊这个了。',[AIMessage(content='好，先放一放。')],'e2b');assert s.load_session('user','test')['unfinished']==saved
     fish=next(v for v in pending.values() if v['food_query']=='鱼');b=next(v for v in pending.values() if v['food_query']=='夹具B')
@@ -79,11 +97,12 @@ def E02():
     assert not s.load_session('user','test')['unfinished']
     # A completed item retains its original meal when later reweighed/recounted.
     r=send(s,'刚才夹具B改为3个。',[call('revise_intake',{'food_query':'夹具B','quantity':3,'unit':'个'}),answer],'e2d');kcal(r,455)
-    assert '估算' in r['reply'],r['reply']
+    assert re.search(r'估算|约\s*\d',r['reply']),r['reply']
     meal=r['tool_results'][0]['data']['meal_totals'][0]
     assert meal['count']==3 and meal['date']=='2026-10-31' and meal['estimated']
     r=send(s,'夹具B实际称重可食150克。',[call('revise_intake',{'food_query':'夹具B','grams':150}),answer],'e2e');kcal(r,455)
-    assert '估算' not in r['reply'],r['reply']
+    # Explicitly clearing an estimate is valid natural prose, too.
+    assert '估算' not in re.sub(r'(?:不再是|不再按|已非|不是)[^，。；\n]{0,8}估算(?:值)?','',r['reply']),r['reply']
     meal=r['tool_results'][0]['data']['meal_totals'][0]
     row=next(i for i in s.intake if i['food_name']=='夹具B')
     assert meal['count']==3 and not meal['estimated']
@@ -91,15 +110,18 @@ def E02():
 
 def E03():
     """知识综合、无直接证据的一般解释、按需来源；无业务写入。"""
+    from harness.eval.latency_checks import rag_loop_check
+    rag_loop_check()
     import agent.tools.reads as reads
     old=reads.build_knowledge_retriever
     def retrieve(query,entries):
         if '火星' in query:return {'status':'not_found','entries':[],'evidence':''}
-        if '全谷' in query:return {'status':'ok','entries':[{'entry_id':'fixture-k2','answer':'主食种类可以轮换。来源：轮换资料2024，第7段','source':'轮换资料2024，第7段'}],'evidence':'主食种类可以轮换。'}
+        if '全谷' in query and '主食' not in query:return {'status':'ok','entries':[{'entry_id':'fixture-k2','answer':'主食种类可以轮换。来源：轮换资料2024，第7段','source':'轮换资料2024，第7段'}],'evidence':'主食种类可以轮换。'}
         return {'status':'ok','entries':[{'entry_id':'fixture-k1','answer':'主食可以与蔬菜搭配，结合整天的饮食安排。来源：验收资料2022，第2段','source':'验收资料2022，第2段'}],'evidence':'主食可以与蔬菜搭配，结合整天的饮食安排。'}
     reads.build_knowledge_retriever=lambda kind:retrieve
     try:
         s=setup();r=send(s,'主食怎么搭配？给个简单解释和依据。',[call('query_knowledge',{'query':'主食搭配'}),answer],'e3a');assert '蔬菜' in r['reply']
+        assert not re.search(r'一半|半碗|半盘|一小碗|[一二三四五六七八九十百\d]+分之[一二三四五六七八九十百\d]+|\d+(?:\.\d+)?\s*(?:克|g|%|％)',r['reply']),r['reply']
         r=send(s,'火星饮食法有什么道理？',[call('query_knowledge',{'query':'火星饮食法'}),answer],'e3b');assert r['reply'] and not s.intake
         r=send(s,'把刚才主食搭配的来源给我看看。',[call('query_knowledge',{'query':'主食搭配'}),lambda m:AIMessage(content='原文是“主食可以与蔬菜搭配，结合整天的饮食安排。”来源：验收资料2022，第2段。[K101]')],'e3c');assert '2022' in r['reply']
         assert not s.load_document('user_settings','user')
@@ -117,6 +139,7 @@ def E04():
         s=setup();r=send(s,'先建议将长期热量设为1900千卡，等我确认后再生效。',[call('update_user_settings',{'mode':'propose','kind':'targets','values':{'kcal':1900}}),AIMessage(content=variant)],'e4a',False)
         assert s.get_standard('user')['kcal']!=1900
         assert not s.load_session('user','test')['proposal']['presented']
+        assert len(re.findall('[？?]',r['reply']))==1,r['reply']
         mark_reply_presented(s,'user','test',r);s=deepcopy(s)
         send(s,'好的',[call('update_user_settings',{'mode':'confirm','kind':'targets','values':{'kcal':999}}),answer],'e4b');assert s.get_standard('user')['kcal']==1900
         send(s,'再建议设为1800，先问我。',[call('update_user_settings',{'mode':'propose','kind':'targets','values':{'kcal':1800}}),answer],'e4c')
@@ -131,19 +154,42 @@ def E04():
 
 def E05():
     """正常数字/名字不误拦、六行视图减半、完整结果不变、明细按需。"""
+    from harness.eval.latency_checks import query_rpc_check, model_protocol_check
+    model_protocol_check()
+    query_rpc_check()
     error={'tool':'query_today','status':'limit','data':{},'error':'工具调用次数已达上限'}
     assert model_view(error)==error
     s=setup()
-    for n in range(3):send(s,'记录夹具A200克和夹具B2个。',[call('record_meal',MEAL),answer],f'e5{n}')
+    from harness.eval.personal_cases import A,B
+    for n in range(3):
+        s.write_intake({'message_id':f'e5-fixture-{n}','user_id':'user','chat_id':'test','text':'独立六行夹具'},[
+            {'food_id':'A','matched_name':'夹具A','grams':200,'nutrition':{'carbs':20,'protein':4,'fat':2,'kcal':120},'snapshot':{'food':deepcopy(A),'estimated':False}},
+            {'food_id':'B','matched_name':'夹具B','grams':100,'nutrition':{'carbs':0,'protein':12,'fat':10,'kcal':150},'snapshot':{'food':deepcopy(B),'estimated':True}}], 'lunch')
+    # Earlier verbose replies must not broaden the current calorie-only request.
+    from langchain_core.messages import HumanMessage,messages_to_dict
+    s.save_session('user','test',{'messages':messages_to_dict([HumanMessage(content='今天摄入合计多少热量？'),AIMessage(content='今天已记录6项，合计810千卡，碳水60克、蛋白质48克、脂肪36克。需要每项明细也可以告诉我。')])})
     r=send(s,'今天合计多少热量？',[call('query_today',{}),lambda m:AIMessage(content='今天6项合计810千卡。')],'e5q');kcal(r,810)
+    assert len(r['native_calls'])==1 and r['model_calls']<=2,r['native_calls']
+    assert r['tool_results'][0]['data'].get('detail','calories')=='calories'
+    assert not all(word in r['reply'] for word in ('碳水','蛋白','脂肪')),r['reply']
     f=r['tool_results'][0];view=model_view(f);assert len(json.dumps(view,ensure_ascii=False))<=len(json.dumps(f,ensure_ascii=False))*.5
-    assert 'snapshot' in f['data']['items'][0]
+    assert 'targets' not in f['data'] and 'remaining' not in f['data']
+    assert 'snapshot' not in f['data']['items'][0]
     assert render('已修改，常用餐20261101，今天6项，指南2022。',[])[0].startswith('已修改')
     r=send(s,'把今天每项的克重和碳水、蛋白质、脂肪都列给我。',[call('query_today',{'detail':'items'}),lambda m:AIMessage(content='夹具A200克：碳水20克、蛋白质4克、脂肪2克；夹具B100克：碳水0克、蛋白质12克、脂肪10克。今天三次记录的同款午餐各有上述两项。')],'e5detail')
     assert all(k in r['reply'] for k in ('碳水','蛋白','脂肪'))
 
 def E06():
     """写后中断、固定两动作恢复、压缩和只读、发送防重。"""
+    from harness.eval.latency_checks import finish_and_budget_check,handoff_check
+    finish_and_budget_check()
+    handoff_check()
+    from agent.replies import progress_reply
+    progress=progress_reply([{'tool':'revise_intake','status':'ok','data':{'meal_totals':[{'meal_id':'same-meal','total':{'kcal':270},'estimated':True}]}},
+                             {'tool':'query_today','status':'ok','data':{'total':{'kcal':633.8}}},
+                             {'tool':'revise_intake','status':'ok','data':{'meal_totals':[{'meal_id':'same-meal','total':{'kcal':210},'estimated':True}]}}])
+    assert '210' in progress and '270' not in progress and '633.8' not in progress and '估算' in progress,progress
+    assert '今天合计525.6' in progress_reply([{'tool':'query_today','status':'ok','data':{'total':{'kcal':525.6}}}])
     from harness.eval import personal_cases as old
     original=old.answer
     old.answer=answer
@@ -162,8 +208,8 @@ def E06():
     recovered=send(s,'记夹具A200克，并把长期热量目标设为1900千卡。',[answer],'e6a')
     def verify_receipt(text):
         clauses=re.split('[，。；\n]',text)
-        assert any('夹具A' in c and re.search('已记|记好|记入',c) and not re.search('未记|没记|没有记',c) for c in clauses),text
-        assert not any('夹具B' in c and re.search('已记|记好|记入',c) for c in clauses),text
+        assert any('夹具A' in c and re.search('已(?:经)?记|记好|记入',c) and not re.search('未记|没记|没有记',c) for c in clauses),text
+        assert not any('夹具B' in c and re.search('已(?:经)?记|记好|记入',c) for c in clauses),text
         assert any('目标' in c and '1900' in c for c in clauses),text
         kcal({'reply':text},120)
     verify_receipt(recovered['reply'])

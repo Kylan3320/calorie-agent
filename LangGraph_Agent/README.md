@@ -5,7 +5,9 @@
 
 个人饮食管理行为及最小验收见 [PERSONAL_CALORIE_SPEC.md](PERSONAL_CALORIE_SPEC.md)，实际交付证据见 [reports/PERSONAL_DELIVERY.md](reports/PERSONAL_DELIVERY.md)。
 
-交流体验改进的本地实现及离线验收已完成，最终发布验收待完成。行为及最小验收见 [CONVERSATION_EXPERIENCE_SPEC.md](CONVERSATION_EXPERIENCE_SPEC.md)，实际构建、线上结果及待办见 [reports/CONVERSATION_DELIVERY.md](reports/CONVERSATION_DELIVERY.md)。
+交流行为见 [CONVERSATION_EXPERIENCE_SPEC.md](CONVERSATION_EXPERIENCE_SPEC.md)，历史交付记录见 [reports/CONVERSATION_DELIVERY.md](reports/CONVERSATION_DELIVERY.md)。后续任务按有效规格和改动影响选择验证，规则见 [AGENTS.md](AGENTS.md)。
+
+飞书＋COS 已迁移并启用，存储、提交与同步规则及验收要求见 [LATENCY_OPTIMIZATION_SPEC.md](LATENCY_OPTIMIZATION_SPEC.md)。实际构建、逐项验收状态及未解决项统一见 [LATENCY_DELIVERY.md](reports/LATENCY_DELIVERY.md)，启用不代表全部验收通过。[COS 验证记录](reports/COS_PROBE.md) 保留探针历史，不是后续任务清单。
 
 ## 本地运行
 
@@ -29,7 +31,7 @@ $env:CONSOLE_USER_ID = "本人飞书open_id"
 .\.venv\Scripts\python.exe -m console.server
 ```
 
-后端监听 http://127.0.0.1:8765。真实表格访问需配置账号和飞书环境变量；别名按 D25 归一。
+后端监听 http://127.0.0.1:8765。live 经统一云端受理，需要 CALORIE_SERVICE_URL、CALORIE_SERVICE_TOKEN 和 CONSOLE_USER_ID；别名由已发布 COS 快照归一。
 DSH 请求携带 session_id、message_id；追问按会话隔离，消息 ID 用于防重。
 
 DSH 是外部依赖，本仓库不包含其构建和 profile 数据。准备方式：
@@ -49,11 +51,13 @@ setup-links.sh 会检查依赖及所需导出；升级 DSH 后重新运行此步
 - 飞书：FEISHU_APP_ID、FEISHU_APP_SECRET、FEISHU_VERIFICATION_TOKEN、BITABLE_APP_TOKEN。
 - 表：BITABLE_FOOD_TABLE_ID、BITABLE_INTAKE_TABLE_ID、BITABLE_STANDARD_TABLE_ID、BITABLE_PENDING_TABLE_ID、BITABLE_USAGE_TABLE_ID、BITABLE_KNOWLEDGE_TABLE_ID；可选 BITABLE_ALIASES_TABLE_ID、USER_ID_ALIASES。
 - 模型与数据源：DEEPSEEK_API_KEY、BOOHEE_API_KEY；LightRAG 使用 SILICONFLOW_API_KEY。
-- 本地真实表格账号：CONSOLE_USER_ID。轨迹可设置 TRACE_PATH。
+- 生产COS：COS_BUCKET、COS_PREFIX、COS_REGION（上海）；SCF运行角色注入临时凭据，按每次请求／事件刷新。
+- 受理与worker：CALORIE_MESSAGE_FUNCTION。CLI／DSH及定时提醒HTTP受理使用 CALORIE_SERVICE_URL、CALORIE_SERVICE_TOKEN；本地本人身份 CLI_USER_ID／CONSOLE_USER_ID。候选CAM认证入口配置 CALORIE_SERVICE_AUTH=cam 和 CALORIE_CLOUD_UIN，内部服务令牌独立传输；正式现有入口使用Bearer。令牌仅配置在私有环境，不能写入包。
+- 轨迹：可设置 TRACE_PATH。
 
 PRESET、KNOWLEDGE_RETRIEVER 优先于 YAML；model、timezone_offset_hours 优先使用 YAML，环境变量仅作缺省值。
 每日目标及表字段见 contracts/bitable_schema.md。
-当前代码依赖 pending_tasks 表的 `payload` 文本列；Bitable live 写入及快速 ACK 依赖该表。
+生产业务、收件及会话以COS提交为准；Bitable的pending_tasks.payload用于设置归档和旧状态迁移。
 旧确认任务没有固定目标时会被拒绝，取消后重新发起即可。
 
 ## 云函数部署
@@ -65,15 +69,19 @@ PYTHON=python3.10 bash deploy/build_zip.sh
 python deploy/api_deploy.py                 # 默认 deploy/calorie-agent-v4.zip
 ```
 
-SCF 使用 Web 函数、Python 3.10、端口 9000、scf_bootstrap。
-设置 TENCENTCLOUD_SECRET_ID / TENCENTCLOUD_SECRET_KEY；SCF_FUNCTION 指定目标函数，SCF_REGION 默认 ap-shanghai。
-部署入口上传后显示函数状态；发布验收检查涉及的能力及配置，写入变更再验证对应落表事实。
-如环境变量仍呈旧值，核对实例和发布状态，必要时重新上传代码刷新实例。
+生产分为受理Web函数、消息Event函数和独立归档Event函数，三者各平台并发1；Python3.10、上海私有COS。消息worker是业务及会话唯一写入者，Bitable等待不占消息链路。受理持久化且异步调用接受后才ACK，失败503；消息最多自动尝试3次，原日期、动作、累计模型预算和回复正文在恢复时保留。每5分钟维护先补查收件，再归档；每分钟提醒经同一受理保存原计划时间。
 
-飞书请求先保存收件事实再 ACK，后台按同会话收件顺序处理；处理/发送失败最多尝试两次。
-持续失败或进程退出后，配置相同环境运行 `python app.py --retry-pending` 恢复未完成的飞书收件；
-该命令恢复已存原生工具调用及原回复，沿用原日期及防重键，不处理 DSH/CLI 任务，不新增定时调度。
-恢复前查看日志中的错误并修复配置或服务故障；本地 FakeStore 的状态不跨进程保留。
+具体函数、角色权限、触发器及当次迁移步骤见 [部署计划](deploy/cos-production-plan.json)。当次授权、迁移和切换已执行，实际结果见交付记录；后续发布按变更影响执行，不自动重复正式基线迁移。
+
+```bash
+# 当次生产接入的参考命令，不是后续任务的待办清单。
+python deploy/production_release.py freeze
+python deploy/production_release.py inspect --function calorie-agent-api-v3-test
+python deploy/migrate_cos.py export --snapshot reports/production-baseline.json --audit reports/production-source-audit.json
+# 完成维护排空、独立导入核对和候选验收后，才按部署计划切换。
+```
+
+发布脚本从环境读取 TENCENTCLOUD_SECRET_ID／TENCENTCLOUD_SECRET_KEY，SCF_FUNCTION指定目标，SCF_REGION默认ap-shanghai。迁移保留原ID、日期、数值、软删除、未完事项和幂等／投递状态。COS有新业务提交后只能回退到兼容当前提交格式的构建。实际完成情况及未解决项见 [LATENCY_DELIVERY.md](reports/LATENCY_DELIVERY.md)。
 
 ## 知识维护与发布
 
@@ -98,16 +106,6 @@ agent/：图、工具、策略与存储；console/：本地控制台及 DSH 驱�
 harness/eval/：统一评测入口；deploy/：构建及发布；contracts/：跨模块契约。
 
 
-## Personal 升级运行与发布
+## 历史记录
 
-CLI、飞书、DSH /calorie共用LangChain v1 create_agent，DeepSeek模型不变，不再提供deterministic/AgentPlan入口。CLI默认假写存储，交互进程共享会话，需要DEEPSEEK_API_KEY。DSH保持/dsh引擎，/calorie按session_id隔离；控制台仅127.0.0.1。
-
-必要验收：`python harness/eval/runner.py --case U01,U02,U03,U04,U05,U06,U07`，使用独立FakeStore、假模型/薄荷/时钟，不访问真实表。不要把旧smoke或全量基线作为本次发布门槛。
-
-Linux Python3.10构建：`PYTHON=/path/to/python3.10 bash deploy/build_zip.sh`，包内BUILD_ID写入health。构建检查必须启动该包并用当前生产LightRAG Layer检查Agent、检索器和提醒入口可加载。打包仅app.py/agent/config.yaml/scf_bootstrap/requirements.txt/BUILD_ID/deps，排除console/DSH/报告/构建目录。
-
-固定目标ap-shanghai/default/calorie-agent-api-v3-test，保留飞书cli_aabc166fccb8dcef现有webhook。新增Event函数calorie-agent-reminder复用同包，入口`app.reminder_handler`，每分钟cron `0 * * * * * *`，按事件计划Time及项目+8时区匹配；默认无启用用户规则。主函数至少120秒、端口9000，维持单实例串行接收，避免跨实例同时更新会话状态。
-
-切换前旧入口收尾已收件/待发送任务；`agent.storage.migration.ensure_schema(store)`仅添加缺列，`migrate_legacy_pending(store,dry_run=False)`仅迁移等待回答的事实并关闭旧任务。执行日志保存于现有pending表；上线后`python app.py --retry-pending`显式恢复执行/发送，最终回复与uuid不变。三预设和字段/状态见contracts。
-
-线上按Spec完成指定对话组，核对真实回复、落表、原生工具轨迹和LightRAG检索，最后仅软删除该次新增摄入、移除测试常用餐、恢复变动设置。构建/离线/线上结果见reports/PERSONAL_DELIVERY.md。
+COS接入前的真实运行、部署及验收证据保留在 [PERSONAL_DELIVERY.md](reports/PERSONAL_DELIVERY.md) 和 [CONVERSATION_DELIVERY.md](reports/CONVERSATION_DELIVERY.md)。历史构建与Bitable恢复命令不适用于新的COS业务前缀；本轮以 [提速规格](LATENCY_OPTIMIZATION_SPEC.md) 和实际交付记录为准。

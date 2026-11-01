@@ -13,9 +13,9 @@ def resolve_preset(name, config_allowed_tools):
     from ..tools.registry import TOOL_REGISTRY
     all_tools = set(TOOL_REGISTRY)
     if name == "live":
-        return Preset(name, frozenset(all_tools & set(config_allowed_tools)), "bitable", True, True)
+        return Preset(name, frozenset(all_tools & set(config_allowed_tools)), "cos", True, True)
     if name == "shadow_fakewrite":
         return Preset(name, frozenset(all_tools), "fake", False, True)
     if name == "shadow_readonly":
-        return Preset(name, frozenset(n for n,t in TOOL_REGISTRY.items() if t.metadata["risk"] == "read_only"), "bitable", False, False)
+        return Preset(name, frozenset(n for n,t in TOOL_REGISTRY.items() if t.metadata["risk"] == "read_only"), "cos", False, False)
     raise ValueError(f"unknown preset: {name}")

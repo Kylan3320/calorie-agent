@@ -1,10 +1,10 @@
 # Personal Calorie Agent 升级规格
 
-状态：2026-11-01 已完成实现、规定的必要验收、目标腾讯云函数更新、本人真实飞书验收及本次测试业务数据清理。实际构建、证据、恢复经过及限制见 [交付记录](reports/PERSONAL_DELIVERY.md)。
+历史阶段状态：2026-11-01 已完成该阶段实现、规定验收、函数更新、本人飞书验收及测试数据清理，证据见 [当时交付记录](reports/PERSONAL_DELIVERY.md)。当前部署、验收状态及未解决项统一见 [生产交付记录](reports/LATENCY_DELIVERY.md)。
 
-后续交流体验改进的已确认目标及验收见 [CONVERSATION_EXPERIENCE_SPEC.md](CONVERSATION_EXPERIENCE_SPEC.md)，尚待实施；本文件保留前次业务规格及交付范围。
+本文件保留个人饮食管理业务要求及该阶段历史验收范围；后续回复行为以 [CONVERSATION_EXPERIENCE_SPEC.md](CONVERSATION_EXPERIENCE_SPEC.md) 为准，存储、预设、恢复及生产接入验收以 [LATENCY_OPTIMIZATION_SPEC.md](LATENCY_OPTIMIZATION_SPEC.md) 和相关 contracts 为准。历史验收不自动成为后续任务。
 
-先读 [REQUIREMENTS.md](REQUIREMENTS.md) 和本规格，再读涉及的 [contracts/](contracts/)。本次目标行为及验收以本规格为准；contracts 描述当前接口，随对应代码替换，不将其中已被本规格改变的旧行为带入新实现。未涉及的有效约定继续保留。
+涉及个人业务时按需读取 [REQUIREMENTS.md](REQUIREMENTS.md)、本规格及相关 [contracts/](contracts/)。本规格未被后续有效决策改变的业务约定继续保留，contracts 描述当前接口。
 
 ## 1. 目标与范围
 
@@ -20,10 +20,10 @@
 |---|---|
 | 运行时 | LangChain v1 create_agent，使用其 LangGraph 编排与原生 tool calling。模型收到工具结果后决定下一步或结束。 |
 | 模型与依赖 | 保留 DeepSeek 及当前配置模型，不迁移产品模型。锁定支持 Linux Python 3.10 的兼容稳定版本，同步 requirements.txt 与打包脚本。 |
-| 数据 | Bitable 是业务、个人设置和会话状态的持久存储；访问统一经 agent/storage/。BitableStore 与 FakeStore 保持对应业务语义。 |
+| 数据 | COS 保存当前业务事实、个人设置及运行状态，Bitable 后台归档与维护来源；访问统一经 agent/storage/。生产 CosStore 与 FakeStore 保持对应业务语义，详见提速规格。 |
 | 食物与知识 | 本地 foods＋薄荷搜索/详情/单位；知识保留 knowledge_retriever 与生产 LightRAG，历史摄入走结构化查询。 |
 | 入口 | 飞书、DSH 的 /calorie 和 CLI 使用同一业务运行时；保留 /dsh 引擎及账号别名。DSH 按 session_id 隔离，CLI 交互进程内延续同一会话。 |
-| 预设 | live 真实读写；shadow_fakewrite 使用 FakeStore，不访问真实 Bitable；shadow_readonly 对真实 Bitable 完全只读，包括会话、追问和 usage。后两者不发送飞书消息；只读会话状态仅在本次运行内保存。 |
+| 预设 | live 经统一 COS 通道真实读写，Bitable 后台归档；shadow_fakewrite 使用 FakeStore，不访问真实存储；shadow_readonly 读取已提交 COS 事实，对 COS、Bitable、投递及 usage 零写入。后两者不发送飞书消息。 |
 | 部署 | 腾讯 SCF，Python 3.10、主入口端口 9000；提醒使用 SCF 定时触发，不引入常驻调度器。 |
 
 从注册表中的工具对象派生名称、description、参数 schema、风险和执行函数，按预设筛选后作为原生 tools 传入每次模型请求；系统 prompt 只保留共用规则，不手写另一份工具说明。模型选择工具、解释用户意图；后端绑定身份、动作标识、目标引用和确认状态；工具负责匹配、计算及存储。

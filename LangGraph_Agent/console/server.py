@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 from agent import FakeStore, load_config, run  # noqa: E402
 from agent.config import PLANNERS, PRESETS, reset_config_cache  # noqa: E402
 from agent.tools.registry import TOOL_REGISTRY  # noqa: E402
+from agent.storage.live_client import LiveClient
 
 ENV_KEYS = [
     "FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_VERIFICATION_TOKEN", "DEEPSEEK_API_KEY",
@@ -32,6 +33,7 @@ ENV_KEYS = [
     "PRESET", "DEEPSEEK_MODEL", "APP_TIMEZONE_OFFSET_HOURS", "TRACE_PATH",
     "CONSOLE_USER_ID", "KNOWLEDGE_RETRIEVER", "BITABLE_KNOWLEDGE_TABLE_ID",
     "BITABLE_ALIASES_TABLE_ID", "BOOHEE_API_KEY", "SILICONFLOW_API_KEY",
+    "COS_BUCKET", "COS_PREFIX", "CALORIE_SERVICE_URL", "CALORIE_SERVICE_TOKEN",
 ]
 
 ALL_TOOLS = tuple(TOOL_REGISTRY)
@@ -209,31 +211,27 @@ def playground_run(
     sid, session = _session(request)
     if preset not in PRESETS:
         preset = "shadow_fakewrite"
-    if preset == "shadow_fakewrite":
-        store_kind = "fake"  # 假写预设语义固定绑内存存储
-    elif preset != "live":
-        store_kind = "bitable"  # 只读影子看真实数据
-    elif store_kind not in {"fake", "bitable"}:
-        store_kind = "fake"
-
+    store_kind = "fake" if preset == "shadow_fakewrite" else "cos"
     config = dataclasses.replace(load_config(), preset=preset, planner=planner if planner in PLANNERS else "deepseek")
-    if store_kind == "bitable":
-        from agent.storage import BitableStore
-
-        store = BitableStore(offset_hours=config.timezone_offset_hours)
-    else:
+    if preset == "shadow_fakewrite":
         store = session["store"]
+    elif preset == "shadow_readonly":
+        from agent.storage import create_store
+        from agent.policy import resolve_preset
+        store = create_store(config, resolve_preset(preset, config.allowed_tools))
+    else:
+        store = None
 
     result: dict[str, Any] = {}
     error = ""
     if text.strip():
         started = time.monotonic()
         try:
-            result = run(
-                {"message_id": f"console-{uuid.uuid4().hex}", "user_id": _console_user_id(store), "chat_id": f"console:{sid}", "text": text},
-                store=store,
-                config=config,
-            )
+            message = {"message_id": f"console-{uuid.uuid4().hex}", "user_id": os.getenv("CONSOLE_USER_ID", "") if preset == "live" else _console_user_id(store), "chat_id": f"console:{sid}", "text": text}
+            if preset == "live":
+                result = LiveClient().submit(message, source="console")
+            else:
+                result = run(message, store=store, config=config)
         except Exception as exc:  # noqa: BLE001 - 控制台要把异常显示出来而不是崩
             error = f"{type(exc).__name__}: {exc}"
         session["history"].append({
@@ -292,15 +290,18 @@ def _playground_page(
         f'<div class="card"><p><input name="text" value="{_esc(text)}" size="60" placeholder="例如：米饭 / 鸡蛋100g / 今天吃了什么 / 撤销上一条"></p>'
         f'<p>planner <select name="planner">{planner_opts}</select>　preset <select name="preset">{preset_opts}</select>　'
         f'store <select name="store_kind"><option value="fake"{" selected" if store_kind == "fake" else ""}>fake(内存)</option>'
-        f'<option value="bitable"{" selected" if store_kind == "bitable" else ""}>bitable(真实表格)</option></select>　'
+        f'<option value="cos"{" selected" if store_kind == "cos" else ""}>cos(云端事实)</option></select>　'
         f'<button type="submit">运行</button>　'
         f'<a class="btn-dim" href="/playground/reset">重置会话存储</a></p>'
-        f'<p class="dim">fake=会话内内存存储（可测追问闭环多轮）；bitable=真实多维表格（live 预设会真实写入；'
-        f'只读影子预设自动用 bitable）。控制台永远不会发送飞书消息。planner=deepseek 需要 DEEPSEEK_API_KEY。</p>'
+        f'<p class="dim">fake=会话内内存存储；live 通过云端统一受理执行；'
+        f'只读影子预设读取 COS 已发布版本。控制台会话回复显示在本页。planner=deepseek 需要 DEEPSEEK_API_KEY。</p>'
         f'</div></form>'
         f'{result_html}'
         f'<h3>会话历史（新→旧）</h3><table class="kv"><tr><th>输入</th><th>预设/存储</th><th>回复(截断)</th><th>耗时</th></tr>{history_html}</table>'
     )
+    if result and result.get("delivery_reference"):
+        encoded = json.dumps({"delivery_reference": result["delivery_reference"]}, ensure_ascii=True).replace("<", "\u003c")
+        body += '<script>window.addEventListener("load",()=>fetch("/api/agent/presented",{method:"POST",headers:{"Content-Type":"application/json"},body:' + json.dumps(encoded) + '}));</script>'
     return _page("Playground", "/playground", body)
 
 
@@ -311,7 +312,7 @@ def _console_user_id(store: Any) -> str:
         return "console_user"
     user_id = os.getenv("CONSOLE_USER_ID", "").strip()
     if not user_id:
-        raise ValueError("CONSOLE_USER_ID is required for Bitable access")
+        raise ValueError("CONSOLE_USER_ID is required for COS access")
     return store.load_user_aliases().get(user_id, user_id)
 
 
@@ -331,31 +332,28 @@ def api_agent(payload: dict) -> Any:
     planner = str(payload.get("planner") or load_config().planner)
     if planner not in PLANNERS:
         planner = "deepseek"
-    store_kind = str(payload.get("store_kind") or "")
-    if preset == "shadow_fakewrite":
-        store_kind = "fake"
-    elif preset != "live":
-        store_kind = "bitable"
-    elif store_kind not in {"fake", "bitable"}:
-        store_kind = "bitable"
-
     config = dataclasses.replace(load_config(), preset=preset, planner=planner)
-    if store_kind == "bitable":
-        from agent.storage import BitableStore
-
-        store = BitableStore(offset_hours=config.timezone_offset_hours)
-    else:
-        key = f"dsh:{session_id}"
-        if key not in _SESSIONS:
-            _SESSIONS[key] = {"store": FakeStore(), "history": []}
-        store = _SESSIONS[key]["store"]
+    message = {"message_id": f"dsh:{session_id}:{message_id}", "user_id": os.getenv("CONSOLE_USER_ID", ""),
+               "chat_id": f"dsh:{session_id}", "text": text}
+    store = None
     try:
-        result = run(
-            {"message_id": f"dsh:{session_id}:{message_id}", "user_id": _console_user_id(store), "chat_id": f"dsh:{session_id}", "text": text},
-            store=store,
-            config=config,
-        )
-    except Exception as exc:  # noqa: BLE001 - 异常转结构化错误返回给 DSH 轨迹
+        if preset == "live":
+            if not message["user_id"]:
+                raise ValueError("CONSOLE_USER_ID is required for live access")
+            result = LiveClient().submit(message, source="dsh")
+        else:
+            if preset == "shadow_readonly":
+                from agent.storage import create_store
+                from agent.policy import resolve_preset
+                store = create_store(config, resolve_preset(preset, config.allowed_tools))
+            else:
+                key = f"dsh:{session_id}"
+                if key not in _SESSIONS:
+                    _SESSIONS[key] = {"store": FakeStore(), "history": []}
+                store = _SESSIONS[key]["store"]
+            message["user_id"] = _console_user_id(store)
+            result = run(message, store=store, config=config)
+    except Exception as exc:
         return {"status": "error", "reply": "", "errors": [f"{type(exc).__name__}: {exc}"]}
     # tool_events: DSH 驱动据此追加原生 tool/call + tool/result 会话事件（轨迹卡片）
     tool_events = []
@@ -372,10 +370,19 @@ def api_agent(payload: dict) -> Any:
             "isError": status not in {"ok", "duplicate_skipped"},
         })
     from agent.graph import mark_reply_presented
-    if config.preset != "shadow_readonly":
+    if config.preset == "shadow_fakewrite":
         mark_reply_presented(store, _console_user_id(store), f"dsh:{session_id}", result)
     result["tool_events"] = tool_events
     return result
+
+
+@app.post("/api/agent/presented")
+def api_agent_presented(payload: dict):
+    """DSH calls after its durable assistant/message append succeeds."""
+    reference = payload.get("delivery_reference")
+    if not reference:
+        return {"status": "ignored"}
+    return LiveClient().presented(reference)
 
 
 # ---------------------------------------------------------------- 路由：轨迹

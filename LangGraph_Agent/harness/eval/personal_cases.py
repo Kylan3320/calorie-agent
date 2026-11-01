@@ -176,7 +176,9 @@ def U05():
         call("update_user_settings",{"kind":"targets","values":{"protein":160}},"c2"),answer],mid="m2")
     assert s.get_standard("user")["protein"]==180 and s.get_standard("user")["kcal"]==2000
     s.today="2026-11-01";assert s.get_standard("user")["protein"]==160
-    send(s,"给点目标建议",[call("update_user_settings",{"mode":"propose","kind":"targets","values":{"kcal":1900}}),answer],mid="m3")
+    proposal,_=send(s,"给点目标建议",[call("update_user_settings",{"mode":"propose","kind":"targets","values":{"kcal":1900}}),answer],mid="m3")
+    from agent.graph import mark_reply_presented
+    mark_reply_presented(s,"user","test",proposal)
     assert s.get_standard("user")["kcal"]==2000
     send(s,"好的",[call("update_user_settings",{"mode":"confirm","kind":"targets","values":{"kcal":999}}),answer],mid="m4")
     assert s.get_standard("user")["kcal"]==1900
@@ -184,7 +186,8 @@ def U05():
     send(s,"换个话题今天吃了什么",[call("query_today",{}),answer],mid="m6")
     send(s,"好的",[call("update_user_settings",{"kind":"targets","values":{"kcal":999}}),answer],mid="m7")
     assert s.get_standard("user")["kcal"]==1900
-    r,_=send(s,"帮我计划A200g和B2个",[call("calculate_meal",{"items":MEAL["items"]}),answer],mid="m8")
+    r,_=send(s,"帮我计划A200g和B2个",[call("calculate_meal",{"items":MEAL["items"]}),AIMessage(content="这个方案合计270kcal。")],mid="m8")
+    assert r["tool_results"][0]["data"]["total"]["kcal"]==270
     assert "270kcal" in r["reply"] and len(s.intake)==0
     send(s,"采用这个计划",[AIMessage(content="好的，按此方案安排。")],mid="m9")
     assert len(s.intake)==0
@@ -251,31 +254,9 @@ def U07():
     run(msg,store=s,config=CONFIG,model=NativeFake(responses=[]))
     assert s.load_session("user","test")==latest_session
     assert s.load_execution(msg)["status"]=="completed"
-    import app
-    old=(app._get_store,app.load_config,app.feishu_client.send_text)
-    deliveries=[]
-    receipt=s.create_pending(msg,"message_received","",None,payload={"message":msg,"intake_date":"2026-10-31"})
-    def sender(chat,text,uuid_key):
-        deliveries.append((text,uuid_key))
-        if len(deliveries)==1: raise RuntimeError("injected send failure")
-        return {"message_id":"ok"}
-    try:
-        app._MESSAGE_STATE.clear();app._get_store=lambda:s;app.load_config=lambda:replace(CONFIG,preset="live");app.feishu_client.send_text=sender
-        assert app._process_message_synchronously(msg,receipt)
-    finally: app._get_store,app.load_config,app.feishu_client.send_text=old
-    assert len(deliveries)==2 and deliveries[0]==deliveries[1]==(r["reply"],reply_uuid(msg))
-    assert s.load_execution(msg)["status"]=="completed"
-    local_msg=dict(message_id="dsh:session:pending",user_id="user",chat_id="dsh:session",text="record")
-    s.begin_execution(local_msg,{"message":local_msg})
-    old_get,old_process=app._get_store,app._process_message_synchronously
-    recovered=[]
-    try:
-        app._get_store=lambda:s
-        app._process_message_synchronously=lambda m,receipt=None: recovered.append(m) or True
-        app.retry_pending_messages()
-    finally:
-        app._get_store,app._process_message_synchronously=old_get,old_process
-    assert all(not m["chat_id"].startswith(("dsh:","cli:")) for m in recovered)
+    # Transport recovery now belongs to the production ingress boundary;
+    # E05/E06 exercise production_pipeline_cases through the unified runner.
+
 
 
 CHECKS={f"U{i:02d}":globals()[f"U{i:02d}"] for i in range(1,8)}

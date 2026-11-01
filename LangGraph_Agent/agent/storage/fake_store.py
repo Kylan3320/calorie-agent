@@ -16,7 +16,7 @@ from .bitable_adapter import (
 from .food_match import normalize_food_name
 from .knowledge_seed import KNOWLEDGE_SEED
 from .knowledge_retriever import normalize_text
-from .timeutil import extract_text, now_millis, round_number
+from .timeutil import extract_text, now_millis, round_number, BUSINESS_DATE
 
 DEFAULT_FOODS = [
     {
@@ -107,7 +107,7 @@ class FakeStore(StateStore):
 
     def today_string(self) -> str:
         """Store-canonical "today" (contracts/tool_protocol.md)."""
-        return self.today
+        return BUSINESS_DATE.get() or self.today
 
     def load_user_aliases(self) -> dict[str, str]:
         from .bitable_adapter import parse_alias_env
@@ -182,7 +182,7 @@ class FakeStore(StateStore):
 
     # --- intake ---------------------------------------------------------------
 
-    def today_summary(self, user_id: str) -> dict[str, Any]:
+    def today_summary(self, user_id: str, *, calories_only=False) -> dict[str, Any]:
         items = []
         totals = {"carbs": 0.0, "protein": 0.0, "fat": 0.0, "kcal": 0.0}
         for row in sorted(self.intake, key=lambda item: item["created_at"]):
@@ -190,7 +190,7 @@ class FakeStore(StateStore):
                 continue
             if user_id and row["user_id"] and row["user_id"] != user_id:
                 continue
-            if row["date"] != self.today:
+            if row["date"] != self.today_string():
                 continue
             item = {
                 "record_id": row["record_id"],
@@ -205,7 +205,7 @@ class FakeStore(StateStore):
             items.append(item)
             for key in totals:
                 totals[key] = round_number(totals[key] + float(row["nutrition"][key]))
-        return {"date": self.today, "count": len(items), "items": items, "totals": totals, "source": "fake"}
+        return {"date": self.today_string(), "count": len(items), "items": items, "totals": totals, "source": "fake"}
 
     def write_intake(
         self,
@@ -382,9 +382,11 @@ class FakeStore(StateStore):
             raise ValueError("execution task does not exist")
         row.update(payload=deepcopy(payload), status="completed" if completed else "pending", expires_at=0)
 
-    def load_unfinished_executions(self) -> list[dict[str, Any]]:
+    def load_unfinished_executions(self, user_id="", chat_id="", *, message=None) -> list[dict[str, Any]]:
         tasks: dict[str, dict[str, Any]] = {}
         for task in self.pending:
+            if user_id and task["user_id"] != user_id: continue
+            if chat_id and task["chat_id"] != chat_id: continue
             if task["intent"] not in {"message_execution", "message_received"} or task["status"] != "pending":
                 continue
             key = task["source_message_id"]

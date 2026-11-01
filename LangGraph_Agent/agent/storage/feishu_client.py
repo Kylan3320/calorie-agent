@@ -10,11 +10,11 @@ import json
 import os
 import threading
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from typing import Any
 from .timeutil import remaining_timeout
+import httpx
+_CLIENT = httpx.Client()
 
 DEFAULT_FEISHU_API_BASE = "https://open.feishu.cn/open-apis"
 _HTTP_TIMEOUT_SECONDS = 10
@@ -33,47 +33,35 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
-def _should_retry(exc: BaseException) -> bool:
-    if isinstance(exc, urllib.error.HTTPError):
-        return exc.code == 429 or 500 <= exc.code < 600
-    if isinstance(exc, urllib.error.URLError):
-        return True
-    if isinstance(exc, TimeoutError):
-        return True
-    return False
-
-
 def _http_request(url: str, payload: dict[str, Any] | None, headers: dict[str, str], method: str) -> dict[str, Any]:
-    data = _json_bytes(payload) if payload is not None else None
-    last_error: BaseException | None = None
+    last_error = None
+    from .telemetry import span
+    resource = "send" if "/im/v1/messages" in url else "other"
+    if "/tables/" in url:
+        table_id = url.split("/tables/",1)[1].split("/",1)[0].split("?",1)[0]
+        resource = next((name.lower() for name in ("PENDING","INTAKE","FOOD","STANDARD","USAGE","KNOWLEDGE")
+                         if os.getenv("BITABLE_"+name+"_TABLE_ID")==table_id),"bitable_other")
     for attempt in (1, 2):
-        request = urllib.request.Request(
-            url,
-            data=data,
-            headers={"Content-Type": "application/json; charset=utf-8", **headers},
-            method=method,
-        )
         try:
-            with urllib.request.urlopen(request, timeout=remaining_timeout(_HTTP_TIMEOUT_SECONDS)) as response:
-                raw = response.read()
-            if not raw:
-                return {"code": 0, "data": {}}
-            parsed = json.loads(raw.decode("utf-8"))
-            return parsed if isinstance(parsed, dict) else {}
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace")
+            with span("feishu_http", method=method, attempt=attempt,
+                      resource=resource,
+                      request_bytes=len(_json_bytes(payload)) if payload is not None else 0) as timing:
+                response = _CLIENT.request(method, url, content=_json_bytes(payload) if payload is not None else None,
+                    headers={"Content-Type":"application/json; charset=utf-8", **headers},
+                    timeout=remaining_timeout(_HTTP_TIMEOUT_SECONDS))
+                response.raise_for_status()
+                timing["response_bytes"] = len(response.content)
+                parsed = response.json() if response.content else {"code":0,"data":{}}
+                return parsed if isinstance(parsed,dict) else {}
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
             last_error = exc
-            if attempt == 1 and _should_retry(exc):
-                time.sleep(_RETRY_SLEEP_SECONDS)
+            retry = isinstance(exc,httpx.RequestError) or exc.response.status_code == 429 or exc.response.status_code >= 500
+            if attempt == 1 and retry:
+                time.sleep(min(_RETRY_SLEEP_SECONDS, remaining_timeout(_RETRY_SLEEP_SECONDS)))
                 continue
-            raise RuntimeError(f"HTTP {exc.code} {method} {url}: {body}") from exc
-        except (urllib.error.URLError, TimeoutError) as exc:
-            last_error = exc
-            if attempt == 1 and _should_retry(exc):
-                time.sleep(_RETRY_SLEEP_SECONDS)
-                continue
-            raise RuntimeError(f"HTTP {method} {url} failed: {exc}") from exc
-    raise RuntimeError(f"HTTP {method} {url} failed after retry: {last_error}")
+            status = exc.response.status_code if isinstance(exc,httpx.HTTPStatusError) else type(exc).__name__
+            raise RuntimeError(f"Feishu HTTP {method} {resource} failed: {status}") from exc
+    raise RuntimeError(f"Feishu HTTP failed: {last_error}")
 
 
 def http_json_post(url: str, payload: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any]:

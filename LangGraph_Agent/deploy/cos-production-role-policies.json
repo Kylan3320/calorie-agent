@@ -1,0 +1,238 @@
+{
+  "approved_by_user": true,
+  "status": "created and bound; exact policy/trust readback in reports/production-delivery/cloud-evidence-final; no broader permissions",
+  "bucket_metadata_exception": "GetBucketVersioning reads required bucket metadata only; GetBucket LIST constrained to exact URL-encoded commits prefixes; no Delete or overwrite exemption",
+  "prefix": "calorie-agent/production/20261102/",
+  "roles": {
+    "ingress": {
+      "role_name": "calorie-agent-cos-ingress-role",
+      "policy_name": "calorie-agent-cos-ingress-policy",
+      "trust_policy": {
+        "version": "2.0",
+        "statement": [
+          {
+            "effect": "allow",
+            "action": [
+              "name/sts:AssumeRole"
+            ],
+            "principal": {
+              "service": [
+                "scf.qcloud.com"
+              ]
+            }
+          }
+        ]
+      },
+      "policy": {
+        "version": "2.0",
+        "statement": [
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetBucketVersioning"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/*"
+            ]
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetBucket"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/*"
+            ],
+            "condition": {
+              "string_equal": {
+                "cos:prefix": [
+                  "calorie-agent%2Fproduction%2F20261102%2Fingress%2Fcommits%2F",
+                  "calorie-agent%2Fproduction%2F20261102%2Fmessage%2Fcommits%2F"
+                ]
+              }
+            }
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetObject"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/ingress/*",
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/message/*"
+            ]
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:PutObject"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/ingress/*"
+            ]
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/scf:Invoke"
+            ],
+            "resource": [
+              "qcs::scf:ap-shanghai:uin/100049554055:namespace/default/function/calorie-agent-reminder"
+            ]
+          }
+        ]
+      }
+    },
+    "message": {
+      "role_name": "calorie-agent-cos-message-role",
+      "policy_name": "calorie-agent-cos-message-policy",
+      "trust_policy": {
+        "version": "2.0",
+        "statement": [
+          {
+            "effect": "allow",
+            "action": [
+              "name/sts:AssumeRole"
+            ],
+            "principal": {
+              "service": [
+                "scf.qcloud.com"
+              ]
+            }
+          }
+        ]
+      },
+      "policy": {
+        "version": "2.0",
+        "statement": [
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetBucketVersioning"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/*"
+            ]
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetBucket"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/*"
+            ],
+            "condition": {
+              "string_equal": {
+                "cos:prefix": [
+                  "calorie-agent%2Fproduction%2F20261102%2Fingress%2Fcommits%2F",
+                  "calorie-agent%2Fproduction%2F20261102%2Fmessage%2Fcommits%2F"
+                ]
+              }
+            }
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetObject"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/ingress/*",
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/message/*"
+            ]
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:PutObject"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/message/*"
+            ]
+          }
+        ]
+      }
+    },
+    "archive": {
+      "role_name": "calorie-agent-cos-archive-role",
+      "policy_name": "calorie-agent-cos-archive-policy",
+      "trust_policy": {
+        "version": "2.0",
+        "statement": [
+          {
+            "effect": "allow",
+            "action": [
+              "name/sts:AssumeRole"
+            ],
+            "principal": {
+              "service": [
+                "scf.qcloud.com"
+              ]
+            }
+          }
+        ]
+      },
+      "policy": {
+        "version": "2.0",
+        "statement": [
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetBucketVersioning"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/*"
+            ]
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetBucket"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/*"
+            ],
+            "condition": {
+              "string_equal": {
+                "cos:prefix": [
+                  "calorie-agent%2Fproduction%2F20261102%2Fingress%2Fcommits%2F",
+                  "calorie-agent%2Fproduction%2F20261102%2Fmessage%2Fcommits%2F",
+                  "calorie-agent%2Fproduction%2F20261102%2Fsync%2Fcommits%2F"
+                ]
+              }
+            }
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:GetObject"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/ingress/*",
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/message/*",
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/sync/*"
+            ]
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/cos:PutObject"
+            ],
+            "resource": [
+              "qcs::cos:ap-shanghai:uid/1440448581:calorie-cos-probe-20261101-1440448581/calorie-agent/production/20261102/sync/*"
+            ]
+          },
+          {
+            "effect": "allow",
+            "action": [
+              "name/scf:Invoke"
+            ],
+            "resource": [
+              "qcs::scf:ap-shanghai:uin/100049554055:namespace/default/function/calorie-agent-reminder"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
