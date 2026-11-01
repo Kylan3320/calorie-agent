@@ -14,6 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
+from .timeutil import remaining_timeout
 
 DEFAULT_FEISHU_API_BASE = "https://open.feishu.cn/open-apis"
 _HTTP_TIMEOUT_SECONDS = 10
@@ -53,7 +54,7 @@ def _http_request(url: str, payload: dict[str, Any] | None, headers: dict[str, s
             method=method,
         )
         try:
-            with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:
+            with urllib.request.urlopen(request, timeout=remaining_timeout(_HTTP_TIMEOUT_SECONDS)) as response:
                 raw = response.read()
             if not raw:
                 return {"code": 0, "data": {}}

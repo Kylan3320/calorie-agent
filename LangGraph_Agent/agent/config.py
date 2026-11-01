@@ -13,10 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # 检索器合法值由 agent/storage/knowledge_retriever.py 维护。
 
 PRESETS = ("live", "shadow_fakewrite", "shadow_readonly")
-PLANNERS = ("deterministic", "deepseek")
+PLANNERS = ("deepseek",)
 DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_TIMEZONE_OFFSET_HOURS = 8.0
-DEFAULT_ALLOWED_TOOLS = ("record_food", "query_today", "query_food_nutrition", "undo_last", "query_knowledge", "query_history")
+DEFAULT_ALLOWED_TOOLS = ("record_meal", "revise_intake", "query_today", "query_food_nutrition", "query_knowledge", "query_history", "calculate_meal", "update_user_settings")
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,11 @@ class Config:
     allowed_tools: tuple[str, ...]
     timezone_offset_hours: float
     knowledge_retriever: str = "faq"
+    summary_trigger_tokens: int = 12000
+    summary_keep_tokens: int = 4000
+    max_model_calls: int = 4
+    max_tool_calls: int = 8
+    deadline_seconds: float = 90
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -81,6 +86,7 @@ def load_config() -> Config:
         allowed_tools=tuple(str(item) for item in allowed),
         timezone_offset_hours=offset,
         knowledge_retriever=knowledge_retriever,
+        **{k: raw[k] for k in ("summary_trigger_tokens", "summary_keep_tokens", "max_model_calls", "max_tool_calls", "deadline_seconds") if k in raw},
     )
 
 

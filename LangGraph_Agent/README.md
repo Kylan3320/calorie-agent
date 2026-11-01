@@ -3,7 +3,9 @@
 飞书饮食记录助手：记录、查询、确认撤销、追问补全、历史聚合及知识问答。
 需求见 [REQUIREMENTS.md](REQUIREMENTS.md)，协作与验证见 [AGENTS.md](AGENTS.md)，数据接口见 [contracts/](contracts/)。
 
-已确认、待实现的个人饮食管理升级及最小验收见 [PERSONAL_CALORIE_SPEC.md](PERSONAL_CALORIE_SPEC.md)。
+个人饮食管理行为及最小验收见 [PERSONAL_CALORIE_SPEC.md](PERSONAL_CALORIE_SPEC.md)，实际交付证据见 [reports/PERSONAL_DELIVERY.md](reports/PERSONAL_DELIVERY.md)。
+
+交流体验改进的本地实现及离线验收已完成，最终发布验收待完成。行为及最小验收见 [CONVERSATION_EXPERIENCE_SPEC.md](CONVERSATION_EXPERIENCE_SPEC.md)，实际构建、线上结果及待办见 [reports/CONVERSATION_DELIVERY.md](reports/CONVERSATION_DELIVERY.md)。
 
 ## 本地运行
 
@@ -12,11 +14,11 @@
 ```powershell
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe cli.py "米饭200g"
-.\.venv\Scripts\python.exe harness/eval/runner.py --case T05
+.\.venv\Scripts\python.exe cli.py "记录米饭200g"
+.\.venv\Scripts\python.exe harness/eval/runner.py --case U01
 ```
 
-CLI 默认 FakeStore、确定性规划，交互模式保留会话状态。
+CLI 默认 FakeStore，仍需配置 DeepSeek 凭据并联网调用模型；交互模式保留同一会话状态。
 Linux/WSL 下使用 `.venv/bin/python`。评测支持 --smoke、--case ID 和全量；范围按 AGENTS.md 选择。
 
 ## 本地控制台与 DSH
@@ -59,7 +61,7 @@ PRESET、KNOWLEDGE_RETRIEVER 优先于 YAML；model、timezone_offset_hours 优�
 Bash 构建脚本需 Linux/WSL 环境及其 Python 依赖；本机 Windows venv 不用于 Linux 构建。
 
 ```bash
-USE_DOCKER=1 ./deploy/build_zip.sh
+PYTHON=python3.10 bash deploy/build_zip.sh
 python deploy/api_deploy.py                 # 默认 deploy/calorie-agent-v4.zip
 ```
 
@@ -68,9 +70,9 @@ SCF 使用 Web 函数、Python 3.10、端口 9000、scf_bootstrap。
 部署入口上传后显示函数状态；发布验收检查涉及的能力及配置，写入变更再验证对应落表事实。
 如环境变量仍呈旧值，核对实例和发布状态，必要时重新上传代码刷新实例。
 
-飞书请求先保存收件事实再 ACK，在当前请求中最多尝试两次处理/发送。
+飞书请求先保存收件事实再 ACK，后台按同会话收件顺序处理；处理/发送失败最多尝试两次。
 持续失败或进程退出后，配置相同环境运行 `python app.py --retry-pending` 恢复未完成的飞书收件；
-该命令重放固定计划和原回复，沿用原日期及防重键，不处理 DSH/CLI 任务，不新增定时调度。
+该命令恢复已存原生工具调用及原回复，沿用原日期及防重键，不处理 DSH/CLI 任务，不新增定时调度。
 恢复前查看日志中的错误并修复配置或服务故障；本地 FakeStore 的状态不跨进程保留。
 
 ## 知识维护与发布
@@ -94,3 +96,18 @@ Layer 依赖位于 zip 根目录，保留内部 parser 依赖；/opt 只读索�
 
 agent/：图、工具、策略与存储；console/：本地控制台及 DSH 驱动；
 harness/eval/：统一评测入口；deploy/：构建及发布；contracts/：跨模块契约。
+
+
+## Personal 升级运行与发布
+
+CLI、飞书、DSH /calorie共用LangChain v1 create_agent，DeepSeek模型不变，不再提供deterministic/AgentPlan入口。CLI默认假写存储，交互进程共享会话，需要DEEPSEEK_API_KEY。DSH保持/dsh引擎，/calorie按session_id隔离；控制台仅127.0.0.1。
+
+必要验收：`python harness/eval/runner.py --case U01,U02,U03,U04,U05,U06,U07`，使用独立FakeStore、假模型/薄荷/时钟，不访问真实表。不要把旧smoke或全量基线作为本次发布门槛。
+
+Linux Python3.10构建：`PYTHON=/path/to/python3.10 bash deploy/build_zip.sh`，包内BUILD_ID写入health。构建检查必须启动该包并用当前生产LightRAG Layer检查Agent、检索器和提醒入口可加载。打包仅app.py/agent/config.yaml/scf_bootstrap/requirements.txt/BUILD_ID/deps，排除console/DSH/报告/构建目录。
+
+固定目标ap-shanghai/default/calorie-agent-api-v3-test，保留飞书cli_aabc166fccb8dcef现有webhook。新增Event函数calorie-agent-reminder复用同包，入口`app.reminder_handler`，每分钟cron `0 * * * * * *`，按事件计划Time及项目+8时区匹配；默认无启用用户规则。主函数至少120秒、端口9000，维持单实例串行接收，避免跨实例同时更新会话状态。
+
+切换前旧入口收尾已收件/待发送任务；`agent.storage.migration.ensure_schema(store)`仅添加缺列，`migrate_legacy_pending(store,dry_run=False)`仅迁移等待回答的事实并关闭旧任务。执行日志保存于现有pending表；上线后`python app.py --retry-pending`显式恢复执行/发送，最终回复与uuid不变。三预设和字段/状态见contracts。
+
+线上按Spec完成指定对话组，核对真实回复、落表、原生工具轨迹和LightRAG检索，最后仅软删除该次新增摄入、移除测试常用餐、恢复变动设置。构建/离线/线上结果见reports/PERSONAL_DELIVERY.md。

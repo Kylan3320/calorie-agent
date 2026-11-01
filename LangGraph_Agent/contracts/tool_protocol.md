@@ -1,138 +1,45 @@
-# 契约：存储接口与工具注册
+# Store 与原生工具契约
 
-两个实现保持相同的业务输入输出语义：`BitableStore`（真实）与 `FakeStore`（内存，本地评测/假写预设）。
-FakeStore 使用固定摄入日期、内存状态，不模拟远端传输或持久化。
-改接口同步两个实现及本文档。
+工具对象唯一注册于 `agent/tools/registry.py`：名称、description、Pydantic 参数 schema、metadata.risk、执行函数。每次 create_agent 请求按 presets 筛选该对象；不维护 AgentPlan 或另一份工具说明。
 
-## Store 接口
+工具：record_meal、revise_intake、query_today、query_history、query_food_nutrition、query_knowledge、calculate_meal、update_user_settings。前三种写能力的风险分别为 write/destructive/write；其余 read_only。只读工具可以在允许写入预设中缓存食物资料，不创建摄入或个人设置。
 
-所有方法同步阻塞；时间/时区由 store 依 `timezone_offset_hours` 自行计算。
+整餐食物匹配保留名称、品牌、种类和生熟特征。名称末尾括号内仅重复所选单位规格时，只有基础名称唯一匹配、规格与单位括号一致（允许“中/中号”等号字后缀）、且该食物来源资料存在唯一对应单位，才按基础名称匹配；不因搜索仅一个结果消除实际歧义。
 
-```python
-today_string() -> str
-    # store 的"今天"（YYYY-MM-DD）；query_history 的时段解析以此锚定，
-    # 保证工具窗口与记录/查询的日期口径一致（评测可注入固定日期）
+原生工具输出 `{tool,call_id,action_id,status,data,error?}`。完整业务结果持久化于calls.result；模型通过统一model_view读取精简事实，标准ToolMessage保留配对call_id。个人设置只向模型提供相关目标/偏好及常用餐名称。
 
-load_user_aliases() -> dict[str, str]
-    # {别名 open_id: 主账号 open_id}；app.py 解析消息后归一 user_id（方案 B，
-    # 同一人多账号共享数据）。来源 = env USER_ID_ALIASES 兜底 + user_aliases 表
-    # （表行优先，BITABLE_ALIASES_TABLE_ID，TTL 缓存）。未配置返回 {}，天然独立数据。
+record_meal.data.total表示本次完成项合计；record_meal/revise_intake.data.meal_totals按meal_id返回原餐当前有效合计、日期/餐次、有效项数及estimated（任一有效项为估算）。改量保留原meal_id，明确可食克重重新保存称重依据。query_today.data.total表示全天，calculate_meal.data.total表示方案。部分记录分别携带实际items和unfinished。
 
-load_foods() -> list[dict]
-    # [{record_id, food_id, name, aliases, carbs_per_100g, protein_per_100g, fat_per_100g, source, boohee_id}]
+query_today参数detail默认为calories，模型视图只提供日期、有效项数及总热量；summary提供宏量/目标/剩余，items提供逐项明细。完整持久结果始终保留全量事实，非成功结果保留实际错误。
 
-load_knowledge() -> list[dict]
-    # [{entry_id, question, answer, aliases, tags, source}]  status 为空/active 的有效条目
-    # 未配置知识表时返回 []（优雅降级，不抛错）；见 contracts/knowledge_schema.md
+模型依据工具事实自然表达，默认简短确认＋本餐热量，估算时说明，逐项营养按需展开。回复合成只解析本轮已声明来源引用，并追加参数明确的提案确认提示；异常时生成当前请求相关的简短事实回执。
 
-sync_knowledge(entries: list[dict]) -> dict
-    # entry_id/question/answer/aliases/tags/source；按 entry_id 新增或更新
-    # 返回 {created_count, updated_count}，不删除未提供条目；创建 token 见 bitable_schema.md
+提案固定proposal_id、动作/参数、目标摘要及response_id，交付成功后由入口标记presented。紧邻确认仅执行该提案的固定参数；已完成消息重放不覆盖更新会话。飞书发送成功、CLI输出和DSH响应交付使用同一mark_reply_presented语义，并归一用户别名。
 
-write_food(food: dict) -> dict
-    # food: {name, aliases?, carbs_per_100g, protein_per_100g, fat_per_100g, source?, boohee_id?}
-    # 写入食物库一行（薄荷 M1 确认入库）；返回 {status: "created"|"duplicate", food_id, name}
-    # 幂等：写前按 food_id 查重 + client_token（bitable_schema.md"建食物"公式）；
-    # 写成后必须失效进程内 foods 缓存
+## Store
 
-today_summary(user_id: str) -> dict
-    # {date, count, items, totals{carbs,protein,fat,kcal}, source}
-    # items: [{record_id, message_id, meal_type, food_name, grams, created_at, nutrition{...}}]
+BitableStore 与 FakeStore 同步实现：
 
-summarize_history(user_id: str, start_date: str, end_date: str, food_query: str = "") -> dict
-    # 历史 [start_date, end_date) 聚合，日期 YYYY-MM-DD，含头不含尾；RAG M2 query_history 用
-    # 返回 {start_date, end_date, food_query, total{count,grams,kcal,carbs,protein,fat},
-    #       days: [{date, count, grams, kcal, carbs, protein, fat}]（升序）,
-    #       over_budget_days: [date]}  # kcal 超出当前生效标准的日期（按食物过滤时不计）
-    # 过滤：status 有效 + user_id + food_name 包含匹配（normalize_food_name）
+- `load_foods()/cache_food(food)`：食物每100g宏量、可选来源热量、boohee_id、units、detail_loaded；旧数据缺来源热量用未舍入宏量公式。
+- `intake_items(user_id,start_date="",end_date="",include_deleted=False)`：有效摄入快照明细，含 record_id/date/message_id/meal_type/grams/nutrition/snapshot。
+- `write_intake(message,items,meal_type)`：一次批量创建多项，固定动作消息键防重。重试读回原行，不再创建。
+- `revise_intake(user_id,record_id,item=None)`：按固定 ID 设置量/营养/快照；None 表示软删除。不重新选择最近记录。
+- `today_summary()/summarize_history()`：按有效摄入快照汇总，不重算热量。
+- `base_standard()/get_standard(user_id)`：逐字段覆盖项目默认→原标准→长期设置→当天设置。
+- `load_document(kind,user_id,scope="")/save_document(kind,user_id,scope,payload)`：复用 pending_tasks；会话 agent_session、个人设置 user_settings、提醒投递 reminder_receipt。
+- `load_session()/save_session(user_id,session_id,session)`：标准序列化消息（含摘要及配对工具消息）、unfinished、refs、last_meal、proposal；不依赖内存恢复。
+- `list_documents(kind)`：提醒扫描个人规则。
+- `begin_execution()/load_execution()/save_execution()/load_unfinished_executions()`：原消息/接收日期、原生消息、决策次数、完整工具批次参数、固定动作序号、prepared 写前快照、逐项结果、最终回复。创建/更新幂等见 bitable_schema。
+- 保留别名、知识、usage 接口；usage 失败不阻断业务。
 
-get_standard(user_id: str) -> dict
-    # {carbs, protein, fat, kcal, source: "default"|"bitable"}
+## 入口及预设
 
-write_intake(message: dict, items: list[dict], meal_type: str) -> dict
-    # items: [{food_id, matched_name, grams, nutrition{carbs,protein,fat,kcal}, date?, meal_type?}]
-    # 返回 {status: "created"|"duplicate_skipped"|"nothing_to_write", created_count, records: [{record_id}]}
-    # date 为可信执行快照中的 YYYY-MM-DD，重试保持原记录日期；创建响应缺行时报错。
-    # 幂等：message_id 查重 + client_token（见 bitable_schema.md）
+飞书 ACK 前保存收件原文、received_at 和 intake_date；同会话按已存收件顺序串行处理，前消息失败时后消息保留。执行与发送分开确认。最终回复先持久化，发送失败复用原回复及 uuid；`python app.py --retry-pending` 恢复收件、执行及发送。
 
-last_intake(user_id: str) -> dict | None
-    # 读取最近有效记录，不修改；用于建立撤销目标快照。
+DSH `POST /api/agent` 接收 text/session_id/message_id/preset；组合稳定消息键，按 session_id 隔离。`tool_events` 使用原生 call_id/args/result。/dsh 编码引擎保留，/calorie 调同一 runtime，不向飞书发送。CLI 交互进程内使用同一独立会话 ID。
 
-undo_last(user_id: str, record_id: str = "") -> dict
-    # {status: "deleted"|"nothing_to_undo", item}
-    # 确认执行必须提供快照 record_id；重复软删除同一目标仍返回 deleted，不选择前一条。
+live 真实业务/会话/usage；shadow_fakewrite 使用 FakeStore，不访问真实 Bitable；shadow_readonly 对真实 Store 不执行任何业务、缓存、会话、追问、usage 写入，状态只在当次运行保留。后两者不发送飞书消息。
 
-create_pending(message: dict, intent: str, food_name: str, grams: float|None, meal_type: str, payload: dict|None = None) -> dict
-    # 完整 task（含 record_id、payload、真实 pending/completed/cancelled 状态），未配置返回 not_configured。
-    # 首次创建的快照胜出；已完成任务不重开。尚无候选的 pending 可补充首次候选快照。
+## 限制和压缩
 
-get_pending(pending_id: str) -> dict | None
-    # 按固定任务 ID 读取当前状态，包含已完成/已取消任务。
-
-load_active_pending(user_id: str, chat_id: str) -> dict | None
-    # 仅业务追问，排除内部 message_received/message_execution。
-
-mark_pending_status(task: dict, status: str) -> dict
-
-load_execution(message: dict) -> dict | None
-begin_execution(message: dict, payload: dict) -> dict
-save_execution(task: dict, payload: dict, *, completed: bool = False) -> None
-load_unfinished_executions() -> list[dict]
-    # 与业务 pending 共表，沿用 pending 创建幂等公式；payload 保存原消息、首份已验证计划、
-    # intake_date、追问/候选/目标快照、成功工具事实及最终图结果。内部任务不过期。
-    # 恢复列表按消息去重，优先 receipt；完成图结果重放直接返回原结果，不重新规划或写入。
-
-append_usage_event(event: dict) -> None   # 失败只记日志，不抛出（指标不阻断主链路）
-```
-
-`message` dict 固定 4 键：`message_id`、`user_id`、`chat_id`、`text`（app.py 解析事件后构造）。
-
-## 工具注册（agent/tools/registry.py）
-
-- 每个工具：`{"safety": "read_only"|"write"|"destructive", "runner": fn}`。
-- runner 签名：`run(message: dict, params: dict, ctx: ToolContext) -> ToolResult`。
-- `ToolContext`：`store`（按预设绑定）、`config`、`context`（可信 pending_route、active_pending、intake_date）。
-- pending_router 只恢复动作，取消/暂缓/补全同样经过 policy_gate；只有工具和执行器修改业务状态。
-- 风险等级取注册表，模型参数不提供确认凭据；确认任务绑定固定目标，候选编号绑定已展示快照；未成功动作重放前重新核实原任务仍 pending 且未过期。
-- 工具不得绕过 store 直接发 HTTP；不得在 ToolResult.data 之外私藏事实。
-
-## 工具状态语义（composer/guard 依赖）
-
-| status | 含义 | 回复口径 |
-|---|---|---|
-| ok | 工具执行成功 | 查询只陈述查询事实；已记录须有 created_count>0，或查询快照明确存在记录 |
-| duplicate_skipped | 工具层创建防重命中 | 明确说"重复消息，已跳过"；已完成图的重放返回原事实和原回复 |
-| pending_cancelled / pending_deferred | 待补全任务取消或保留 | 只陈述对应任务状态 |
-| food_library_added | 确认候选后成功建库或发现已存在 | 可说明已加入食物库，不宣称已记录摄入 |
-| pending_created | 信息缺失挂起 | 只能说"请补充"，禁止说已记录 |
-| needs_confirmation | 食物歧义 | 列候选请用户确认 |
-| needs_confirmation_plan | destructive 待确认（计划级） | 询问确认 |
-| error / blocked_* | 失败/拦截 | 稳定解释，不泄露内部细节 |
-
-## 工具清单
-
-| tool | safety | 说明 |
-|---|---|---|
-| record_food | write | 匹配→写快照；缺克重/未知→pending；歧义→候选确认 |
-| query_today | read_only | 今日汇总 + 剩余（读 store 缓存的 standard） |
-| query_food_nutrition | read_only | 先当日摄入快照聚合，再食物库按克重计算 |
-| undo_last | destructive | 撤销最近一条 valid（软删除） |
-| query_knowledge | read_only | 知识问答：knowledge_retriever 接缝检索 knowledge_base（见 knowledge_schema.md） |
-| query_history | read_only | 历史聚合：时间窗 + 可选食物名，返回每日明细/总计/超标日 |
-
-## 本地 DSH 桥接
-
-POST /api/agent：{text, session_id, message_id, planner?, preset?, store_kind?}。
-session_id 来自 DSH 会话，message_id 在该会话内稳定；后端组合为图的 message_id。
-chat_id 按 DSH 会话隔离；FakeStore 按会话保留。真实表格使用 CONSOLE_USER_ID，经账号别名归一。
-返回图结果和 tool_events，不发送飞书消息。
-
-## 回复与失败
-
-回复由固定格式从工具事实生成；守卫核对完整渲染，字段、数值和单位不能互换。
-知识答案须为 evidence 中的原文。任一工具失败进入图 errors，回复明确失败；成功事实可保留以便恢复。
-执行器按固定计划顺序保存成功结果，失败后停止，不重跑已保存动作。
-
-飞书 ACK 前持久化 message_received（原消息及收件日期）；图完成和回复发送分别确认。
-每次投递最多尝试两次，发送失败沿用原回复及 reply uuid。
-持续失败/进程退出后的收件任务由 `python app.py --retry-pending` 显式恢复；不增加后台调度。
+LangChain SummarizationMiddleware 默认12000 tokens触发，保留4000 tokens完整近期配对消息；配置在config.yaml。ModelCallLimitMiddleware/ToolCallLimitMiddleware限制每消息4次主决策/8次工具，处理预算90秒；无自动模型重试。摘要调用仅触发压缩时额外发生。先存整批调用，再按返回顺序执行；动作恢复复用 prepared 原参数、日期与目标。未生成的步骤由原生循环继续决定。

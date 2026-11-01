@@ -6,9 +6,20 @@ import math
 import re
 import time
 import unicodedata
+from contextvars import ContextVar
 from typing import Any
 
 DEFAULT_TIMEZONE_OFFSET_HOURS = 8.0
+PROCESSING_DEADLINE = ContextVar("processing_deadline", default=None)
+
+def remaining_timeout(default):
+    deadline = PROCESSING_DEADLINE.get()
+    if deadline is None:
+        return default
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("message processing deadline reached")
+    return min(default, remaining)
 
 
 def timezone_offset_seconds(offset_hours: float | None = None) -> int:

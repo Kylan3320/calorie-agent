@@ -10,12 +10,20 @@ knowledge_retriever: faq
 
 # 工具白名单（live 预设生效；shadow 预设有各自的固定范围）
 allowed_tools:
-  - record_food
+  - record_meal
   - query_today
   - query_food_nutrition
-  - undo_last
+  - revise_intake
   - query_knowledge
   - query_history
+  - calculate_meal
+  - update_user_settings
 
 # 本地时区偏移（小时），用于“今天”的口径
 timezone_offset_hours: 8
+
+summary_trigger_tokens: 12000
+summary_keep_tokens: 4000
+max_model_calls: 4
+max_tool_calls: 8
+deadline_seconds: 90

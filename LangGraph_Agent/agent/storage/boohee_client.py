@@ -10,6 +10,7 @@ import urllib.request
 import urllib.error
 from collections.abc import Callable
 from typing import Any
+from .timeutil import remaining_timeout
 
 BOOHEE_SEARCH_URL = "https://api.boohee.com/open-apis/v1/food/search"
 BOOHEE_TIMEOUT_SECONDS = 10.0
@@ -88,10 +89,14 @@ def _normalize_food(food: dict[str, Any]) -> dict[str, Any] | None:
         "carbs_per_100g": carbs,
         "protein_per_100g": protein,
         "fat_per_100g": fat,
+        "kcal_per_100g": _nonnegative(food.get("calories")),
+        "source": "boohee",
     }
 
 
 def _number(value: Any) -> float | None:
+    if isinstance(value, dict):
+        value = value.get("value")
     try:
         result = float(value)
     except (TypeError, ValueError):
@@ -99,11 +104,47 @@ def _number(value: Any) -> float | None:
     return result if 0 <= result <= 100 else None
 
 
+def _nonnegative(value):
+    import math
+    if isinstance(value, dict):
+        value = value.get("value")
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) and result >= 0 else None
+
+
+def food_detail(code: str) -> dict[str, Any]:
+    """Detail and unit requests use the food code, never a search result index."""
+    getter = _TRANSPORT or _default_http_get
+    headers = {"X-Api-Key": os.getenv("BOOHEE_API_KEY", ""), "Accept": "application/json"}
+    base = BOOHEE_SEARCH_URL.rsplit("/", 1)[0]
+    query = urllib.parse.urlencode({"code": code, "with_units": "true"})
+    data = getter(f"{base}/detail?{query}", headers)
+    if data.get("code") != 0:
+        raise BooheeError(f"detail unavailable: code={data.get('code')} message={data.get('message', '')}")
+    body = data.get("data") or {}
+    food = body.get("food", body)
+    normalized = _normalize_food(food)
+    if normalized is None:
+        raise BooheeError("detail missing nutrition facts")
+    units = food.get("units", body.get("units"))
+    if units is None:
+        response = getter(f"{base}/units?{urllib.parse.urlencode({'code': code})}", headers)
+        if response.get("code") != 0:
+            raise BooheeError(f"units unavailable: code={response.get('code')}")
+        unit_data = response.get("data") or {}
+        units = unit_data.get("units", []) if isinstance(unit_data, dict) else unit_data
+    normalized.update(units=units, detail_loaded=True)
+    return normalized
+
+
 def _default_http_get(url: str, headers: dict[str, str]) -> dict[str, Any]:
     request = urllib.request.Request(url, headers=headers, method="GET")
     for attempt in range(2):  # one retry on 429/5xx, mirroring feishu_client discipline
         try:
-            with urllib.request.urlopen(request, timeout=BOOHEE_TIMEOUT_SECONDS) as response:
+            with urllib.request.urlopen(request, timeout=remaining_timeout(BOOHEE_TIMEOUT_SECONDS)) as response:
                 return json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError) as exc:
             retryable = not isinstance(exc, urllib.error.HTTPError) or exc.code == 429 or 500 <= exc.code < 600

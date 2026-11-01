@@ -171,7 +171,8 @@ def retrieve_lightrag(query: str, entries: list[dict[str, Any]] | None = None) -
             await rag.initialize_storages()
             _LIGHTRAG_READY = True
         # singleton 常驻：不再 finalize（进程退出由运行时回收）
-        data = await rag.aquery_data(query, param=QueryParam(mode="mix", top_k=3))
+        from .timeutil import remaining_timeout
+        data = await asyncio.wait_for(rag.aquery_data(query, param=QueryParam(mode="mix", top_k=3)), timeout=remaining_timeout(85))
         # aquery_data wraps the payload: {status, message, data: {chunks, entities, ...}}
         if isinstance(data, dict) and isinstance(data.get("data"), dict):
             return data["data"]
@@ -198,7 +199,7 @@ def retrieve_lightrag(query: str, entries: list[dict[str, Any]] | None = None) -
         )
     if not hits:
         return _not_found()
-    evidence = "\n".join(f"[{h['source']}] {h['answer']}" for h in hits)
+    evidence = "\n".join(h["answer"] for h in hits)
     return {"status": "ok", "entries": hits, "evidence": evidence}
 
 

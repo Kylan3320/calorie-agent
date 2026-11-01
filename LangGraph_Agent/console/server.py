@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 
 from agent import FakeStore, load_config, run  # noqa: E402
 from agent.config import PLANNERS, PRESETS, reset_config_cache  # noqa: E402
-from agent.schemas import SUPPORTED_TOOLS  # noqa: E402
+from agent.tools.registry import TOOL_REGISTRY  # noqa: E402
 
 ENV_KEYS = [
     "FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_VERIFICATION_TOKEN", "DEEPSEEK_API_KEY",
@@ -34,9 +34,7 @@ ENV_KEYS = [
     "BITABLE_ALIASES_TABLE_ID", "BOOHEE_API_KEY", "SILICONFLOW_API_KEY",
 ]
 
-# 工具展示与保存的稳定顺序（SUPPORTED_TOOLS 是 set，迭代序不定；新增工具自动排在尾部）
-_TOOL_ORDER = ("record_food", "query_today", "query_food_nutrition", "undo_last")
-ALL_TOOLS = _TOOL_ORDER + tuple(sorted(set(SUPPORTED_TOOLS) - set(_TOOL_ORDER)))
+ALL_TOOLS = tuple(TOOL_REGISTRY)
 
 app = FastAPI(title="Calorie Agent Console", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
@@ -204,7 +202,7 @@ def playground_reset(request: Request) -> Any:
 def playground_run(
     request: Request,
     text: str = Form(""),
-    planner: str = Form("deterministic"),
+    planner: str = Form("deepseek"),
     preset: str = Form("shadow_fakewrite"),
     store_kind: str = Form("fake"),
 ) -> Any:
@@ -218,7 +216,7 @@ def playground_run(
     elif store_kind not in {"fake", "bitable"}:
         store_kind = "fake"
 
-    config = dataclasses.replace(load_config(), preset=preset, planner=planner if planner in PLANNERS else "deterministic")
+    config = dataclasses.replace(load_config(), preset=preset, planner=planner if planner in PLANNERS else "deepseek")
     if store_kind == "bitable":
         from agent.storage import BitableStore
 
@@ -255,7 +253,7 @@ def _playground_page(
     request: Request,
     error: str,
     text: str = "",
-    planner: str = "deterministic",
+    planner: str = "deepseek",
     preset: str = "shadow_fakewrite",
     store_kind: str = "fake",
     result: dict[str, Any] | None = None,
@@ -266,7 +264,7 @@ def _playground_page(
     result_html = ""
     if result:
         guard = result.get("guard_result") or {}
-        guard_color = "ok" if guard.get("passed") else "err"
+        guard_color = "ok" if not guard.get("fallback_used") else "err"
         tools_html = "".join(
             f'<div class="card"><h4>{_esc(item.get("tool"))} <span class="dim">{_esc(item.get("status"))}</span></h4>{_json_block(item.get("data"))}</div>'
             for item in result.get("tool_results", [])
@@ -274,9 +272,9 @@ def _playground_page(
         result_html = (
             f'<div class="card"><h3>回复 <span class="dim">reply_source={_esc(result.get("reply_source"))} · {result.get("latency_ms", 0)}ms</span></h3>'
             f'<p class="reply">{_esc(result.get("reply"))}</p>'
-            f'<p>guard: <span class="{guard_color}">{"通过" if guard.get("passed") else "拦截"}</span>'
-            f'{"" if guard.get("passed") else _json_block(guard.get("violations"))}</p>'
-            f'<details><summary>plan / policy</summary>{_json_block({"plan": result.get("plan"), "policy_decision": result.get("policy_decision")})}</details></div>'
+            f'<p>guard: <span class="{guard_color}">{"自然回复" if not guard.get("fallback_used") else "异常回执"}</span>'
+            f'{"" if not guard.get("fallback_used") else _json_block(guard.get("violations"))}</p>'
+            f'<details><summary>native calls</summary>{_json_block({"native_calls": result.get("native_calls"), "model_calls": result.get("model_calls")})}</details></div>'
             f'<h3>工具执行事实</h3>{tools_html}'
             f'{f"<p class=err>异常: {_esc(error)}</p>" if error else ""}'
         )
@@ -332,7 +330,7 @@ def api_agent(payload: dict) -> Any:
         return {"status": "error", "reply": "", "errors": [f"unknown preset: {preset}"]}
     planner = str(payload.get("planner") or load_config().planner)
     if planner not in PLANNERS:
-        planner = "deterministic"
+        planner = "deepseek"
     store_kind = str(payload.get("store_kind") or "")
     if preset == "shadow_fakewrite":
         store_kind = "fake"
@@ -367,12 +365,15 @@ def api_agent(payload: dict) -> Any:
         data = item.get("data") if isinstance(item.get("data"), dict) else {}
         status = str(item.get("status") or "")
         tool_events.append({
-            "callId": f"call_{index + 1}",
+            "callId": item["call_id"],
             "name": str(item.get("tool") or "tool"),
-            "arguments": {},
+            "arguments": next((c["args"] for c in result.get("native_calls", []) if c["call_id"] == item["call_id"]), {}),
             "content": json.dumps(data, ensure_ascii=False, default=str)[:2000],
             "isError": status not in {"ok", "duplicate_skipped"},
         })
+    from agent.graph import mark_reply_presented
+    if config.preset != "shadow_readonly":
+        mark_reply_presented(store, _console_user_id(store), f"dsh:{session_id}", result)
     result["tool_events"] = tool_events
     return result
 
@@ -413,7 +414,7 @@ def trace_page(request: Request, q: str = "", limit: int = 50) -> str:
         f'<button type="submit">过滤</button> <span class="dim">文件：{_esc(path)}，共显示最新 {len(entries)} 条</span></p></form>'
         f'{rows}'
     )
-    return _page("轨迹（calorie_agent_trace.v1）", "/trace", body)
+    return _page("轨迹（calorie_agent_trace.v2）", "/trace", body)
 
 
 # ---------------------------------------------------------------- 路由：评测

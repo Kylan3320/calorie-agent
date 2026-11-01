@@ -32,7 +32,12 @@ def calculate_food_intake(food: dict[str, Any], grams: float) -> dict[str, float
     carbs = round_number(float(food.get("carbs_per_100g") or 0) * multiplier)
     protein = round_number(float(food.get("protein_per_100g") or 0) * multiplier)
     fat = round_number(float(food.get("fat_per_100g") or 0) * multiplier)
-    kcal = round_number(carbs * 4 + protein * 4 + fat * 9)
+    source_kcal = food.get("kcal_per_100g")
+    if source_kcal is None:
+        source_kcal = (float(food.get("carbs_per_100g") or 0) * 4
+                       + float(food.get("protein_per_100g") or 0) * 4
+                       + float(food.get("fat_per_100g") or 0) * 9)
+    kcal = round_number(float(source_kcal) * multiplier)
     return {"carbs": carbs, "protein": protein, "fat": fat, "kcal": kcal}
 
 
