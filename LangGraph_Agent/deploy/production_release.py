@@ -1,13 +1,23 @@
 """Small release controls. No resource creation, implicit upload or credential output."""
 import argparse
 import hashlib
+import io
 import json
 from pathlib import Path
 import zipfile
 
-from api_deploy import tc3_request
-
 ROOT = Path(__file__).resolve().parents[1]
+import sys
+sys.path.insert(0, str(ROOT))
+from deploy.api_deploy import tc3_request
+
+
+def package_identity(path, body):
+    """Identify the exact bytes consumed by a package check or release freeze."""
+    with zipfile.ZipFile(io.BytesIO(body)) as archive:
+        build_id = archive.read("BUILD_ID").decode().strip()
+    return {"build_id": build_id, "sha256": hashlib.sha256(body).hexdigest(),
+            "bytes": len(body), "package": str(path.resolve())}
 
 
 def main(argv=None):
@@ -17,10 +27,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.operation == "freeze":
         package = ROOT / "deploy/calorie-agent-v4.zip"
-        with zipfile.ZipFile(package) as archive:
-            build_id = archive.read("BUILD_ID").decode()
-        print(json.dumps({"build_id": build_id, "sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
-                          "bytes": package.stat().st_size, "package": str(package)}, ensure_ascii=False))
+        print(json.dumps(package_identity(package, package.read_bytes()), ensure_ascii=False))
         return
     if not args.function:
         parser.error("--function is required")

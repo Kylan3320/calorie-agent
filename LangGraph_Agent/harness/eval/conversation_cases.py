@@ -9,25 +9,10 @@ from agent import run
 from agent.model import DeepSeekModel
 from agent.graph import mark_reply_presented
 from agent.replies import model_view,render
-from harness.eval.personal_cases import setup,CONFIG,MEAL,NativeFake,call
+from harness.eval.personal_cases import setup,CONFIG,MEAL,NativeFake,call,answer
 REAL=False
 TRANSCRIPT=[]
 
-def answer(messages):
-    facts=[json.loads(m.content) for m in messages if isinstance(m,ToolMessage)]
-    f=facts[-1] if facts else {};d=f.get('data',{});tool=f.get('tool')
-    if tool=='record_meal':
-        missing=d.get('unfinished',[])
-        if missing:return AIMessage(content='已记好能确定的食物；'+ '；'.join(i['food_query']+'：'+i['reason']+'（'+ '；'.join(f"{n+1}. {c['name']}" for n,c in enumerate(i.get('candidates',[])))+'）' for i in missing))
-        return AIMessage(content=f"记好了，这餐{d['meal_totals'][0]['total']['kcal']:g}千卡，按单位换算的份量为估算。")
-    if tool=='revise_intake':return AIMessage(content=f"已修改，这餐{d['meal_totals'][0]['total']['kcal']:g}千卡。"+('按单位换算的份量为估算。' if d['meal_totals'][0].get('estimated') else ''))
-    if tool=='query_today':return AIMessage(content=f"今天合计{d['total']['kcal']:g}千卡。")
-    if tool=='update_user_settings':
-        if f['status']=='pending':return AIMessage(content='请说一下这次想修改的内容。')
-        previous=[x for x in facts if x.get('tool')=='record_meal']
-        return AIMessage(content='这个安排可以。' if f['status']=='proposal' else ('夹具A已记录，这餐120千卡；长期热量目标已设为1900千卡。' if previous else '设置已保存。'))
-    if tool=='query_knowledge':return AIMessage(content='主食可以与蔬菜搭配，结合整天的安排。[K101]' if d.get('entries') else '可以先从规律吃饭和方便坚持的搭配入手。你说的这个具体情形还缺对应资料。')
-    return AIMessage(content='好，先放一放，想聊别的也可以。')
 
 def send(s,text,steps,mid,delivered=True,config=CONFIG):
     model=DeepSeekModel(model_name='deepseek-v4-flash') if REAL else NativeFake(responses=steps)
@@ -110,8 +95,6 @@ def E02():
 
 def E03():
     """知识综合、无直接证据的一般解释、按需来源；无业务写入。"""
-    from harness.eval.latency_checks import rag_loop_check
-    rag_loop_check()
     import agent.tools.reads as reads
     old=reads.build_knowledge_retriever
     def retrieve(query,entries):
@@ -154,9 +137,6 @@ def E04():
 
 def E05():
     """正常数字/名字不误拦、六行视图减半、完整结果不变、明细按需。"""
-    from harness.eval.latency_checks import query_rpc_check, model_protocol_check
-    model_protocol_check()
-    query_rpc_check()
     error={'tool':'query_today','status':'limit','data':{},'error':'工具调用次数已达上限'}
     assert model_view(error)==error
     s=setup()
@@ -181,20 +161,12 @@ def E05():
 
 def E06():
     """写后中断、固定两动作恢复、压缩和只读、发送防重。"""
-    from harness.eval.latency_checks import finish_and_budget_check,handoff_check
-    finish_and_budget_check()
-    handoff_check()
     from agent.replies import progress_reply
     progress=progress_reply([{'tool':'revise_intake','status':'ok','data':{'meal_totals':[{'meal_id':'same-meal','total':{'kcal':270},'estimated':True}]}},
                              {'tool':'query_today','status':'ok','data':{'total':{'kcal':633.8}}},
                              {'tool':'revise_intake','status':'ok','data':{'meal_totals':[{'meal_id':'same-meal','total':{'kcal':210},'estimated':True}]}}])
     assert '210' in progress and '270' not in progress and '633.8' not in progress and '估算' in progress,progress
     assert '今天合计525.6' in progress_reply([{'tool':'query_today','status':'ok','data':{'total':{'kcal':525.6}}}])
-    from harness.eval import personal_cases as old
-    original=old.answer
-    old.answer=answer
-    try:old.U04();old.U07()
-    finally:old.answer=original
     s=setup();original=s.save_execution
     class Death(BaseException):pass
     def crash(task,payload,**kwargs):

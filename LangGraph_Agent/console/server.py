@@ -134,7 +134,7 @@ def config_page() -> str:
     planner_opts = "".join(f'<option value="{p}"{" selected" if p == config.planner else ""}>{p}</option>' for p in PLANNERS)
     body = (
         '<form method="post" action="/config/save" enctype="multipart/form-data">'
-        '<div class="card"><h3>工程配置（config.yaml，保存后本机立即生效；线上需重新部署）</h3>'
+        '<div class="card"><h3>本地工程配置（fake／只读使用；live 使用云端配置）</h3>'
         f'<p><label>preset</label> <select name="preset">{preset_opts}</select> <span class="dim">{_esc(_field_source("preset", "PRESET"))}</span></p>'
         f'<p><label>planner</label> <select name="planner">{planner_opts}</select></p>'
         f'<p><label>model</label> <input name="model" value="{_esc(config.model)}" size="30"> <span class="dim">{_esc(_field_source("model", "DEEPSEEK_MODEL"))}</span></p>'
@@ -428,33 +428,37 @@ def trace_page(request: Request, q: str = "", limit: int = 50) -> str:
 
 @app.get("/eval", response_class=HTMLResponse)
 def eval_page() -> str:
-    return _page("评测（harness/eval，FakeStore，不碰真实表格）", "/eval", _eval_form(""))
+    return _page("离线评测", "/eval", _eval_form(""))
 
 
 def _eval_form(output: str, exit_code: int | None = None, seconds: float = 0.0) -> str:
     tail = ""
     if exit_code is not None:
         color = "ok" if exit_code == 0 else "err"
-        tail = f'<p>结果：<span class="{color}">{"全部通过" if exit_code == 0 else "有用例失败"}</span>（耗时 {seconds:.1f}s，退出码 {exit_code}）</p>'
+        tail = f'<p>结果：<span class="{color}">{"执行成功" if exit_code == 0 else "执行失败"}</span>（耗时 {seconds:.1f}s，退出码 {exit_code}）</p>'
     return (
         '<form method="post" action="/eval/run" enctype="multipart/form-data">'
-        '<p><button name="scope" value="smoke">跑 smoke</button> '
-        '<button name="scope" value="full">跑全量</button> '
-        '<input name="case" size="10" placeholder="单用例 ID 如 T05"> <button name="scope" value="case">跑单用例</button></p></form>'
+        '<p><input name="case" size="24" placeholder="用例 ID，如 E05,P01"> <button name="scope" value="case">运行所选</button> '
+        '<button name="scope" value="list">列出用例</button> '
+        '<button name="scope" value="full">运行全部离线用例</button></p></form>'
         f'{tail}<pre class="json">{_esc(output)}</pre>'
     )
 
 
 @app.post("/eval/run")
-def eval_run(scope: str = Form("smoke"), case: str = Form("")) -> Any:
+def eval_run(scope: str = Form("list"), case: str = Form("")) -> Any:
     args = [sys.executable, str(ROOT / "harness" / "eval" / "runner.py")]
-    if scope == "smoke":
-        args.append("--smoke")
-    elif scope == "case":
+    if scope == "case":
         case_id = case.strip()
         if not case_id:
             return HTMLResponse(_page("评测", "/eval", _eval_form("请填写用例 ID")), status_code=400)
         args += ["--case", case_id]
+    elif scope == "full":
+        args.append("--all")
+    elif scope == "list":
+        args.append("--list")
+    else:
+        return HTMLResponse(_page("评测", "/eval", _eval_form("未知评测范围")), status_code=400)
     started = time.monotonic()
     try:
         proc = subprocess.run(args, capture_output=True, text=True, cwd=ROOT, timeout=180)

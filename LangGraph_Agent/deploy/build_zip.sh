@@ -24,9 +24,6 @@ fi
 cp -r "$ROOT/agent" "$BUILD/agent"
 cp "$ROOT/app.py" "$ROOT/config.yaml" "$ROOT/scf_bootstrap" "$ROOT/requirements.txt" "$BUILD/"
 find "$BUILD/agent" -name __pycache__ -type d -prune -exec rm -rf {} +
-# Probe packages contain fixtures and validation-only drivers. Production uses
-# cos_store/cos_journal/cos_transport and the dedicated worker entry points.
-find "$BUILD/agent/storage" -maxdepth 1 -name 'cos_probe*.py' -delete
 chmod +x "$BUILD/scf_bootstrap"
 if [[ "${1:-}" != "--reuse-deps" ]]; then
   "$PYTHON" -m pip install --disable-pip-version-check -q -r "$ROOT/requirements.txt" --target "$BUILD/deps"

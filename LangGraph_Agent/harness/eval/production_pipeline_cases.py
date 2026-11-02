@@ -5,6 +5,11 @@ import json
 import os
 import time
 from unittest.mock import patch
+from agent.storage import feishu_client
+
+
+def forbidden_bitable(*args, **kwargs):
+    raise AssertionError("synchronous Bitable HTTP on the message path")
 
 
 class Objects:
@@ -67,6 +72,7 @@ def assert_cam_request(request):
     assert authorization == f"TC3-HMAC-SHA256 Credential=function-role/{scope}, SignedHeaders=content-type;host, Signature={expected}"
 
 
+@patch.multiple(feishu_client, http_json_get=forbidden_bitable, http_json_post=forbidden_bitable, http_json_put=forbidden_bitable)
 def P01():
     """生产受理序号、原日期、迟到重试、持久尝试和交付丢状态恢复。"""
     from agent import run
@@ -401,7 +407,7 @@ def P03():
 
 
 def P04():
-    """暖样本来自实际同worker新执行；回放/入口UUID/未完成前驱/cold冲突均拒绝。"""
+    """暖样本须有同worker新执行证据；最终报告退出码与门槛结论一致。"""
     from copy import deepcopy
     from harness.eval import production_live as live
 
@@ -512,6 +518,32 @@ def P04():
     slow['requests'][1]['t_service_ms'] = 5000.1
     slow_gate = checked(slow)['gates']['record']
     assert not slow_gate['warm_speed_passed'] and not slow_gate['warm_sample_needed']
+
+    # Final report status is a CLI gate; generating a rejected report is not success.
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        platform_path, plan_path = root / 'platform.json', root / 'plan.json'
+        cli_plan = {**plan, 'run_id':'report-status', 'platform_evidence_file':str(platform_path)}
+        plan_path.write_text(json.dumps(cli_plan), encoding='utf-8')
+        report_path = root / 'reports/production-candidate/report-status.json'
+        report_path.parent.mkdir(parents=True)
+        saved = {**deepcopy(base), 'plan_sha256':live._digest(cli_plan), 'stage_attempts':[]}
+        report_path.write_text(json.dumps(saved), encoding='utf-8')
+        platform_path.write_text('{}', encoding='utf-8')
+        with patch.object(live, 'ROOT', root), patch.object(live, 'validate_plan', lambda value:value), patch.object(live, 'Driver') as driver:
+            assert live.main(['--plan', str(plan_path), '--stage', 'report']) == 1
+            assert json.loads(report_path.read_text())['release_gate_passed'] is False
+            platform_path.write_text(json.dumps(platform), encoding='utf-8')
+            assert live.main(['--plan', str(plan_path), '--stage', 'report']) == 0
+            final = json.loads(report_path.read_text())
+            assert final['release_gate_passed'] is True and final['requests'] == base['requests']
+            driver.assert_not_called()
+            # A successful intermediate operation may still have incomplete final evidence.
+            platform_path.write_text('{}', encoding='utf-8')
+            assert live.main(['--plan', str(plan_path), '--stage', 'archive']) == 0
+            driver.return_value.archive.assert_called_once_with()
 
 
 CHECKS = {"P01": P01, "P02": P02, "P03": P03, "P04": P04}

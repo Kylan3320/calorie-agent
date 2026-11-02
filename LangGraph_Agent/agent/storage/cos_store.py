@@ -22,6 +22,7 @@ class CosStore(StateStore):
         self.offset_hours, self.readonly = offset_hours, readonly
         self.journal = Journal(self.objects, self.prefix+'message/', readonly=readonly)
         self._changes = None
+        self._legacy_document_index = None
 
     def kind(self): return 'cos'
     def today_string(self): return BUSINESS_DATE.get() or today_string(self.offset_hours)
@@ -67,7 +68,7 @@ class CosStore(StateStore):
         for food in self._get('source:foods', []):
             ref = hashlib.sha256(encode(food)).hexdigest()
             if ref not in self.journal.cache:
-                self.journal.cache[ref] = deepcopy(food)
+                self.journal.cache_document(ref, deepcopy(food))
         return [self._get(k) for k in self._keys('food:')]
     def load_knowledge(self): return self._get('source:knowledge', [])
     def base_standard(self, user_id):
@@ -106,14 +107,41 @@ class CosStore(StateStore):
 
     def save_document(self, kind, user_id, scope, payload):
         key = 'document:'+stable_uuid(f'{kind}:{user_id}:{scope}')
-        self._save({key:{'intent':kind,'user_id':user_id,'chat_id':scope,'payload':deepcopy(payload)}})
+        keys = self._document_keys(kind)
+        changes = {key:{'intent':kind,'user_id':user_id,'chat_id':scope,'payload':deepcopy(payload)}}
+        if key not in keys:
+            coverage = hashlib.sha256(encode(sorted(set(self._keys('document:')) | {key}))).hexdigest()
+            changes.update({'document_index:'+kind:keys+[key], 'document_index:ready':coverage})
+        self._save(changes)
         if kind == 'user_settings':
             # Delivery routing is runtime metadata, not a settings ledger change.
             business = {k:v for k,v in payload.items() if k != 'feishu_chat_id'}
             if business: self._archive('settings', user_id, business, user_id)
 
     def list_documents(self, kind):
-        return [doc for k in self._keys('document:') if (doc:=self._get(k))['intent']==kind]
+        return [self._get(key) for key in self._document_keys(kind)]
+
+    def _document_keys(self, kind):
+        document_keys = self._keys('document:')
+        coverage = hashlib.sha256(encode(document_keys)).hexdigest()
+        if self._get('document_index:ready') == coverage:
+            return self._get('document_index:'+kind, [])
+        # Existing hashed document keys carry no kind. Rebuild this metadata
+        # when key coverage changes, including additions by a rolled-back writer
+        # that does not maintain this derived index. Boolean markers need repair.
+        if self.readonly and self._legacy_document_index and self._legacy_document_index[0] == coverage:
+            return self._legacy_document_index[1].get(kind, [])
+        index = {}
+        for key in document_keys:
+            doc = self._get(key)
+            index.setdefault(doc['intent'], []).append(key)
+        if self.readonly:
+            self._legacy_document_index = (coverage, index)
+        else:
+            changes = {key:[] for key in self._keys('document_index:') if key != 'document_index:ready'}
+            changes.update({'document_index:'+name:keys for name,keys in index.items()})
+            self._save({**changes, 'document_index:ready':coverage})
+        return index.get(kind, [])
 
     def _put_row(self, row):
         old = self._get('item:'+row['record_id'])

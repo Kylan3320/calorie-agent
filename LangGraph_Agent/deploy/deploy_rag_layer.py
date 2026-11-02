@@ -10,15 +10,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from deploy.api_deploy import FUNCTION, NAMESPACE, tc3_request
+from deploy.api_deploy import NAMESPACE, tc3_request
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Publish and attach the RAG layer")
+    parser.add_argument("--function", required=True, help="SCF function that executes knowledge retrieval")
     parser.add_argument("zip", nargs="?", type=Path, default=ROOT / "deploy" / "rag-layer.zip")
     parser.add_argument("--attach-only", type=int, metavar="VERSION")
     args = parser.parse_args(argv)
-    target = {"FunctionName": FUNCTION, "Namespace": NAMESPACE}
+    target = {"FunctionName": args.function, "Namespace": NAMESPACE}
     current = tc3_request("GetFunction", target)
     version = args.attach_only
     if version is None:
@@ -39,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         **target, "Layers": layers,
         "Environment": {"Variables": [{"Key": key, "Value": value} for key, value in variables.items()]},
     })
-    print(f"已提交 calorie-rag v{version}，请按 README 核验生效配置。")
+    print(f"已提交 {args.function}: calorie-rag v{version}，请核验生效配置。")
     return 0
 
 

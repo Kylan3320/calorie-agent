@@ -1,2 +1,0 @@
-# Optional probe only. Do not include in the production deployment dependencies.
-cos-python-sdk-v5==1.9.44

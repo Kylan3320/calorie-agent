@@ -64,17 +64,6 @@ def search_food(keyword: str, *, per_page: int = 5, transport: HttpGet | None = 
     return [dict(item) for item in candidates]
 
 
-def cached_candidates(keyword: str, index: int) -> dict[str, Any] | None:
-    """Return the cached candidate at `index` (0-based) without a network call."""
-    cached = _cache.get(f"{str(keyword or '').strip().lower()}:{5}")
-    if not cached:
-        return None
-    entries = cached[1]
-    if 0 <= index < len(entries):
-        return dict(entries[index])
-    return None
-
-
 def _normalize_food(food: dict[str, Any]) -> dict[str, Any] | None:
     name = str(food.get("name") or "").strip()
     carbs = _number(food.get("carbohydrate"))
@@ -154,4 +143,4 @@ def _default_http_get(url: str, headers: dict[str, str]) -> dict[str, Any]:
             raise
 
 
-__all__ = ["BooheeError", "cached_candidates", "search_food", "set_transport"]
+__all__ = ["BooheeError", "food_detail", "search_food", "set_transport"]
