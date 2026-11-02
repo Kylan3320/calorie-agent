@@ -175,7 +175,7 @@ def production_recovery():
 
 
 def production_partitioning():
-    """生产读取仅加载所需日期/会话；元数据不推进业务版本，同值保存无提交。"""
+    """按日期/类型读取；旧状态及回滚写入补索引，只读零写，缓存有界可重取。"""
     store=open_store()
     send(store,'partition',[call('record_meal',MEAL),answer])
     keys=list(k for k in store.journal.state if k.startswith('archive:intake:'))
@@ -194,6 +194,112 @@ def production_partitioning():
             store.objects.hidden.add(store.journal.prefix+'documents/'+ref+'.json')
     readonly=CosStore(store.objects,store.prefix,readonly=True)
     assert readonly.today_summary('user')['totals']['kcal']==270
+
+    # Published old states have only hashed document keys, without a kind index.
+    # Read-only reconstruction must work without writes; the first writer save
+    # publishes coverage so unchanged cold readers skip unrelated payloads.
+    from agent.storage.bitable_adapter import stable_uuid
+    legacy = CosStore(Objects(), 'partition/legacy-documents/')
+    settings = {'targets':{'kcal':1900}}
+    old = {}
+    for kind,payload in [('user_settings',settings),('agent_session',{'messages':['old history']}),
+                         ('receipt_state',{'result':{'reply':'old result'}})]:
+        old['document:'+stable_uuid(f'{kind}:user:')] = {'intent':kind,'user_id':'user','chat_id':'','payload':payload}
+    legacy.journal.commit(old)
+    readonly = CosStore(legacy.objects, legacy.prefix, readonly=True)
+    count = legacy.objects.creates
+    assert readonly.list_documents('user_settings')[0]['payload'] == settings
+    assert readonly.list_documents('receipt_state')[0]['payload']['result']['reply'] == 'old result'
+    assert legacy.objects.creates == count and not legacy.journal.get('document_index:ready')
+    legacy.save_document('user_settings','user','',settings)
+    assert isinstance(legacy.journal.get('document_index:ready'), str)
+    kind_ref = legacy.journal.index['document_index:user_settings']
+    coverage_ref = legacy.journal.index['document_index:ready']
+    legacy.save_document('user_settings','user','',{'targets':{'kcal':2000}})
+    assert legacy.journal.index['document_index:user_settings'] == kind_ref
+    assert legacy.journal.index['document_index:ready'] == coverage_ref
+    # The earlier indexed format used a boolean, which cannot prove coverage.
+    legacy.journal.commit({'document_index:ready':True})
+    readonly = CosStore(legacy.objects, legacy.prefix, readonly=True)
+    count = legacy.objects.creates
+    assert readonly.list_documents('user_settings')[0]['payload']['targets']['kcal'] == 2000
+    assert legacy.objects.creates == count
+    assert legacy.journal.get('document_index:ready') is True
+    legacy.save_document('user_settings','user','',{'targets':{'kcal':2000}})
+    assert legacy.journal.index['document_index:user_settings'] == kind_ref
+    assert legacy.journal.index['document_index:ready'] == coverage_ref
+    for key,doc in old.items():
+        if doc['intent'] != 'user_settings':
+            ref = legacy.journal.index[key]
+            legacy.objects.hidden.add(legacy.journal.prefix+'documents/'+ref+'.json')
+    readonly = CosStore(legacy.objects, legacy.prefix, readonly=True)
+    count = legacy.objects.creates
+    assert readonly.list_documents('user_settings')[0]['payload']['targets']['kcal'] == 2000
+    assert legacy.objects.creates == count
+    revision = legacy.journal.revision
+    legacy.save_document('user_settings','another','',{'targets':{'kcal':1800}})
+    assert legacy.journal.revision == revision+1
+    assert len(legacy.list_documents('user_settings')) == 2
+    readonly = CosStore(legacy.objects, legacy.prefix, readonly=True)
+    count = legacy.objects.creates
+    assert len(readonly.list_documents('user_settings')) == 2
+    assert legacy.objects.creates == count
+
+    # Simulate a downgrade: the old writer commits the same hashed document
+    # identity, without touching kind indexes or the upgraded coverage marker.
+    legacy.objects.hidden.clear()
+    old_writer = CosStore(legacy.objects, legacy.prefix)
+    indexed_refs = {key:ref for key,ref in old_writer.journal.index.items() if key.startswith('document_index:')}
+    reminder_settings = {'feishu_chat_id':'rollback-chat','reminders':{
+        'lunch':{'enabled':True,'time':'12:00','meal_type':'lunch'}}}
+    rollback_key = 'document:'+stable_uuid('user_settings:rollback-user:')
+    old_writer.journal.commit({rollback_key:{'intent':'user_settings','user_id':'rollback-user',
+        'chat_id':'','payload':reminder_settings}})
+    assert {key:ref for key,ref in old_writer.journal.index.items() if key.startswith('document_index:')} == indexed_refs
+    readonly = CosStore(legacy.objects, legacy.prefix, readonly=True)
+    count = legacy.objects.creates
+    assert {doc['user_id'] for doc in readonly.list_documents('user_settings')} == {'user','another','rollback-user'}
+    with patch.object(readonly, '_get', wraps=readonly._get) as reads:
+        assert len(readonly.list_documents('user_settings')) == 3
+        unrelated = {key for key,doc in old.items() if doc['intent'] != 'user_settings'}
+        assert all(c.args[0] not in unrelated for c in reads.call_args_list)
+    assert legacy.objects.creates == count
+    upgraded = CosStore(legacy.objects, legacy.prefix)
+    upgraded.save_document('user_settings','user','',{'targets':{'kcal':2000}})
+    assert upgraded.journal.index['document_index:ready'] != indexed_refs['document_index:ready']
+    assert upgraded.load_document('user_settings','rollback-user') == reminder_settings
+    for key,doc in old.items():
+        if doc['intent'] != 'user_settings':
+            ref = upgraded.journal.index[key]
+            upgraded.objects.hidden.add(upgraded.journal.prefix+'documents/'+ref+'.json')
+    upgraded = CosStore(legacy.objects, legacy.prefix)
+    from datetime import datetime, timezone
+    from agent.storage.reminders import check_reminders
+    sent = []
+    def capture_reminder(chat_id, text, **kwargs):
+        sent.append((chat_id, text, kwargs))
+        return {'code':0}
+    scheduled = datetime(2026,11,2,4,0,tzinfo=timezone.utc)
+    assert check_reminders(upgraded,scheduled,send=capture_reminder)['sent'] == 1
+    assert sent[0][0] == 'rollback-chat'
+    assert check_reminders(upgraded,scheduled,send=capture_reminder)['sent'] == 0
+    assert len(sent) == 1
+
+    from agent.storage.cos_journal import encode
+    with patch('agent.storage.cos_journal.CACHE_MAX_BYTES', 256), patch('agent.storage.cos_journal.CACHE_MAX_ENTRIES', 4):
+        bounded = Journal(Objects(), 'partition/bounded-cache/')
+        bounded.commit({'kept': {'text':'original'}})
+        kept_ref = bounded.index['kept']
+        for value in range(12):
+            bounded.commit({'changing': {'number':value,'text':'x'*80}})
+            assert bounded.cache_bytes <= 256 and len(bounded.cache) <= 4
+        assert kept_ref not in bounded.cache
+        assert bounded.get('kept') == {'text':'original'} and bounded.get('changing')['number'] == 11
+        large = {'text':'x'*1024}
+        bounded.commit({'large':large})
+        assert bounded.index['large'] not in bounded.cache
+        assert bounded.get('large') == large
+        assert bounded.cache_bytes == sum(len(encode(value)) for value in bounded.cache.values()) <= 256
 
 
 def production_parallel_transfers():

@@ -1,4 +1,5 @@
 {
+  "scope": "Historical COS first cutover on 2026-11-02; routine updates follow README.md and select verification by actual change.",
   "status": "production_published_feishu_available_with_unresolved_history_reply_issue",
   "region": "ap-shanghai",
   "namespace": "default",
@@ -218,7 +219,7 @@
     "after_first_cos_business_commit": "maintenance-on; retain all COS commits; deploy only a build compatible with calorie.cos.v1 and current document schema; repair then maintenance-off",
     "commands": [
       "python deploy/production_release.py maintenance-on --function calorie-agent-api-v3-test",
-      "SCF_FUNCTION=calorie-agent-api-v3-test python deploy/api_deploy.py <verified-compatible-frozen-package.zip>",
+      "python deploy/api_deploy.py --function calorie-agent-api-v3-test <verified-compatible-frozen-package.zip>",
       "python deploy/production_release.py maintenance-off --function calorie-agent-api-v3-test"
     ],
     "excluded": "automatic reverse migration or deleting new COS facts"

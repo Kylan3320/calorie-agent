@@ -2,7 +2,7 @@
 import json
 import re
 from copy import deepcopy
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 LABELS = {"carbs":"碳水", "protein":"蛋白质", "fat":"脂肪", "kcal":"热量"}
 
@@ -40,6 +40,56 @@ def project_messages(messages):
         if isinstance(message,ToolMessage):
             value=json.loads(message.content)
             message=message.model_copy(update={"content":json.dumps(model_view(value),ensure_ascii=False)})
+        result.append(message)
+    return result
+
+
+def history_messages(messages):
+    """Keep dialogue and operation references; re-query mutable business facts."""
+    result = []
+    business_turn = False
+    knowledge_turn = False
+    for message in messages:
+        if message.additional_kwargs.get("lc_source") == "summarization":
+            # Older summaries can contain ledger values from before migration or
+            # cleanup. Unfinished items, references and settings live separately.
+            if message.additional_kwargs.get("fact_scope") != "dialogue":
+                continue
+        elif isinstance(message, HumanMessage):
+            business_turn = False
+            knowledge_turn = False
+        if isinstance(message, AIMessage) and "reasoning_content" in message.additional_kwargs:
+            message = message.model_copy(update={"additional_kwargs": {**message.additional_kwargs, "reasoning_content": ""}})
+        if isinstance(message, AIMessage) and message.tool_calls:
+            business_turn |= any(c["name"] != "query_knowledge" for c in message.tool_calls)
+            knowledge_turn |= any(c["name"] == "query_knowledge" for c in message.tool_calls)
+            if business_turn:
+                message = message.model_copy(update={"content": ""})
+        elif isinstance(message, ToolMessage):
+            value = json.loads(message.content)
+            if value.get("tool", message.name) != "query_knowledge":
+                business_turn = True
+                references = []
+                def collect(value):
+                    if isinstance(value, list):
+                        for child in value: collect(child)
+                    elif isinstance(value, dict):
+                        if value.get("record_id"):
+                            references.append({k: value[k] for k in ("record_id", "date", "food_name", "matched_name", "meal_type") if k in value})
+                        else:
+                            for child in value.values(): collect(child)
+                collect(value.get("data", {}))
+                historical = {k: value[k] for k in ("tool", "call_id", "action_id") if k in value}
+                historical.update(status="historical", data={"references": references})
+                message = message.model_copy(update={"content": json.dumps(historical, ensure_ascii=False)})
+            else:
+                knowledge_turn = True
+        elif isinstance(message, AIMessage):
+            scope = message.additional_kwargs.get("fact_scope")
+            if business_turn or scope == "business":
+                continue
+            if not knowledge_turn and scope not in {"dialogue", "knowledge"}:
+                continue
         result.append(message)
     return result
 

@@ -44,12 +44,22 @@ def call(name, args, cid="c1"):
     return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": cid, "type": "tool_call"}])
 
 def answer(messages):
-    parts = []
-    for m in messages:
-        if isinstance(m, ToolMessage):
-            f = json.loads(m.content)
-            parts.extend("{{"+f["call_id"]+":"+k+"}}" for k in f.get("display", {}))
-    return AIMessage(content="\n".join(parts) or "请明确要处理的内容。")
+    facts=[json.loads(m.content) for m in messages if isinstance(m,ToolMessage)]
+    facts=[f for f in facts if f.get('status')!='historical']
+    f=facts[-1] if facts else {};d=f.get('data',{});tool=f.get('tool')
+    if tool=='record_meal':
+        if d.get('cancelled') and not d.get('items'):return AIMessage(content='已取消未完成项。')
+        missing=d.get('unfinished',[])
+        if missing:return AIMessage(content='已记好能确定的食物；'+ '；'.join(i['food_query']+'：'+i['reason']+'（'+ '；'.join(f"{n+1}. {c['name']}" for n,c in enumerate(i.get('candidates',[])))+'）' for i in missing))
+        return AIMessage(content=f"记好了，这餐{d['meal_totals'][0]['total']['kcal']:g}千卡，按单位换算的份量为估算。")
+    if tool=='revise_intake':return AIMessage(content=f"已修改，这餐{d['meal_totals'][0]['total']['kcal']:g}千卡。"+('按单位换算的份量为估算。' if d['meal_totals'][0].get('estimated') else ''))
+    if tool=='query_today':return AIMessage(content=f"今天合计{d['total']['kcal']:g}千卡。")
+    if tool=='update_user_settings':
+        if f['status']=='pending':return AIMessage(content='请说一下这次想修改的内容。')
+        previous=[x for x in facts if x.get('tool')=='record_meal']
+        return AIMessage(content='这个安排可以。' if f['status']=='proposal' else ('夹具A已记录，这餐120千卡；长期热量目标已设为1900千卡。' if previous else '设置已保存。'))
+    if tool=='query_knowledge':return AIMessage(content='主食可以与蔬菜搭配，结合整天的安排。[K101]' if d.get('entries') else '可以先从规律吃饭和方便坚持的搭配入手。你说的这个具体情形还缺对应资料。')
+    return AIMessage(content='好，先放一放，想聊别的也可以。')
 
 def setup():
     boohee_client.set_transport(transport)
@@ -74,10 +84,24 @@ def U01():
     assert [(x["grams"],x["nutrition"]) for x in s.intake] == [(200,{"carbs":20,"protein":4,"fat":2,"kcal":120}),(100,{"carbs":0,"protein":12,"fat":10,"kcal":150})]
     assert s.intake[1]["snapshot"]["estimated"] is True
     assert s.today_summary("user")["totals"] == {"carbs":20,"protein":16,"fat":12,"kcal":270}
-    for text in ["夹具A 200g", "120kcal", "夹具B 100g（估算）", "150kcal", "碳水20g", "蛋白质16g", "脂肪12g", "270kcal"]: assert text in r["reply"],r["reply"]
+    assert "270千卡" in r["reply"] and "估算" in r["reply"],r["reply"]
     assert isinstance(m.requests[1][-1],ToolMessage)
     again,_=send(s,"记录夹具A200g和夹具B2个",[],mid="m1")
     assert again["reply"]==r["reply"] and len(s.intake)==2
+    # A requested amount is independent of an existing same-name intake.
+    for mid, params, expected in (
+        ("nutrition-grams", {"food_query":"夹具A","grams":100}, 60),
+        ("nutrition-unit", {"food_query":"夹具B","quantity":1,"unit":"个(中)"}, 75),
+        ("nutrition-record", {"record_id":s.intake[0]["record_id"],"grams":100}, 120),
+    ):
+        result,_=send(s,"查询指定份量的营养",[call("query_food_nutrition",params),AIMessage(content="查询完成。")],mid=mid)
+        data=result["tool_results"][0]["data"]
+        total=data.get("total") or data["items"][0]["nutrition"]
+        assert total["kcal"]==expected
+    assert len(s.intake)==2
+    send(s,"记录明天夹具A400克",[call("record_meal",{"date":"2026-11-01","items":[{"food_query":"夹具A","grams":400}]}),answer],mid="future-intake")
+    result,_=send(s,"查今天夹具A的营养",[call("query_food_nutrition",{"food_query":"夹具A"}),AIMessage(content="查询完成。")],mid="nutrition-today")
+    assert result["tool_results"][0]["data"]["total"]["kcal"]==120
 
 def U02():
     """部分成功、合并缺项、候选快照、跨日补全与单结果歧义。"""
@@ -109,6 +133,26 @@ def U02():
     assert not s.load_session("user","test")["unfinished"] and "已取消未完成项" in cancelled["reply"]
     assert len(s.intake)==3
 
+    replacement=setup()
+    send(replacement,"记录夹具A",[call("record_meal",{"items":[{"food_query":"夹具A"}]}),answer])
+    original=next(iter(replacement.load_session("user","test")["unfinished"].values()))
+    send(replacement,"刚才那项换成夹具B100克",[call("record_meal",{"items":[{"pending_id":original["pending_id"],"food_query":"夹具B","grams":100}]}),answer],mid="replace-food")
+    row=replacement.intake[0]
+    assert (row["food_name"],row["grams"],row["nutrition"]["kcal"])==("夹具B",100,150)
+    assert row["date"]==original["date"] and row["snapshot"]["meal_id"]==original["meal_id"]
+
+    revised_amount=setup()
+    send(revised_amount,"记录夹具100克",[call("record_meal",{"items":[{"food_query":"夹具","grams":100}]}),answer])
+    original=next(iter(revised_amount.load_session("user","test")["unfinished"].values()))
+    assert original["candidates"][1]["name"]=="夹具B"
+    run(dict(message_id="conflicting-choice",user_id="user",chat_id="test",text="选择与食物矛盾的候选"),store=revised_amount,config=CONFIG,
+        model=NativeFake(responses=[call("record_meal",{"items":[{"pending_id":original["pending_id"],"food_query":"夹具A","choice":2,"quantity":1,"unit":"个"}]}),AIMessage(content="请重新选择。")]))
+    assert not revised_amount.intake and original["pending_id"] in revised_amount.load_session("user","test")["unfinished"]
+    send(revised_amount,"选第二个，改为1个",[call("record_meal",{"items":[{"pending_id":original["pending_id"],"food_query":"夹具B","choice":2,"quantity":1,"unit":"个"}]}),answer],mid="replace-amount")
+    row=revised_amount.intake[0]
+    assert (row["food_name"],row["grams"],row["nutrition"]["kcal"])==("夹具B",50,75)
+    assert row["snapshot"]["estimated"] and row["snapshot"]["quantity"]==1
+
 def U03():
     """快照常用餐、半份复用、指定项修改和撤销。"""
     s=setup()
@@ -123,6 +167,11 @@ def U03():
     assert [x["nutrition"]["kcal"] for x in s.intake[:2]]==[120,150]
     assert s.today_summary("user")["totals"]["kcal"]==300 and s.today_summary("user")["count"]==3
     assert s.intake[2]["grams"]==50 and s.intake[2]["nutrition"]["kcal"]==30 and s.intake[3]["status"]=="deleted"
+    s.today="2026-11-01"
+    result,_=send(s,"再记半份刚才那餐",[call("record_meal",{"reuse":{"latest":True,"ratio":.5}}),answer],mid="midnight-reuse")
+    assert len(s.intake)==5 and (s.intake[-1]["date"],s.intake[-1]["grams"],s.intake[-1]["nutrition"]["kcal"])==("2026-11-01",25,15)
+    result,_=send(s,"只复用昨天的最近餐",[call("record_meal",{"reuse":{"latest":True,"date":"yesterday"}}),AIMessage(content="日期不匹配，请指定原餐。")],mid="explicit-source-date")
+    assert result["tool_results"][0]["status"]=="pending" and len(s.intake)==5
 
 def U04():
     """多轮压缩、Store恢复、工具schema及结果回传、会话隔离和完全只读。"""
@@ -217,18 +266,10 @@ def U06():
     assert check_reminders(s2,tick,sender)["sent"]==0
 
 def U07():
-    """写成功/结果未保存时崩溃，恢复连续两动作并防重，发送失败复用回复/uuid。"""
+    """写成功/结果未保存时崩溃，恢复连续两动作、原日期及原回复，重放不覆盖新会话。"""
     from agent.graph import run
-    from agent.storage.bitable_adapter import reply_uuid
     s=setup()
     original=s.save_execution
-    failed=[False]
-    def crash(task,payload,**kwargs):
-        if s.intake and not failed[0] and any("result" in e for e in payload.get("calls",[])):
-            failed[0]=True
-            raise RuntimeError("injected crash after first write")
-        original(task,payload,**kwargs)
-    s.save_execution=crash
     batch=AIMessage(content="",tool_calls=[{"name":"record_meal","args":{"items":[{"food_query":"夹具A","grams":200}]},"id":"c1","type":"tool_call"},
         {"name":"record_meal","args":{"items":[{"food_query":"夹具B","quantity":2,"unit":"个"}]},"id":"c2","type":"tool_call"}])
     # Force a process death rather than a retryable business error.
@@ -255,7 +296,7 @@ def U07():
     assert s.load_session("user","test")==latest_session
     assert s.load_execution(msg)["status"]=="completed"
     # Transport recovery now belongs to the production ingress boundary;
-    # E05/E06 exercise production_pipeline_cases through the unified runner.
+    # The P cases exercise production transport recovery independently.
 
 
 

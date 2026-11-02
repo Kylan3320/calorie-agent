@@ -4,13 +4,11 @@
 
 字段：schema_version=calorie_agent_trace.v2、created_at、trace_id、message_id/user_id/chat_id/text/raw_text、preset、model、retriever、status、reply/reply_source、latency_ms、errors、guard_result、model_calls、native_calls、model_requests、tool_results。
 
-native_calls 为按模型返回顺序固定的 `{call_id,tool,args,index,action_id}`；model_requests 保存本轮每次主决策当前轮实际消息序列、history_message_count及从注册表派生的 tools（相同tools_digest后续仅存工具名，完整较早历史在会话messages中保存一次），用于避免将整段历史重复持久化；tools（name/description/schema/risk），消息包含此前 ToolMessage，供核对原生工具选择、结果回传与后续决策。
+native_calls 为按模型返回顺序固定的 `{call_id,tool,args,index,action_id}`；model_requests 保存本轮每次主决策当前轮实际消息序列、history_message_count及从注册表派生的 tools（相同tools_digest后续仅存工具名，完整较早历史在会话messages中保存一次），tools（name/description/schema/risk），消息包含此前 ToolMessage，供核对原生工具选择、结果回传与后续决策。
 
-tool_results 为完整原生工具事实；query_knowledge.data.retriever 标记实际检索器，evidence 保存本轮原文。model_reply保存模型原始最终正文，reply是实际交付正文；response_adjustments记录来源引用替换或确认提示合成等局部调整。reply_source为agent/agent_adjusted/fallback。guard_result记录checked_scope、fallback_used及具体调整，不把自然语义作为已全面验证。
+tool_results 为完整原生工具事实；query_knowledge.data.retriever 标记实际检索器，evidence 保存本轮原文。model_reply保存模型原始最终正文，reply是实际交付正文；response_adjustments记录来源引用替换或确认提示合成等局部调整。reply_source为agent/agent_adjusted/fallback。guard_result记录checked_scope、fallback_used及具体调整。
 
-v1的plan、pending_route、policy_decision、planner_fallback移除。CLI、控制台/trace和DSH tool_events已改用原生轨迹，不保留旧协议转译。
-
-model_requests的ToolMessage审计项用result_ref（call_id）和原content_sha256关联已持久化工具事实，不重复嵌入整份content。实际模型输入和压缩保留消息仍在journal.messages/session.messages中使用LangChain标准序列化完整保存。
+model_requests的ToolMessage审计项用result_ref（call_id）和原content_sha256关联已持久化工具事实。实际模型输入在 journal.messages/session.messages 中用 LangChain 标准序列化保存；历史业务工具视图为 historical＋记录引用，助手消息带 `fact_scope=business/knowledge/dialogue`，摘要另带 `lc_source=summarization`。当前用户消息 ID 为 `calorie-user:{message_key}`。完整工具事实保留于对应执行的 calls.result。
 
 latency_events为增量字段，含id/parent、instance_id、started_epoch_ms、started_monotonic、duration_ms、outcome及类别字段。model_http带main/summary目的、模型及供应商usage；feishu_http带方法、资源、attempt、请求/响应字节；RAG抽词和embedding单列。嵌套阶段不直接相加。标准AIMessage.usage_metadata及model_provider与适配器匹配，思考模式不变。
 
@@ -22,4 +20,4 @@ COS生产链路保留原Runtime trace字段，新增storage_revision表示本次
 
 生产COS阶段为cos_versioning/cos_list/cos_get/cos_create，含对象键、bytes和duration_ms。Journal提交编号关联ingress_revision、message COS revision和独立sync_revision；action_id在业务提交中固定，归档日志archive_confirmed/failed含稳定业务key、对象revision、实际飞书record_id、ack_revision及inflight_revision。各阶段事件只计一次，嵌套耗时不直接相加。
 
-scf_handoff记录入口到目标消息函数的Invoke。事件携带receipt_id、原message/user/chat身份及ingress_revision，worker按确切收件版本校验后执行。latency_delivery与latency_worker携带BUILD_ID及收件／COS版本关联，归档网络等待不在消息执行span内。候选与正式验收证据分别记录，旧探针日志不作为生产链路通过证明。
+scf_handoff记录入口到目标消息函数的Invoke。事件携带receipt_id、原message/user/chat身份及ingress_revision，worker按确切收件版本校验后执行。latency_delivery与latency_worker携带BUILD_ID及收件／COS版本关联，归档网络等待不在消息执行span内。

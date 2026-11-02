@@ -18,7 +18,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVICE = "scf"
 HOST = "scf.tencentcloudapi.com"
 REGION = os.getenv("SCF_REGION", "ap-shanghai")
-FUNCTION = os.getenv("SCF_FUNCTION", "calorie-agent-api-v3-test")
 NAMESPACE = "default"
 
 
@@ -62,6 +61,9 @@ def tc3_request(action: str, payload: dict, version: str = "2018-04-16") -> dict
             f"SignedHeaders=content-type;host;x-tc-action, Signature={signature}"
         ),
     }
+    token = os.getenv("TENCENTCLOUD_SESSION_TOKEN") or os.getenv("TENCENTCLOUD_SECURITY_TOKEN") or os.getenv("TENCENTCLOUD_SESSIONTOKEN")
+    if token:
+        headers["X-TC-Token"] = token
     req = urllib.request.Request(f"https://{HOST}/", data=body.encode(), headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=300) as resp:
         result = json.loads(resp.read().decode())["Response"]
@@ -73,13 +75,15 @@ def tc3_request(action: str, payload: dict, version: str = "2018-04-16") -> dict
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Upload the SCF function zip")
+    parser.add_argument("--function", required=True, help="SCF function affected by this change")
     parser.add_argument("zip", nargs="?", type=Path, default=ROOT / "deploy" / "calorie-agent-v4.zip")
     args = parser.parse_args(argv)
     zip_path = args.zip.expanduser().resolve()
     zip_b64 = base64.b64encode(zip_path.read_bytes()).decode()
-    tc3_request("UpdateFunctionCode", {"FunctionName": FUNCTION, "Namespace": NAMESPACE, "ZipFile": zip_b64})
-    status = tc3_request("GetFunction", {"FunctionName": FUNCTION, "Namespace": NAMESPACE})
-    print(f"已提交 {zip_path.name}; Status={status.get('Status')} ModTime={status.get('ModTime')}")
+    target = {"FunctionName": args.function, "Namespace": NAMESPACE}
+    tc3_request("UpdateFunctionCode", {**target, "ZipFile": zip_b64})
+    status = tc3_request("GetFunction", target)
+    print(f"已提交 {args.function}/{zip_path.name}; Status={status.get('Status')} ModTime={status.get('ModTime')}")
     return 0
 
 

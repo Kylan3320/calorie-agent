@@ -1,4 +1,6 @@
-"""Reviewed, staged production cutover. No stage runs at import time.
+"""Historical 2026-11-02 first cutover/recovery; routine updates follow README.md.
+
+No stage runs at import time. Keep original release identities for recovery.
 
 Management stages support Python 3.6; migrate requires the frozen Python 3.10
 workspace. Supply --candidate-report explicitly. production-private.json holds

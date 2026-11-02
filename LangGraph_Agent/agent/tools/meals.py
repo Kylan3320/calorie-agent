@@ -54,6 +54,9 @@ def resolve_item(rt, item, *, pending=None):
         if not pending or not 0 <= n < len(candidates):
             raise ValueError("choice must refer to displayed pending candidates")
         food = deepcopy(candidates[n])
+        if (normalize_food_name(query) != normalize_food_name(pending["food_query"])
+                and exact_food(query, [food], item.get("unit", "")) is None):
+            raise ValueError("food query conflicts with the selected pending candidate")
     if food is None:
         foods = rt.store.load_foods()
         food = exact_food(query, foods, item.get("unit", ""))
@@ -140,8 +143,8 @@ def select_rows(rt, refs, *, day="", meal_type="", latest=False):
         # An opaque target must have been returned to this session by a tool.
         if any(ref not in known for ref in refs):
             raise ValueError("target reference has not been shown in this session")
-        return [r for r in rows if r["record_id"] in refs]
-    if latest:
+        rows = [r for r in rows if r["record_id"] in refs]
+    elif latest:
         rows = [r for r in rows if r["record_id"] in rt.session.get("last_meal", [])]
     if day:
         rows = [r for r in rows if r["date"] == day]
@@ -181,7 +184,9 @@ def record_meal(rt, p):
             if reuse.get("favorite"):
                 items = deepcopy(rt.settings.get("favorites", {}).get(reuse["favorite"], []))
             else:
-                source_day = resolve_date(reuse.get("date"), rt.day)
+                source_day = ""
+                if reuse.get("date") or not (reuse.get("latest") or reuse.get("record_ids")):
+                    source_day = resolve_date(reuse.get("date"), rt.day)
                 rows = select_rows(rt, reuse.get("record_ids", []), day=source_day,
                                    meal_type=reuse.get("meal_type", ""), latest=reuse.get("latest", False))
                 batches = {r.get("snapshot", {}).get("meal_id", r["message_id"]) for r in rows}
@@ -196,8 +201,22 @@ def record_meal(rt, p):
             original = pending_items.get(pid) if pid else None
             if pid and original is None:
                 raise ValueError("unfinished item unavailable in this session")
-            merged = {**(original or {}), **{k:v for k,v in entry.items() if v is not None}}
-            resolved, unfinished = resolve_item(rt, merged, pending=original)
+            previous = deepcopy(original or {})
+            if original:
+                same_query = normalize_food_name(entry["food_query"]) == normalize_food_name(original["food_query"])
+                known_food = original.get("food")
+                if (not same_query and entry.get("choice") is None
+                        and not (known_food and exact_food(entry["food_query"], [known_food], entry.get("unit", "")))):
+                    for key in ("food", "candidates", "choice", "offered_message_id"):
+                        previous.pop(key, None)
+                if entry.get("grams") is not None:
+                    for key in ("quantity", "unit", "quantity_text"):
+                        previous.pop(key, None)
+                elif entry.get("quantity") is not None or entry.get("unit"):
+                    previous.pop("grams", None)
+                    previous.pop("quantity_text", None)
+            merged = {**previous, **{k:v for k,v in entry.items() if v is not None}}
+            resolved, unfinished = resolve_item(rt, merged, pending=previous if original else None)
             entry_day = resolve_date(p.get("date"), rt.day) if p.get("date") else (original or {}).get("date", day)
             entry_meal = p.get("meal_type") or (original or {}).get("meal_type", meal)
             if resolved:

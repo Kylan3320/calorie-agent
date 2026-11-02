@@ -24,7 +24,6 @@ PREFIX='cos-probe/production-candidate/20261102/recheck-v2/'
 BUCKET='calorie-cos-probe-20261101-1440448581'
 REGION='ap-shanghai'
 EVIDENCE=ROOT/'cloud-evidence'
-EVIDENCE.mkdir(exist_ok=True)
 
 
 def api(action, payload):
@@ -51,7 +50,7 @@ def identity(name):return {'FunctionName':name,'Namespace':'default'}
 
 
 def record(name,data,private=False):
-    folder=EVIDENCE/('private' if private else 'public');folder.mkdir(exist_ok=True)
+    folder=EVIDENCE/('private' if private else 'public');folder.mkdir(parents=True,exist_ok=True)
     path=folder/(name+'.json')
     path.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding='utf-8')
     if private:os.chmod(str(path),0o600)

@@ -1,4 +1,4 @@
-"""Inspect the real Bitable adapter through an in-memory HTTP transport."""
+"""Independent model transport, retrieval and execution-budget checks."""
 import collections
 from copy import deepcopy
 import json
@@ -150,18 +150,4 @@ def model_protocol_check():
         assert requests[0]['messages'][0]['content'].startswith(SYSTEM)
         assert '可信会话事实' in requests[0]['messages'][0]['content']
 
-def query_rpc_check():
-    """Known source messages use the production COS path without Bitable I/O."""
-    from harness.eval.production_pipeline_cases import P01
-    from agent.storage import feishu_client
-    def forbidden(*args, **kwargs):
-        raise AssertionError("synchronous Bitable HTTP on the message path")
-    with patch.multiple(feishu_client, http_json_get=forbidden, http_json_post=forbidden, http_json_put=forbidden):
-        P01()
-
-
-def handoff_check():
-    """HTTP durability and live adapters through the production pipeline."""
-    from harness.eval.production_pipeline_cases import P02, P03
-    P02()
-    P03()
+CHECKS = {"LT01": rag_loop_check, "LT02": model_protocol_check, "LT03": finish_and_budget_check}

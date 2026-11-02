@@ -546,7 +546,7 @@ def main(argv=None):
         attempt.update(status="completed", completed_at=time.time())
         save()
         print(json.dumps({"report": str(report_path), "stage": args.stage, "release_gate_passed": report["release_gate_passed"], "knowledge_speed": report["knowledge_speed"]}, ensure_ascii=False))
-        return 0
+        return int(args.stage == "report" and not report["release_gate_passed"])
     except Exception as exc:
         attempt.update(status="failed", error=f"{type(exc).__name__}:{exc}", failed_at=time.time())
         try:

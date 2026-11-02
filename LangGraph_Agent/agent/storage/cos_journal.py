@@ -4,12 +4,16 @@ LIST locates candidates only. Creating the next empty commit is the write/read
 barrier; a conflict requires exact-key catch-up. Unknown writes poison an
 instance until refresh, so callers never continue from an unconfirmed value.
 """
+from collections import OrderedDict
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from copy import deepcopy
 import hashlib
 import json
+
+CACHE_MAX_BYTES = 8 * 1024 * 1024
+CACHE_MAX_ENTRIES = 512
 
 
 def encode(value):
@@ -54,20 +58,39 @@ class _State(Mapping):
         journal = self.journal
         journal._check()
         ref = journal.index[key]
-        if ref not in journal.cache:
+        if ref in journal.cache:
+            value = journal.cache[ref]
+            journal.cache.move_to_end(ref)
+        else:
             raw = journal.objects.get(journal.prefix + 'documents/' + ref + '.json')
             if raw is None or hashlib.sha256(raw).hexdigest() != ref:
                 raise CommitUnavailable('known document unavailable: ' + key)
-            journal.cache[ref] = json.loads(raw)
-        return deepcopy(journal.cache[ref])
+            value = json.loads(raw)
+            journal.cache_document(ref, value, len(raw))
+        return deepcopy(value)
 
 
 class Journal:
     def __init__(self, objects, prefix, readonly=False):
         self.objects, self.prefix, self.readonly = objects, prefix.rstrip('/') + '/', readonly
-        self.revision, self.index, self.cache, self.unavailable = -1, {}, {}, False
+        self.revision, self.index, self.unavailable = -1, {}, False
+        self.cache, self._cache_sizes, self.cache_bytes = OrderedDict(), {}, 0
         self.state = _State(self)
         self.refresh(confirm=not readonly)
+
+    def cache_document(self, ref, value, size=None):
+        size = len(encode(value)) if size is None else size
+        if size > CACHE_MAX_BYTES:
+            return
+        if ref in self.cache:
+            self.cache.move_to_end(ref)
+            return
+        while self.cache and (self.cache_bytes + size > CACHE_MAX_BYTES or len(self.cache) >= CACHE_MAX_ENTRIES):
+            oldest, _ = self.cache.popitem(last=False)
+            self.cache_bytes -= self._cache_sizes.pop(oldest)
+        self.cache[ref] = value
+        self._cache_sizes[ref] = size
+        self.cache_bytes += size
 
     def _check(self):
         if self.unavailable:
@@ -188,7 +211,8 @@ class Journal:
         # Immutable payloads are independent. Their manifest is the sole visible
         # commit, and is appended only after all uploads have succeeded.
         _transfer_batch(self._publish_document, [(ref, raw) for ref, (raw, _) in documents.items()])
-        self.cache.update({ref: value for ref, (_, value) in documents.items()})
+        for ref, (raw, value) in documents.items():
+            self.cache_document(ref, value, len(raw))
         if refs and not self._append(refs):
             self.unavailable = True
             raise CommitUnavailable('writer changed; refresh and recover original action')

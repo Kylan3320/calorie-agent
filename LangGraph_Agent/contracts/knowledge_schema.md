@@ -14,7 +14,7 @@
 | status | 空或 active 有效；deleted 下架。读取兼容已有启用、正常、有效状态。 |
 
 `sync_knowledge` 按 entry_id 新增或更新指定条目，不删除其他知识。
-生产表内编辑后，FAQ 在缓存刷新后生效；LightRAG 需构建并发布新快照。
+CosStore 的 FAQ 读取已发布的 `source:knowledge` 快照，表内编辑不会自动更新该快照；LightRAG 需构建并发布新索引。
 完整快照在新空目录构建，旧索引保留，避免已下架内容残留在增量索引中。
 
 ## 检索接口

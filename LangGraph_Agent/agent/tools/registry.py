@@ -5,7 +5,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from langchain_core.tools import StructuredTool
 from . import meals, settings
 from .reads import run_query_knowledge
-from .base import ToolContext
 from ..storage.timeutil import round_number
 
 CURRENT_RUNTIME = ContextVar("calorie_runtime")
@@ -139,8 +138,15 @@ def query_history(rt, p):
     return {"status": "ok", "data": {"start_date": start, "end_date": end, "items": rows, "count": len(rows), "total": meals.totals(rows)}}
 
 def query_nutrition(rt, p):
-    rows = meals.select_rows(rt, [p["record_id"]]) if p.get("record_id") else [r for r in rt.store.intake_items(rt.user_id, rt.day)
-        if r["food_name"] == p.get("food_query")]
+    rows = []
+    if p.get("record_id"):
+        rows = meals.select_rows(rt, [p["record_id"]])
+        if not rows:
+            return {"status": "pending", "data": {"items": [], "question": "该摄入项已不可用，请重新指定"}}
+    elif p.get("grams") is None and p.get("quantity") is None:
+        from datetime import date, timedelta
+        end = (date.fromisoformat(rt.day) + timedelta(days=1)).isoformat()
+        rows = [r for r in rt.store.intake_items(rt.user_id, rt.day, end) if r["food_name"] == p.get("food_query")]
     if rows:
         rt.add_refs(rows)
         return {"status": "ok", "data": {"items": rows, "total": meals.totals(rows), "source": "intake_snapshot"}}
@@ -148,7 +154,7 @@ def query_nutrition(rt, p):
     return {"status": "pending" if missing else "ok", "data": {"items": [item] if item else [], "unfinished": [missing] if missing else []}}
 
 def query_knowledge(rt, p):
-    result = run_query_knowledge(rt.message, p, ToolContext(rt.store, rt.config, {})).to_dict()
+    result = run_query_knowledge(rt, p)
     for index, entry in enumerate(result.get("data", {}).get("entries", []), 1):
         entry["source_id"] = f"K{rt.current['index'] * 100 + index}"
     return result
