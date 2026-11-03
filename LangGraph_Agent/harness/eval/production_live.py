@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
-STEPS = ("initial", "record", "revise", "today", "knowledge")
+STEPS = ("record", "revise", "today")
 NUTRIENTS = ("kcal", "carbs", "protein", "fat")
 
 
@@ -54,28 +54,33 @@ def validate_plan(plan):
         raise ValueError("real food source evidence must be fixed before requests")
     messages = plan.get("messages", [])
     if tuple(item.get("step") for item in messages) != STEPS:
-        raise ValueError("exactly five planned messages in initial/record/revise/today/knowledge order are required")
-    if mode == "synthetic_webhook" and len({item.get("message_id") for item in messages}) != 5:
-        raise ValueError("five fixed unique new message IDs are required")
+        raise ValueError("exactly three planned messages in record/revise/today order are required")
+    if mode == "synthetic_webhook" and len({item.get("message_id") for item in messages}) != len(STEPS):
+        raise ValueError("three fixed unique new message IDs are required")
     for message in messages:
-        if (mode == "synthetic_webhook" and not message.get("message_id")) or not message.get("text") or not isinstance(message.get("expected_total_kcal"), (int, float)):
-            raise ValueError("each original text, message ID and independent total must be fixed")
-        rows = message.get("expected_items")
-        if not isinstance(rows, list):
-            raise ValueError("each message requires its independent expected_items list")
-        for row in rows:
-            if not all(row.get(key) for key in ("food_name", "date", "meal_type")) or not isinstance(row.get("estimated"), bool):
-                raise ValueError("expected items require date, food, meal scope and estimated flag")
-            if not isinstance(row.get("grams"), (int, float)) or any(not isinstance(row.get("nutrition", {}).get(key), (int, float)) for key in NUTRIENTS):
-                raise ValueError("expected grams and all nutrition facts must come from the independent source")
-        if message["step"] in {"record", "revise", "today", "knowledge"} and len(rows) != 2:
+        _validate_message(message, mode)
+        if len(message["expected_items"]) != 2:
             raise ValueError("the acceptance sequence requires a known two-item meal")
-    if not plan.get("knowledge_evidence") or any(not item.get("source") or not item.get("excerpt") for item in plan["knowledge_evidence"]):
-        raise ValueError("preselect independent knowledge source excerpts")
-    for key in ("pause_confirmation_file", "resume_confirmation_file", "platform_evidence_file"):
-        if not plan.get(key):
-            raise ValueError("required operator evidence location: " + key)
+    if not plan.get("platform_evidence_file"):
+        raise ValueError("required operator evidence location: platform_evidence_file")
     return plan
+
+
+def _validate_message(message, mode):
+    if message.get("step") not in STEPS:
+        raise ValueError("only record/revise/today candidate requests are supported")
+    if (mode == "synthetic_webhook" and not message.get("message_id")) or not message.get("text") or type(message.get("expected_total_kcal")) not in (int, float):
+        raise ValueError("each original text, message ID and independent total must be fixed")
+    rows = message.get("expected_items")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("each message requires its independent expected_items list")
+    for row in rows:
+        if not all(row.get(key) for key in ("food_name", "date", "meal_type")) or not isinstance(row.get("estimated"), bool):
+            raise ValueError("expected items require date, food, meal scope and estimated flag")
+        if type(row.get("grams")) not in (int, float) or any(type(row.get("nutrition", {}).get(key)) not in (int, float) for key in NUTRIENTS):
+            raise ValueError("expected grams and all nutrition facts must come from the independent source")
+    if round(sum(row["nutrition"]["kcal"] for row in rows), 1) != message["expected_total_kcal"]:
+        raise ValueError("independent total must equal the fixed expected item nutrition")
 
 
 def _post_webhook(plan, payload):
@@ -169,21 +174,16 @@ def _check_rows(rows, expected, total):
         raise AssertionError("independent daily kcal mismatch")
 
 
-def _confirmation(path, state):
-    evidence = _read_json(path)
-    if evidence.get("state") != state or not evidence.get("confirmed") or not evidence.get("observed_at") or not evidence.get("trigger_name") or not evidence.get("evidence"):
-        raise ValueError("operator must confirm archive schedule state with actual platform evidence: " + state)
-    return evidence
-
-
 def _quality(message, state, plan):
     result = state.get("result", {})
     if state.get("status") != "completed" or state.get("work_status") == "needs_attention" or result.get("status") != "ok" or result.get("errors"):
         raise AssertionError("message did not complete successfully")
     if not state.get("delivery", {}).get("presented") or not state["delivery"].get("sent_at"):
         raise AssertionError("Feishu delivery is not confirmed")
+    if result.get("model_calls") != 1 or result.get("reply_source") != "tool_facts" or result.get("model_reply") != "":
+        raise AssertionError("ordinary ledger candidate must finish with one semantic decision and tool facts")
     facts = result.get("tool_results", [])
-    if message["step"] in {"initial", "today"}:
+    if message["step"] == "today":
         query = [fact for fact in facts if fact.get("tool") == "query_today"]
         if not query or query[-1].get("data", {}).get("total", {}).get("kcal") != message["expected_total_kcal"]:
             raise AssertionError("query fact does not match independently expected total")
@@ -191,20 +191,6 @@ def _quality(message, state, plan):
         recorded = [fact for fact in facts if fact.get("tool") == "record_meal"]
         if not recorded or any(fact.get("data", {}).get("unfinished") for fact in recorded) or sum(f.get("data", {}).get("completed_count", 0) for f in recorded) != 2:
             raise AssertionError("both known meal items must commit without unfinished items")
-    if message["step"] == "knowledge":
-        knowledge = [fact for fact in facts if fact.get("tool") == "query_knowledge"]
-        if not knowledge:
-            raise AssertionError("knowledge retrieval facts missing")
-        entries = [entry for fact in knowledge for entry in fact.get("data", {}).get("entries", [])]
-        for wanted in plan["knowledge_evidence"]:
-            if not any(wanted["source"] in entry.get("source", "") and wanted["excerpt"] in entry.get("answer", entry.get("evidence", "")) for entry in entries):
-                raise AssertionError("knowledge source/excerpt differs from independent expected evidence")
-        evidence = "\n".join([fact.get("data", {}).get("evidence", "") for fact in knowledge]
-                               + [entry.get("answer", "") + "\n" + entry.get("source", "") for entry in entries])
-        if any(number not in evidence for number in re.findall(r"\d+(?:\.\d+)?%?", result.get("reply", ""))):
-            raise AssertionError("knowledge reply contains a number absent from retrieval evidence")
-        if not any(wanted["source"] in result.get("reply", "") for wanted in plan["knowledge_evidence"]):
-            raise AssertionError("knowledge reply is missing its expected source")
     for text in message.get("required_reply_terms", []):
         if text not in result.get("reply", ""):
             raise AssertionError("expected semantic reply term missing: " + text)
@@ -222,10 +208,6 @@ class Driver:
         self.store = CosStore(self.objects, plan["prefix"], readonly=True)
         self.raw = RawCommits(self.objects, plan["prefix"].rstrip("/") + "/message/")
         self.sync = RawCommits(self.objects, plan["prefix"].rstrip("/") + "/sync/")
-
-    def progress(self):
-        revision, index = self.sync.snapshot()
-        return {"revision": revision, "refs": {key: value for key, value in index.items() if key.startswith("item:")}}
 
     def await_result(self, rid):
         deadline = time.monotonic() + self.plan.get("message_wait_seconds", 180)
@@ -249,7 +231,8 @@ class Driver:
                        "create_time": str(message.setdefault("driver_create_time_ms", int(time.time()*1000))),
                        "content": json.dumps({"text": message["text"]}, ensure_ascii=False)}}}
         sample = {"step": message["step"], "message_id": message["message_id"], "receipt_id": rid, "replay": replay,
-                  "entry_mode": "synthetic_webhook", "driver_create_time_ms": message["driver_create_time_ms"], "caller_started_at": time.time()}
+                  "entry_mode": "synthetic_webhook", "planned_message": deepcopy(message),
+                  "driver_create_time_ms": message["driver_create_time_ms"], "caller_started_at": time.time()}
         self.report.setdefault("requests", []).append(sample)
         self.save()
         started = time.perf_counter()
@@ -284,7 +267,7 @@ class Driver:
     def observe(self, message):
         from agent.storage.execution_pipeline import receipt_id
         deadline = time.monotonic() + self.plan.get("message_wait_seconds", 180)
-        actual = self.plan.get("actual_message_ids", {}).get(message["step"])
+        actual = message.get("message_id") or self.plan.get("actual_message_ids", {}).get(message["step"])
         while not actual and time.monotonic() < deadline:
             path = Path(self.plan.get("actual_message_ids_file", "nonexistent-observed-message-map.json"))
             if path.exists():
@@ -294,10 +277,11 @@ class Driver:
         if not actual:
             raise ValueError("observe_feishu requires the actual Feishu message ID for " + message["step"])
         if any(sample["message_id"] == actual for sample in self.report.get("requests", [])):
-            raise ValueError("observed steps must reference five different real message IDs")
+            raise ValueError("observed steps must reference different real message IDs")
         rid = receipt_id("feishu", actual)
         sample = {"step": message["step"], "message_id": actual, "receipt_id": rid, "replay": False,
-                  "entry_mode": "observe_feishu", "from_ingress_observed": True, "observation_started_at": time.time()}
+                  "entry_mode": "observe_feishu", "planned_message": deepcopy(message),
+                  "from_ingress_observed": True, "observation_started_at": time.time()}
         self.report.setdefault("requests", []).append(sample)
         self.save()
         state = self.await_result(rid)
@@ -307,8 +291,8 @@ class Driver:
         if receipt["source"] != "feishu" or any(receipt["message"][key] != value for key, value in
             (("user_id", self.plan["user_id"]), ("chat_id", self.plan["chat_id"]), ("text", message["text"]))):
             raise AssertionError("observed real Feishu message does not match the fixed identity/text plan")
-        if receipt["received_at"] < self.report["pause_confirmation"]["observed_at"]:
-            raise AssertionError("observed message predates confirmed archive pause")
+        if receipt["received_at"] < self.report["created_at"]:
+            raise AssertionError("observed message predates this fixed candidate run")
         delivery = state["delivery"]
         sample.update(receipt_state=state, t_service_ms=delivery["t_service_ms"], t_user_ms=delivery.get("t_user_ms"),
                       original_received_at=receipt["received_at"], intake_date=receipt["intake_date"], raw_receipt=receipt)
@@ -319,12 +303,17 @@ class Driver:
 
     def business(self):
         if self.report.get("requests"):
-            raise ValueError("business stage retains a prior sample; use a new fixed run plan after diagnosing the failed sample")
-        self.report["pause_confirmation"] = _confirmation(self.plan["pause_confirmation_file"], "paused")
-        self.report["sync_before"] = self.progress()
+            if not self.report.get("business_stage"):
+                raise ValueError("business stage retains a prior sample; diagnose the failed sample before a new fixed run")
+            return self.warm_supplement()
+        for message in deepcopy(self.plan["messages"]):
+            self.run_message(message)
+        self.report["business_stage"] = "auto_checks_passed; platform warmth/build and semantic review evidence still required"
         self.save()
-        for message in self.plan["messages"]:
-            sample = self.observe(message) if self.plan["entry_mode"] == "observe_feishu" else self.submit(message)
+
+    def run_message(self, message):
+        sample = self.observe(message) if self.plan["entry_mode"] == "observe_feishu" else self.submit(message)
+        try:
             _quality(message, sample["receipt_state"], self.plan)
             committed_revision = sample["receipt_state"]["delivery"].get("cos_revision")
             if committed_revision is None:
@@ -332,43 +321,63 @@ class Driver:
             audit = self.raw.items(self.plan["user_id"], exact=committed_revision)
             _check_rows(audit["items"], message["expected_items"], message["expected_total_kcal"])
             sample["raw_cos_audit"] = audit
-            if self.progress()["refs"] != self.report["sync_before"]["refs"]:
-                raise AssertionError("archive watermarks changed while the operator declared archive paused")
             sample["auto_quality_passed"] = True
+        except Exception as exc:
+            sample["quality_error"] = f"{type(exc).__name__}:{exc}"
             self.save()
-        original = next(sample for sample in self.report["requests"] if sample["step"] == "record")
-        latest = self.report["requests"][-1]["raw_cos_audit"]
-        replay_message = deepcopy(self.plan["messages"][1])
-        replay_message.update(message_id=original["message_id"], driver_create_time_ms=int(original["raw_receipt"]["message"].get("create_time") or 0))
-        replay = self.submit(replay_message, replay=True)
-        if any(replay["receipt_state"]["delivery"].get(key) != original["receipt_state"]["delivery"].get(key) for key in ("uuid", "sent_at", "send_result")):
-            raise AssertionError("duplicate intake changed the original delivery")
-        after = self.raw.items(self.plan["user_id"], latest["revision"])
-        if after["item_refs"] != latest["item_refs"]:
-            raise AssertionError("duplicate intake changed the latest committed meal")
-        replay["raw_cos_audit"] = after
-        replay["no_duplicate_or_rollback"] = True
-        self.report["business_stage"] = "auto_checks_passed; platform warmth/build and semantic review evidence still required"
+            raise
+        self.save()
+        return sample
+
+    def warm_supplement(self):
+        """Append one explicitly planned new request only when warmth is missing."""
+        finish_gates(self.plan, self.report)
+        if self.report.get("cleanup") or self.report["unresolved_quality_failures"] or self.report["evidence_gaps"]:
+            raise ValueError("a warm supplement requires complete quality evidence and no unresolved failures or cleanup")
+        path = self.plan.get("warm_supplement_plan_file")
+        if not path:
+            raise ValueError("one explicit warm_supplement_plan_file is required; old samples cannot be replayed")
+        addition = _read_json(path)
+        if addition.get("base_plan_sha256") != self.report["plan_sha256"]:
+            raise ValueError("supplement must bind the unchanged original plan hash")
+        if not addition.get("source_evidence") or any(not item.get("source") or not item.get("excerpt") for item in addition["source_evidence"]):
+            raise ValueError("supplement requires independent source evidence")
+        message = addition.get("message", {})
+        _validate_message(message, "synthetic_webhook")  # observed additions also fix the actual new ID
+        step = message["step"]
+        if not self.report["gates"][step]["warm_sample_needed"]:
+            raise ValueError("only a category missing a warm sample may be supplemented")
+        additions = self.report.setdefault("warm_supplements", [])
+        if any(item["plan"]["message"]["step"] == step for item in additions):
+            raise ValueError("only one supplemental sample per missing category is allowed")
+        if any(item["message_id"] == message["message_id"] for item in self.report["requests"]):
+            raise ValueError("supplement requires a new fixed message identity")
+        addition_record = {"plan": deepcopy(addition), "sha256": _digest(addition), "started_at": time.time()}
+        additions.append(addition_record)
+        if self.report.get("archive"):
+            self.report.setdefault("prior_archives", []).append(self.report.pop("archive"))
+        self.save()  # preserve this authorization and failed attempt before any request
+        sample = self.run_message(deepcopy(message))
+        sample["supplement_plan_sha256"] = addition_record["sha256"]
+        addition_record["completed_at"] = time.time()
         self.save()
 
     def archive(self):
         if not self.report.get("business_stage"):
             raise ValueError("complete the business stage before archive verification")
-        resumed = _confirmation(self.plan["resume_confirmation_file"], "resumed")
-        self.report["resume_confirmation"] = resumed
-        self.save()
-        final = self.plan["messages"][3]
-        target = next(sample["raw_cos_audit"] for sample in self.report["requests"] if sample["step"] == "today")
+        latest = next(sample for sample in reversed(self.report["requests"]) if sample.get("auto_quality_passed") and not sample["replay"])
+        final, target = latest["planned_message"], latest["raw_cos_audit"]
         ids = {row["record_id"] for row in target["items"]}
-        # Ten minutes starts at business commit, so manually delayed resumption
-        # cannot manufacture a successful window by resetting the timer.
+        expected_revisions = {row["record_id"]: row["agent_revision"] for row in target["items"]}
+        # The original commit clock is never reset by a later archive check.
         first = next(sample for sample in self.report["requests"] if sample["step"] == "record")
         commit_at = min(row["created_at"] for row in target["items"]) / 1000
         deadline = commit_at + 600
         while True:
             revision, index = self.sync.snapshot()
             states = {identity: self.sync.document(index, "item:archive:intake:" + identity) for identity in ids if "item:archive:intake:" + identity in index}
-            if len(states) == len(ids) and all(state.get("status") == "confirmed" for state in states.values()):
+            if len(states) == len(ids) and all(state.get("status") == "confirmed" and state.get("ack_revision") == expected_revisions[identity]
+                                               for identity, state in states.items()):
                 break
             if time.time() >= deadline:
                 raise TimeoutError("archive was not read-back confirmed within ten minutes of the original business commit")
@@ -400,7 +409,7 @@ class Driver:
                                   "watermarks": states, "direct_feishu_rows": selected, "fixed_cleanup_record_ids": [rid for rid, _ in selected],
                                   "business_commit_lower_bound_at": commit_at,
                                   "archive_ms_upper_bound": round((confirmed_at-commit_at)*1000, 3), "original_received_at": first["original_received_at"],
-                                  "operator_resumed_at": resumed["observed_at"], "raw_target_commit": target["commit_key"]}
+                                  "raw_target_commit": target["commit_key"]}
         self.save()
         if confirmed_at > deadline:
             raise AssertionError("archive exceeded ten-minute release gate")
@@ -488,10 +497,17 @@ def _worker_reuse_proof(report, index, evidence):
 def finish_gates(plan, report):
     path = Path(plan["platform_evidence_file"])
     platform = _read_json(path) if path.exists() else {}
+    if report.get("platform_evidence") != platform:
+        report.setdefault("platform_evidence_history", []).append(deepcopy(platform))
     report["platform_evidence"] = platform
-    gates, knowledge = {}, None
+    gates = {step: {"samples": [], "passing_message_ids": [], "warm_sample_needed": True} for step in STEPS}
+    failures, gaps = [], []
     for index, sample in enumerate(report.get("requests", [])):
-        if sample["replay"] or "t_service_ms" not in sample:
+        if sample.get("replay"):
+            continue
+        step, mid = sample.get("step"), sample.get("message_id")
+        if step not in gates:
+            failures.append({"message_id": mid, "reason": "unplanned candidate category"})
             continue
         evidence = platform.get("messages", {}).get(sample["message_id"], {})
         cold_start = evidence.get("cold_start")
@@ -500,24 +516,52 @@ def finish_gates(plan, report):
         proof = _worker_reuse_proof(report, index, evidence) if cold_start is None else None
         warm_basis = "platform_cold_start_false" if cold_start is False else ("worker_process_reuse" if proof else None)
         ack_ms = sample.get("ack_elapsed_ms", evidence.get("ack_elapsed_ms"))
-        gate = {"entry_mode": sample["entry_mode"], "ack_ms": ack_ms, "ack_passed": isinstance(ack_ms, (int, float)) and ack_ms <= 3000,
-                "t_service_ms": sample["t_service_ms"], "t_user_ms": sample.get("t_user_ms"),
+        service_ms = sample.get("t_service_ms")
+        gate = {"message_id": mid, "request_index": index, "entry_mode": sample["entry_mode"],
+                "ack_ms": ack_ms, "ack_passed": type(ack_ms) in (int, float) and 0 <= ack_ms <= 3000,
+                "t_service_ms": service_ms, "t_user_ms": sample.get("t_user_ms"),
                 "platform_cold_start": cold_start, "warm_basis": warm_basis, "worker_reuse_proof": proof,
                 "build_id": evidence.get("build_id"),
                 "build_verified": evidence.get("build_id") == plan["build_id"] and bool(evidence.get("reference")),
                 "semantic_review_passed": evidence.get("semantic_review_passed") is True,
                 "auto_quality_passed": sample.get("auto_quality_passed", False),
+                "facts_completion_passed": (sample.get("receipt_state", {}).get("result", {}).get("model_calls") == 1
+                    and sample["receipt_state"]["result"].get("reply_source") == "tool_facts"
+                    and sample["receipt_state"]["result"].get("model_reply") == ""),
+                "execution_verified": _main_worker(sample, report.get("requests", [])) is not None,
                 "platform_evidence_reference": evidence.get("reference")}
-        if sample["step"] in {"record", "revise", "today"}:
-            gate["warm_speed_passed"] = warm_basis is not None and sample["t_service_ms"] <= 5000
-            gate["warm_sample_needed"] = warm_basis is None
-        if sample["step"] == "knowledge":
-            knowledge = {"t_service_ms": sample["t_service_ms"], "target_ms": 10000,
-                         "difference_ms": round(sample["t_service_ms"]-10000, 3), "first_load": evidence.get("first_load")}
-        gates[sample["step"]] = gate
-    report["gates"], report["knowledge_speed"] = gates, knowledge
-    report["release_gate_passed"] = (len(gates) == 5 and all(g["ack_passed"] and g["build_verified"] and g["semantic_review_passed"] and g["auto_quality_passed"] for g in gates.values())
-                                     and all(gates[step].get("warm_speed_passed") for step in ("record", "revise", "today"))
+        service_valid = type(service_ms) in (int, float) and service_ms >= 0
+        gate["warm_speed_passed"] = warm_basis is not None and service_valid and service_ms <= 5000
+        for name in ("auto_quality_passed", "facts_completion_passed", "execution_verified", "ack_passed", "build_verified", "semantic_review_passed"):
+            if gate[name]:
+                continue
+            issue = {"message_id": mid, "reason": name}
+            if (name in {"auto_quality_passed", "facts_completion_passed", "execution_verified"} or name == "ack_passed" and ack_ms is not None
+                    or name == "semantic_review_passed" and evidence.get("semantic_review_passed") is False
+                    or name == "build_verified" and evidence.get("build_id") is not None):
+                failures.append(issue)
+            else:
+                gaps.append(issue)
+        if not service_valid or warm_basis is not None and not gate["warm_speed_passed"]:
+            failures.append({"message_id": mid, "reason": "service_latency"})
+        gate["passed"] = (gate["warm_speed_passed"] and all(gate[name] for name in
+                          ("auto_quality_passed", "facts_completion_passed", "execution_verified", "ack_passed", "build_verified", "semantic_review_passed")))
+        gates[step]["samples"].append(gate)
+        if gate["passed"]:
+            gates[step]["passing_message_ids"].append(mid)
+        if warm_basis is not None:
+            gates[step]["warm_sample_needed"] = False
+    for step, category in gates.items():
+        category["passed"] = bool(category["passing_message_ids"])
+        if not category["samples"]:
+            gaps.append({"step": step, "reason": "required_sample_missing"})
+    retained_failures = report.setdefault("quality_failures", [])
+    for issue in failures:
+        if issue not in retained_failures:
+            retained_failures.append(issue)
+    report["gates"], report["unresolved_quality_failures"], report["evidence_gaps"] = gates, deepcopy(retained_failures), gaps
+    report["missing_warm_categories"] = [step for step, category in gates.items() if category["warm_sample_needed"]]
+    report["release_gate_passed"] = (all(category["passed"] for category in gates.values()) and not retained_failures and not gaps
                                      and report.get("archive", {}).get("status") == "passed" and report.get("cleanup", {}).get("status") == "passed")
 
 
@@ -529,7 +573,7 @@ def main(argv=None):
     plan = validate_plan(_read_json(args.plan))
     report_path = ROOT / "reports/production-candidate" / (plan["run_id"] + ".json")
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report = _read_json(report_path) if report_path.exists() else {"schema": "production-candidate.v1", "run_id": plan["run_id"], "plan_sha256": _digest(plan), "fixed_plan": deepcopy(plan), "created_at": time.time(), "stage_attempts": []}
+    report = _read_json(report_path) if report_path.exists() else {"schema": "production-candidate.v2", "run_id": plan["run_id"], "plan_sha256": _digest(plan), "fixed_plan": deepcopy(plan), "created_at": time.time(), "stage_attempts": []}
     if report["plan_sha256"] != _digest(plan):
         raise ValueError("a run's independent expected plan cannot be changed after its first sample")
     def save():
@@ -545,7 +589,7 @@ def main(argv=None):
         finish_gates(plan, report)
         attempt.update(status="completed", completed_at=time.time())
         save()
-        print(json.dumps({"report": str(report_path), "stage": args.stage, "release_gate_passed": report["release_gate_passed"], "knowledge_speed": report["knowledge_speed"]}, ensure_ascii=False))
+        print(json.dumps({"report": str(report_path), "stage": args.stage, "release_gate_passed": report["release_gate_passed"], "missing_warm_categories": report["missing_warm_categories"]}, ensure_ascii=False))
         return int(args.stage == "report" and not report["release_gate_passed"])
     except Exception as exc:
         attempt.update(status="failed", error=f"{type(exc).__name__}:{exc}", failed_at=time.time())

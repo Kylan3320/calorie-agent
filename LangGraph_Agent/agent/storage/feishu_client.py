@@ -13,8 +13,9 @@ import time
 import urllib.parse
 from typing import Any
 from .timeutil import remaining_timeout
+from .model_transport import create_client, deadline_scope
 import httpx
-_CLIENT = httpx.Client()
+_CLIENT = create_client()
 
 DEFAULT_FEISHU_API_BASE = "https://open.feishu.cn/open-apis"
 _HTTP_TIMEOUT_SECONDS = 10
@@ -41,27 +42,33 @@ def _http_request(url: str, payload: dict[str, Any] | None, headers: dict[str, s
         table_id = url.split("/tables/",1)[1].split("/",1)[0].split("?",1)[0]
         resource = next((name.lower() for name in ("PENDING","INTAKE","FOOD","STANDARD","USAGE","KNOWLEDGE")
                          if os.getenv("BITABLE_"+name+"_TABLE_ID")==table_id),"bitable_other")
-    for attempt in (1, 2):
-        try:
-            with span("feishu_http", method=method, attempt=attempt,
-                      resource=resource,
-                      request_bytes=len(_json_bytes(payload)) if payload is not None else 0) as timing:
-                response = _CLIENT.request(method, url, content=_json_bytes(payload) if payload is not None else None,
-                    headers={"Content-Type":"application/json; charset=utf-8", **headers},
-                    timeout=remaining_timeout(_HTTP_TIMEOUT_SECONDS))
-                response.raise_for_status()
-                timing["response_bytes"] = len(response.content)
-                parsed = response.json() if response.content else {"code":0,"data":{}}
-                return parsed if isinstance(parsed,dict) else {}
-        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-            last_error = exc
-            retry = isinstance(exc,httpx.RequestError) or exc.response.status_code == 429 or exc.response.status_code >= 500
-            if attempt == 1 and retry:
-                time.sleep(min(_RETRY_SLEEP_SECONDS, remaining_timeout(_RETRY_SLEEP_SECONDS)))
-                continue
-            status = exc.response.status_code if isinstance(exc,httpx.HTTPStatusError) else type(exc).__name__
-            raise RuntimeError(f"Feishu HTTP {method} {resource} failed: {status}") from exc
-    raise RuntimeError(f"Feishu HTTP failed: {last_error}")
+    deadline = time.monotonic() + remaining_timeout(_HTTP_TIMEOUT_SECONDS)
+    with deadline_scope(deadline):
+        wire = _json_bytes(payload) if payload is not None else None
+        for attempt in (1, 2):
+            rpc_timeout = remaining_timeout(_HTTP_TIMEOUT_SECONDS)
+            try:
+                with span("feishu_http", method=method, attempt=attempt,
+                          resource=resource,
+                          request_bytes=len(wire) if wire is not None else 0) as timing:
+                    response = _CLIENT.request(method, url, content=wire,
+                        headers={"Content-Type":"application/json; charset=utf-8", **headers},
+                        timeout=rpc_timeout)
+                    response.raise_for_status()
+                    timing["response_bytes"] = len(response.content)
+                    parsed = response.json() if response.content else {"code":0,"data":{}}
+                    return parsed if isinstance(parsed,dict) else {}
+            except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+                last_error = exc
+                retry = isinstance(exc,httpx.RequestError) or exc.response.status_code == 429 or exc.response.status_code >= 500
+                if attempt == 1 and retry:
+                    if _RETRY_SLEEP_SECONDS >= remaining_timeout(_HTTP_TIMEOUT_SECONDS):
+                        raise TimeoutError("Feishu retry wait would exhaust its fixed RPC deadline") from exc
+                    time.sleep(_RETRY_SLEEP_SECONDS)
+                    continue
+                status = exc.response.status_code if isinstance(exc,httpx.HTTPStatusError) else type(exc).__name__
+                raise RuntimeError(f"Feishu HTTP {method} {resource} failed: {status}") from exc
+        raise RuntimeError(f"Feishu HTTP failed: {last_error}")
 
 
 def http_json_post(url: str, payload: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any]:
@@ -123,4 +130,17 @@ def send_text(chat_id: str, text: str, uuid_key: str = "") -> dict[str, Any]:
     )
     if data.get("code") != 0:
         raise RuntimeError(f"Failed to send Feishu message: {data}")
+    return data
+
+
+def update_text(message_id: str, text: str) -> dict[str, Any]:
+    """Replace an already sent text message; repeating the update is safe."""
+    token = get_tenant_access_token()
+    data = http_json_put(
+        f"{feishu_api_base()}/im/v1/messages/{urllib.parse.quote(message_id, safe='')}",
+        {"msg_type": "text", "content": json.dumps({"text": text}, ensure_ascii=False)},
+        {"Authorization": f"Bearer {token}"},
+    )
+    if data.get("code") != 0:
+        raise RuntimeError(f"Failed to update Feishu message: {data}")
     return data

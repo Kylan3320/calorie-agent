@@ -116,7 +116,7 @@ def finish_and_budget_check():
     result=run(proposed,store=second,config=CONFIG,model=replay)
     assert not replay.requests and result['reply']==saved and '1900' in saved
     session=second.load_session('user','proposal-boundary')
-    assert session['messages'][-1]['data']['content']==saved and not session['proposal']['presented']
+    assert second.load_execution(proposed)['payload']['result']['reply']==saved and not session['proposal']['presented']
 
 def model_protocol_check():
     import httpx
@@ -148,6 +148,7 @@ def model_protocol_check():
         assert len(requests)==2
         assert requests[0]['messages'][0]['role']=='system'
         assert requests[0]['messages'][0]['content'].startswith(SYSTEM)
-        assert '可信会话事实' in requests[0]['messages'][0]['content']
+        assert any('可信会话事实' in row['content'] for row in requests[0]['messages'])
+        assert requests[0]['max_tokens']==8192
 
 CHECKS = {"LT01": rag_loop_check, "LT02": model_protocol_check, "LT03": finish_and_budget_check}

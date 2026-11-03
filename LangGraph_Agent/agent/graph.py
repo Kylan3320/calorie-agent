@@ -14,8 +14,9 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from langchain.agents import create_agent
-from langchain.agents.middleware import AgentMiddleware, SummarizationMiddleware, ModelCallLimitMiddleware, ToolCallLimitMiddleware
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, messages_to_dict, messages_from_dict
+from langchain.agents.middleware import AgentMiddleware, ModelCallLimitMiddleware, ToolCallLimitMiddleware
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage, messages_to_dict, messages_from_dict
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic import ValidationError
 from .storage.state_store import request_scope
 from .storage.telemetry import EVENTS, message_scope
@@ -27,7 +28,9 @@ from .storage.bitable_adapter import message_key
 from .model import DeepSeekModel
 from .tools.registry import TOOL_REGISTRY, CURRENT_RUNTIME
 from .tools.settings import BARE_CONFIRM, BARE_CANCEL
-from .replies import model_view, project_messages, history_messages, settings_view, render, progress_reply, proposal_prompt
+from .replies import model_view, project_messages, history_messages, state_view, render, progress_reply, proposal_prompt, tool_facts_reply
+from .context import select_messages, REQUEST_BUDGET, InputBudgetExceeded, ModelRequestFailed, TruncatedGeneration, StateCheckpointFailed
+from .storage import conversation
 
 _LOCKS = {}
 _LOCKS_GUARD = threading.Lock()
@@ -44,34 +47,12 @@ SYSTEM = """你是本人的饮食助手。结合当前消息和已有上下文�
 知识回答贴合用户问题，检索词扩展只用于找资料。食物份量、比例和营养数字须有本轮证据；不足时给可支持的定性解释，简短指出影响结论的缺口。来源请求给实际出处和相关原文。
 面向用户使用食物名称、自然指代和资料标题；记录ID、工具参数和source_id供内部操作。知识引用用本轮[K101]等标记，系统会替换成实际来源。
 主动写入建议先propose，用户确认后执行。提案正文只写一句陈述解释建议，具体参数及唯一确认问题由系统交付。
+record_meal、revise_intake、query_today、query_history 的本批结果若足以回应整条请求（包括必要缺项问询），每个调用显式给出finish_after_tools=true，系统直接用完整工具事实回执。
+完整请求尚有后续工具、解释、建议或知识回答未覆盖时不声明完成。先查历史再改量，查历史批次不是完成；记餐后还问今日剩余，须取得所需查询后才完成。
 """
-
-SUMMARY = """压缩饮食对话，只保留用户意图、已给条件、偏好及话题背景。
-摄入数值、目标生效值和执行状态由工具与独立状态读取，不写入摘要；未完事项和记录引用已有独立保存。
-对话：{messages}"""
 
 class DeadlineExceeded(RuntimeError):
     pass
-
-
-class HistorySummarization(SummarizationMiddleware):
-    """Use the built-in compressor only on completed conversation turns."""
-    def __init__(self, *args, current_message_id, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.current_message_id = current_message_id
-
-    def before_model(self, state, runtime):
-        messages = state["messages"]
-        start = next(i for i, m in enumerate(messages) if m.id == self.current_message_id)
-        if not start:
-            return None
-        update = super().before_model({**state, "messages": messages[:start]}, runtime)
-        if update is not None:
-            for message in update["messages"]:
-                if message.additional_kwargs.get("lc_source") == "summarization":
-                    message.additional_kwargs["fact_scope"] = "dialogue"
-            update["messages"].extend(messages[start:])
-        return update
 
 
 def _execution_messages(journal, message, human_id):
@@ -155,10 +136,15 @@ class Runtime(AgentMiddleware):
         self.human_id = "calorie-user:" + message_key(message)
         self.started = time.monotonic()
         from .storage.timeutil import PROCESSING_DEADLINE
-        self.total_deadline = min(self.started + config.deadline_seconds, PROCESSING_DEADLINE.get() or float("inf"))
-        self.deadline = self.total_deadline - 5
         self.task = execution
         self.journal = deepcopy(self.task["payload"]) if self.task else {}
+        self.journal.setdefault("budget_started_at", message.get("budget_started_at") if message.get("budget_started_at") is not None else message.get("received_at") if message.get("received_at") is not None else time.time())
+        self.journal.setdefault("legacy_budget", message.get("legacy_budget", message.get("received_at") is None))
+        self.journal.setdefault("deadline_at", message.get("deadline_at") or self.journal["budget_started_at"] + config.deadline_seconds)
+        self.total_deadline = self.started + self.journal["deadline_at"] - time.time()
+        self.recovery_deadline = min(self.started + config.deadline_seconds, PROCESSING_DEADLINE.get() or float("inf"))
+        self.deadline = min(self.total_deadline, self.recovery_deadline) - 5
+        self.journal.setdefault("model_steps", [])
         self.session = deepcopy(self.journal.get("session") or store.load_session(self.user_id, message["chat_id"]))
         self.settings = deepcopy(self.journal.get("settings") or store.load_document("user_settings", self.user_id))
         self.day = self.journal.get("day") or day or store.today_string()
@@ -178,9 +164,12 @@ class Runtime(AgentMiddleware):
         self.pending_before = {}
         self.failed = False
         self.session.setdefault("unfinished", {})
+        conversation.context(store, self.user_id, message["chat_id"], live_session, write=preset.allow_write)
+        if preset.allow_write:
+            conversation.stage_turn(store, self.user_id, message["chat_id"], self.human_id,
+                [HumanMessage(content=message["text"], id=self.human_id)], reserve=True)
         if "messages" not in self.journal:
-            history = history_messages(messages_from_dict(self.session.get("messages", [])))
-            self.journal["messages"] = messages_to_dict(history + [HumanMessage(content=message["text"], id=self.human_id)])
+            self.journal["messages"] = messages_to_dict([HumanMessage(content=message["text"], id=self.human_id)])
             # A proposal only survives if the immediately preceding assistant asked for confirmation.
             proposal = self.session.get("proposal")
             text = message["text"].strip().lower().rstrip("。！! ")
@@ -190,7 +179,9 @@ class Runtime(AgentMiddleware):
             elif text not in BARE_CONFIRM:
                 self.session.pop("proposal", None)
         else:
-            self.journal["messages"] = messages_to_dict(_execution_messages(self.journal, message, self.human_id))
+            restored = _execution_messages(self.journal, message, self.human_id)
+            start = next(i for i, item in enumerate(restored) if item.id == self.human_id)
+            self.journal["messages"] = messages_to_dict(restored[start:])
         self._persisted = None
         if preset.allow_write and not self.task:
             self.journal["session"] = {k:deepcopy(v) for k,v in self.session.items() if k != "messages"}
@@ -218,6 +209,52 @@ class Runtime(AgentMiddleware):
         if time.monotonic() >= self.deadline:
             raise DeadlineExceeded("message processing deadline reached")
 
+    def try_tool_facts(self):
+        if self.journal.get("direct_reply"):
+            return True
+        calls = self.journal["calls"]
+        if not calls or not calls[-1].get("batch_id"):
+            return False
+        batch = [entry for entry in calls if entry.get("batch_id") == calls[-1]["batch_id"]]
+        complete = all(entry.get("finish_after_tools") is True and "result" in entry and
+                       entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"} for entry in batch)
+        self.journal["completion"] = {"batch_id": calls[-1]["batch_id"], "declared": [entry.get("finish_after_tools", False) for entry in batch], "adopted": False}
+        if not complete:
+            return False
+        # A final batch declares its own results sufficient; earlier reads may
+        # have served only as locators. Earlier committed writes still need a receipt.
+        selected = [entry["result"] for entry in calls if "result" in entry and
+                    (entry in batch or entry["tool"] not in {"query_today", "query_history"})]
+        text = tool_facts_reply(selected)
+        if text is None:
+            return False
+        self.journal["completion"]["adopted"] = True
+        self.journal["direct_reply"] = text
+        return True
+
+    def terminate(self, reason):
+        # An unavailable/poisoned Store raises here and retains the original
+        # recovery task. A confirmed absence is not permission to write again.
+        from .storage.timeutil import BUSINESS_IO
+        token = BUSINESS_IO.set(False)
+        try:
+            for entry in self.journal["calls"]:
+                if "result" in entry:
+                    continue
+                committed = self.store.committed_action(entry["action_id"]) if hasattr(self.store, "committed_action") else None
+                if committed is not None:
+                    entry.update(deepcopy(committed["entry"]))
+                    self.session, self.settings = deepcopy(committed["session"]), deepcopy(committed["settings"])
+                else:
+                    entry["terminated"] = reason
+            if self.try_tool_facts():
+                return self.finish()
+            self.journal["termination"] = {"reason": reason, "at": time.time(),
+                "unexecuted_action_ids": [entry["action_id"] for entry in self.journal["calls"] if "result" not in entry]}
+            return self.finish(reason, terminal=True)
+        finally:
+            BUSINESS_IO.reset(token)
+
     @property
     def action_id(self):
         return self.current["action_id"]
@@ -240,37 +277,79 @@ class Runtime(AgentMiddleware):
 
     def wrap_model_call(self, request, handler):
         self.check_deadline()
-        # Summarization middleware runs before this point; persist its standard messages.
-        request = request.override(messages=project_messages(request.messages))
-        self.journal["messages"] = messages_to_dict(request.messages)
-        self.journal["model_calls"] += 1
-        # Keep the current native exchange as audit evidence; older full history is
-        # already persisted once in messages. Do not multiply it into every request.
-        current_start = next((i for i,m in reversed(list(enumerate(request.messages)))
-                              if isinstance(m, HumanMessage) and m.content == self.message["text"]), 0)
-        tools = [dict(name=t.name, description=t.description, schema=t.get_input_schema().model_json_schema(), risk=t.metadata["risk"]) for t in request.tools]
-        tool_digest = hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest()
-        known_tools = next((r for r in self.journal["model_requests"] if r.get("tools_digest") == tool_digest), None)
-        self.journal["model_requests"].append({
-            "messages": _audit_messages(messages_to_dict(request.messages[current_start:])), "history_message_count": current_start,
-            "tools": [t["name"] for t in tools] if known_tools else tools, "tools_digest": tool_digest})
-        # Persist the reservation before invoking a provider, including failures.
-        self.persist()
-        if isinstance(self.model, DeepSeekModel):
-            self.model.request_timeout = max(1, min(40, self.deadline-time.monotonic()))
-        self.check_deadline()
-        response = handler(request)
-        ai = response.result[0]
-        self.journal["messages"] = messages_to_dict([*request.messages, ai])
-        for c in ai.tool_calls:
-            if any(e["call_id"] == c["id"] for e in self.journal["calls"]):
-                raise ValueError("model reused a native call ID")
-            index = len(self.journal["calls"]) + 1
-            self.journal["calls"].append({"call_id": c["id"], "tool": c["name"], "args": deepcopy(c["args"]),
-                "index": index, "action_id": f"{message_key(self.message)}:agent:{index}"})
-        # Entire batch is durable before ToolNode may execute its first call.
-        if ai.tool_calls:
+        steps = self.journal["model_steps"]
+        step = steps[-1] if steps and steps[-1].get("status") == "reserved" else None
+        if step is None:
+            if self.journal["model_calls"] >= self.config.max_model_calls:
+                raise ModelRequestFailed("model_call_limit", "model decision budget exhausted")
+            now = time.time()
+            step = {"id": f"{message_key(self.message)}:model:{self.journal['model_calls'] + 1}",
+                    "started_at": now, "deadline_at": min(now + self.config.model_step_seconds, now + self.deadline - time.monotonic()),
+                    "status": "reserved", "attempts": []}
+            steps.append(step)
+            self.journal["model_calls"] += 1
             self.persist()
+        step_deadline = time.monotonic() + step["deadline_at"] - time.time()
+        cached = "response" in step
+        if step_deadline <= time.monotonic() and not cached:
+            raise ModelRequestFailed("model_step_deadline")
+        projection_started = time.monotonic()
+        native = project_messages(request.messages)
+        self.journal["messages"] = messages_to_dict(native)
+        history, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True, config=self.config, before=self.human_id)
+        state = state_view(self)
+        projected, measurement = select_messages(history, summary, native, SYSTEM, state,
+            [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)
+        request = request.override(messages=[SystemMessage(content="可信会话事实：" + json.dumps(state, ensure_ascii=False)), *projected], system_message=SystemMessage(content=SYSTEM + "\n"))
+        saved_request = next((item for item in self.journal["model_requests"] if item.get("step_id") == step["id"]), None)
+        if saved_request is None:
+            current_start = next((i for i, item in reversed(list(enumerate(request.messages))) if isinstance(item, HumanMessage) and item.id == self.human_id), 0)
+            tools = [dict(name=tool.name, description=tool.description, schema=tool.get_input_schema().model_json_schema(), risk=tool.metadata["risk"]) for tool in request.tools]
+            tool_digest = hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest()
+            known_tools = any(item.get("tools_digest") == tool_digest for item in self.journal["model_requests"])
+            saved_request = {"step_id": step["id"], "messages": _audit_messages(messages_to_dict(request.messages[current_start:])),
+                             "history_message_count": current_start, "tools": [tool["name"] for tool in tools] if known_tools else tools,
+                             "tools_digest": tool_digest, "budget": measurement,
+                             "projection_ms": round((time.monotonic() - projection_started) * 1000, 3)}
+            self.journal["model_requests"].append(saved_request)
+        measurement = saved_request["budget"]
+        self.persist()
+        self.check_deadline()
+        if time.monotonic() >= step_deadline and not cached:
+            raise ModelRequestFailed("model_step_deadline")
+        if isinstance(self.model, DeepSeekModel):
+            self.model.request_timeout = self.config.model_step_seconds
+        def checkpoint():
+            try:
+                self.persist()
+            except Exception as exc:
+                raise StateCheckpointFailed("model step checkpoint requires recovery") from exc
+        scope = REQUEST_BUDGET.set({"config": self.config, "purpose": "main", "measurement": measurement,
+                                   "step": step, "step_deadline": step_deadline, "checkpoint": checkpoint})
+        try:
+            response = handler(request)
+            if not cached and time.monotonic() >= step_deadline:
+                raise ModelRequestFailed("model_step_deadline", "late model result discarded")
+            self.check_deadline()
+        except (InputBudgetExceeded, ModelRequestFailed, TruncatedGeneration, StateCheckpointFailed):
+            raise
+        except Exception as exc:
+            raise ModelRequestFailed("model_error", type(exc).__name__ + ": model step failed") from exc
+        finally:
+            REQUEST_BUDGET.reset(scope)
+        ai = response.result[0]
+        self.journal["messages"] = messages_to_dict([*native, ai])
+        for call in ai.tool_calls:
+            if any(entry["call_id"] == call["id"] for entry in self.journal["calls"]):
+                raise ModelRequestFailed("model_response_invalid", "model reused a native call ID")
+            index = len(self.journal["calls"]) + 1
+            args = deepcopy(call["args"])
+            finish = args.pop("finish_after_tools", False)
+            self.journal["calls"].append({"call_id": call["id"], "tool": call["name"], "args": args,
+                "finish_after_tools": finish is True, "batch_id": step["id"], "index": index,
+                "action_id": f"{message_key(self.message)}:agent:{index}"})
+        step["status"] = "response_saved"
+        self.persist()
         return response
 
     @business_scope
@@ -286,8 +365,10 @@ class Runtime(AgentMiddleware):
             self._save_pending_progress(session)
             return {"entry": deepcopy(entry), "session": deepcopy(self.session), "settings": deepcopy(self.settings)}
         try:
-            committed = (self.store.commit_action(entry["action_id"], perform)
-                         if self.preset.allow_write and hasattr(self.store, "commit_action") else perform())
+            from .storage.telemetry import span
+            with span("tool_commit", tool=entry["tool"], action_id=entry["action_id"]):
+                committed = (self.store.commit_action(entry["action_id"], perform)
+                             if self.preset.allow_write and hasattr(self.store, "commit_action") else perform())
         except BaseException:
             # Retain durable preparation, but never checkpoint uncommitted facts.
             self.failed = True
@@ -430,17 +511,33 @@ class Runtime(AgentMiddleware):
         entry = next(e for e in self.journal["calls"] if e["call_id"] == request.tool_call["id"])
         return self.execute(entry, lambda: handler(request))
 
-    def finish(self, error=""):
+    def finish(self, error="", *, terminal=False):
+        if terminal:
+            proposal = self.session.get("proposal")
+            confirmation = self.journal.get("confirmation") or {}
+            if proposal and (proposal.get("response_id") == self.message["message_id"] or proposal.get("proposal_id") == confirmation.get("proposal_id")):
+                self.session.pop("proposal", None)
+            self.journal["confirmation"] = None
         facts = [e["result"] for e in self.journal["calls"] if "result" in e]
         if not error and any("result" not in e for e in self.journal["calls"]):
             error = "tool_limit_reached"
         messages = messages_from_dict(self.journal["messages"])
-        text = messages[-1].content if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls else ""
-        reply, adjustments = render(str(text), facts)
-        if not text or error:
+        direct = self.journal.get("direct_reply") if not error else None
+        text = "" if direct else messages[-1].content if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls else ""
+        reply, adjustments = (direct, []) if direct else render(str(text), facts)
+        if (not text and not direct) or error:
             reply = progress_reply(facts)
             if error:
-                reply += "\n本轮未完成，已保留执行进度。"
+                if terminal and error == "input_budget_exceeded":
+                    histories = [fact["data"] for fact in facts if fact.get("tool") == "query_history" and fact.get("status") == "ok"]
+                    if histories:
+                        data = histories[-1]
+                        reply = f"{data['start_date']}至{data['end_date']}（不含尾日）共{data['count']}项，合计{data['total']['kcal']:g}千卡。完整明细超过输入范围。"
+                if terminal:
+                    suffix = "本次输入超过模型可处理范围，请缩小范围后重新发送。" if error == "input_budget_exceeded" else "本次等待已到期，请重新发送。" if error == "deadline_reached" else "本次模型处理未能完成，请重新发送。"
+                    reply += "\n" + suffix + "未执行的动作已终止，已完成的部分保留。"
+                else:
+                    reply += "\n本轮未完成，已保留执行进度；结果仍需核对。"
         proposal = self.session.get("proposal")
         if proposal:
             adjustments.append({"reason":"proposal_confirmation_added","proposal_id":proposal["proposal_id"]})
@@ -450,25 +547,36 @@ class Runtime(AgentMiddleware):
         fact_scope = "business" if any(f["tool"] != "query_knowledge" for f in facts) else ("knowledge" if facts else "dialogue")
         if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls:
             messages[-1] = messages[-1].model_copy(update={"content":reply, "additional_kwargs": {**messages[-1].additional_kwargs, "fact_scope": fact_scope}})
-        elif not error:
+        elif not error or terminal:
             messages.append(AIMessage(content=reply, additional_kwargs={"fact_scope": fact_scope}))
         self.session["messages"] = messages_to_dict(messages)
         self.journal["messages"] = messages_to_dict(messages)
         self.session["last_message_id"] = self.message["message_id"]
-        self.session["last_execution_complete"] = not bool(error)
-        result = {"status": "error" if error else "ok", "reply": reply, "reply_source": "fallback" if error or not text else ("agent_adjusted" if adjustments else "agent"),
+        self.session["last_execution_complete"] = not bool(error) or terminal
+        result = {"status": "error" if error else "ok", "reply": reply, "reply_source": "tool_facts" if direct else "fallback" if error or not text else ("agent_adjusted" if adjustments else "agent"),
             "storage_revision": self.store.journal.revision if hasattr(self.store, "journal") else None,
             "tool_results": facts, "native_calls": [{k:v for k,v in e.items() if k not in {"prepared", "result"}} for e in self.journal["calls"]],
             "model_requests": self.journal["model_requests"], "model_calls": self.journal["model_calls"],
             "model_reply": str(text), "response_adjustments": adjustments,
+            "model_steps": [{key:value for key,value in step.items() if key not in {"request_body", "response"}} for step in self.journal["model_steps"]],
+            "completion": self.journal.get("completion"), "deadline_at": self.journal["deadline_at"], "legacy_budget": self.journal["legacy_budget"],
+            "termination_reason": error if terminal else None,
+            "completion_status": "terminated" if terminal else "needs_reconciliation" if error else "awaiting_user" if any(fact.get("status") == "pending" or fact.get("data", {}).get("unfinished") for fact in facts) else "completed",
+            "business_status": "committed" if any(fact.get("tool") in {"record_meal", "revise_intake", "update_user_settings"} and fact.get("status") == "ok" for fact in facts) else "none",
             "proposal_id": proposal.get("proposal_id") if proposal else None,
-            "guard_result": {"checked_scope": "structured_tools_and_source_references", "fallback_used": bool(error or not text), "violations": adjustments},
+            "dialogue_turn_id": self.human_id, "terminal": terminal,
+            "guard_result": {"checked_scope": "committed_tool_facts_and_batch_completion" if direct else "structured_tools_and_source_references", "fallback_used": bool(error or (not text and not direct)), "violations": adjustments},
             "latency_events": [e for e in (EVENTS.get() or []) if e.get("message_id")==self.message["message_id"]],
             "errors": [error] if error else [], "latency_ms": int((time.monotonic()-self.started)*1000), "trace_id": "native_"+uuid.uuid4().hex[:12]}
-        if not error:
+        if not error or terminal:
             self.journal["result"] = {k:v for k,v in result.items() if k not in {"model_requests", "native_calls", "tool_results"}}
-        self.persist(completed=not error)
+        self.persist(completed=not error or terminal)
+        if self.preset.allow_write and (not error or terminal):
+            _stage_saved_dialogue(self.store, self.message, self.journal)
         if self.preset.allow_write and not self.session_superseded:
+            clean, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True, config=self.config)
+            from .context import turns
+            self.session["messages"] = messages_to_dict([message for group in turns(clean)[-self.config.recent_turns:] for message in group]) if not error or terminal else self.session["messages"]
             self.store.save_session(self.user_id,self.message["chat_id"],self.session)
         trace = {"schema_version": "calorie_agent_trace.v2", "created_at": datetime.now(timezone.utc).isoformat(),
             **self.message, "raw_text": self.message["text"], "preset": self.preset.name, "model": self.config.model,
@@ -483,7 +591,7 @@ class Runtime(AgentMiddleware):
 @request_scope
 @message_scope
 @task_date_scope
-def run(message, *, store=None, config=None, intake_date=None, model=None, summary_model=None):
+def run(message, *, store=None, config=None, intake_date=None, model=None):
     config = config or load_config()
     preset = resolve_preset(config.preset, config.allowed_tools)
     store = store or create_store(config, preset)
@@ -499,6 +607,7 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, summa
             # Replays return the saved response without reopening the journal or
             # overwriting a newer conversation with this message's old snapshot.
             journal = execution["payload"]
+            _stage_saved_dialogue(store, message, journal)
             if "previous_session_message_id" in journal:
                 session = store.load_session(message["user_id"],message["chat_id"])
                 if (session.get("last_message_id") == journal["previous_session_message_id"] or
@@ -509,36 +618,56 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, summa
         rt = Runtime(message, store, config, preset, model, intake_date, execution)
         token = CURRENT_RUNTIME.set(rt)
         from .storage.timeutil import PROCESSING_DEADLINE
-        deadline_token = PROCESSING_DEADLINE.set(rt.total_deadline)
+        deadline_token = PROCESSING_DEADLINE.set(rt.recovery_deadline)
         work_token = WORK_DEADLINE.set(rt.deadline)
         error = ""
         try:
-            # Resume the saved native batch, using its original arguments, targets and dates.
+            # Expired requests only reconcile original effects. They never gain
+            # a fresh planning window or replay an uncommitted prepared action.
+            if time.monotonic() >= rt.deadline:
+                return rt.terminate("deadline_reached")
             for entry in rt.journal["calls"]:
-                if "result" not in entry:
+                if "result" not in entry and not entry.get("terminated"):
                     rt.execute(entry)
-            messages = project_messages(messages_from_dict(rt.journal["messages"]))
-            final_already_saved = isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls
-            remaining = config.max_model_calls - rt.journal["model_calls"]
-            if not final_already_saved and remaining > 0:
-                context = {"received_date": rt.day, "user_settings": settings_view(rt.settings),
-                    "unfinished": rt.session.get("unfinished", {}), "refs": rt.session.get("refs", []),
-                    "last_meal": rt.session.get("last_meal", []), "proposal": rt.session.get("proposal")}
+            while True:
+                if rt.try_tool_facts():
+                    break
+                messages = project_messages(messages_from_dict(rt.journal["messages"]))
+                if isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls and messages[-1].content:
+                    break
+                reserved = bool(rt.journal["model_steps"] and rt.journal["model_steps"][-1].get("status") == "reserved")
+                remaining = config.max_model_calls - rt.journal["model_calls"] + int(reserved)
+                if remaining <= 0:
+                    return rt.terminate("model_call_limit")
                 agent = create_agent(model=model, tools=[t for n,t in TOOL_REGISTRY.items() if n in preset.allowed_tools],
-                    system_prompt=SYSTEM+"\n可信会话事实："+json.dumps(context, ensure_ascii=False),
-                    middleware=[HistorySummarization(summary_model or model, current_message_id=rt.human_id,
-                        trigger=("tokens", config.summary_trigger_tokens), keep=("tokens", config.summary_keep_tokens), summary_prompt=SUMMARY),
-                        ModelCallLimitMiddleware(run_limit=remaining, exit_behavior="end"),
-                        ToolCallLimitMiddleware(run_limit=max(1, config.max_tool_calls-len(rt.journal["calls"])), exit_behavior="end"), rt])
+                    system_prompt=SYSTEM,
+                    middleware=[ModelCallLimitMiddleware(run_limit=remaining, exit_behavior="end"),
+                        ToolCallLimitMiddleware(run_limit=max(1, config.max_tool_calls-len(rt.journal["calls"])), exit_behavior="end"), rt],
+                    interrupt_after=["tools"])
                 final = agent.invoke({"messages": messages}, config={"max_concurrency": 1, "recursion_limit": 40})
                 rt.journal["messages"] = messages_to_dict(final["messages"])
             result = rt.finish()
+        except InputBudgetExceeded as exc:
+            for entry in rt.journal["calls"]:
+                if "result" not in entry:
+                    entry["terminated"] = "input_budget_exceeded"
+            rt.journal["budget_exceeded"] = exc.measurement
+            result = rt.terminate("input_budget_exceeded")
         except DeadlineExceeded:
-            result = rt.finish("deadline_reached")
+            result = rt.terminate("deadline_reached")
+        except (ModelRequestFailed, TruncatedGeneration) as exc:
+            reason = exc.reason if isinstance(exc, ModelRequestFailed) else "model_response_truncated"
+            if rt.journal["model_steps"]:
+                rt.journal["model_steps"][-1].update(status="failed", failure_reason=reason)
+            result = rt.terminate(reason)
         except Exception as exc:
             if "result" in rt.journal: raise
-            # Preserve journal. No automatic model retries or changed plans.
-            result = rt.finish(f"{type(exc).__name__}:{str(exc)[:200]}")
+            if isinstance(exc, (ValueError, KeyError, PermissionError)):
+                result = rt.terminate("business_request_rejected")
+            elif message.get("recovery_attempt", 0) >= 3 or time.monotonic() >= rt.deadline:
+                result = rt.terminate("storage_recovery_required")
+            else:
+                result = rt.finish(f"{type(exc).__name__}:{str(exc)[:200]}")
         finally:
             WORK_DEADLINE.reset(work_token)
             PROCESSING_DEADLINE.reset(deadline_token)
@@ -548,11 +677,33 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, summa
 __all__ = ["run", "session_lock"]
 
 
+def _stage_saved_dialogue(store, message, journal):
+    """Publish only the immutable final result; replay repairs a missed stage."""
+    result = journal["result"]
+    ident = result.get("dialogue_turn_id")
+    if not ident:
+        return
+    messages = messages_from_dict(journal["messages"])
+    if result.get("terminal") and result.get("termination_reason") == "input_budget_exceeded":
+        messages = [HumanMessage(content="上一条请求因输入超限已终止，原文保留在收件及执行审计中。", id=ident), AIMessage(content="请缩小范围后重新发送。", additional_kwargs={"fact_scope": "dialogue"})]
+    elif result.get("terminal"):
+        # Keep locating references, but do not turn a terminal business receipt
+        # into remembered ledger facts or an unanswered request to execute later.
+        if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls:
+            messages.pop()
+        messages.append(AIMessage(content="本次请求已结束，未执行的动作已终止；如需继续，请提出新的请求。",
+                                  additional_kwargs={"fact_scope": "dialogue", "execution_terminated": True}))
+    conversation.stage_turn(store, message["user_id"], message["chat_id"], ident, messages)
+
+
 def mark_reply_presented(store, user_id, chat_id, result):
     """Called by the entry only after successful handoff of the saved reply."""
-    if not result.get("proposal_id"):
+    if result.get("status") == "error" and not result.get("terminal"):
         return
     user_id = store.load_user_aliases().get(user_id, user_id)
+    conversation.confirm_turn(store, user_id, chat_id, result.get("dialogue_turn_id"))
+    if not result.get("proposal_id"):
+        return
     session = store.load_session(user_id, chat_id)
     proposal = session.get("proposal")
     if proposal and proposal.get("proposal_id") == result["proposal_id"]:

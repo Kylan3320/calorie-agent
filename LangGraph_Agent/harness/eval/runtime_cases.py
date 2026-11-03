@@ -22,7 +22,7 @@ def old_history():
         ToolMessage(content=json.dumps({"tool": "query_history", "call_id": "old-query", "status": "ok", "data": {
             "count": 4, "total": {"kcal": 525.6}, "items": [{"record_id": "original-row", "food_name": "原餐食", "date": "2026-11-01", "nutrition": {"kcal": 525.6}}]}}), tool_call_id="old-query"),
         AIMessage(content="昨天有4条晚餐记录，合计525.6千卡。"),
-        HumanMessage(content="米饭能与蔬菜搭配吗？"), call("query_knowledge", {"query": "主食搭配"}, "old-knowledge"),
+        HumanMessage(content="米饭能与蔬菜搭配吗？", id="calorie-user:old-knowledge-msg"), call("query_knowledge", {"query": "主食搭配"}, "old-knowledge"),
         ToolMessage(content=json.dumps({"tool": "query_knowledge", "status": "ok", "data": {"evidence": "谷类与蔬菜搭配", "entries": []}}), tool_call_id="old-knowledge"),
         AIMessage(content="可以与蔬菜搭配。"),
     ]
@@ -49,7 +49,9 @@ def CX01():
         objects = Objects() if real else None
         store = CosStore(objects, "regression/history") if real else setup()
         store.save_session("user", "test", {"messages": messages_to_dict(history), "refs": ["original-row"],
-                          "last_meal": ["original-row"], "unfinished": {"pending": {"food_query": "未完食物", "date": "2026-11-01"}}})
+                          "last_message_id": "old-knowledge-msg", "last_meal": ["original-row"], "unfinished": {"pending": {"food_query": "未完食物", "date": "2026-11-01"}}})
+        from agent.storage.execution_pipeline import receipt_id
+        store.save_document("receipt_state", "system", receipt_id("feishu", "old-knowledge-msg"), {"status": "completed", "delivery": {"presented": True}, "result": {"status": "ok"}})
         archived = {"messages": messages_to_dict(history), "calls": [{"result": {"data": {"total": {"kcal": 525.6}}}}]}
         task = store.begin_execution({"message_id": "old-audit", "user_id": "user", "chat_id": "test", "text": "旧查询"}, archived)
         store.save_execution(task, archived, completed=True)
@@ -82,7 +84,9 @@ def CX01():
     # New ordinary dialogue remains usable for the next turn's references.
     store = setup()
     message = {"message_id": "chat", "user_id": "user", "chat_id": "test", "text": "给我一个清淡做法。"}
-    run(message, store=store, config=CONFIG, model=NativeFake(responses=[AIMessage(content="可以优先蒸煮。")]))
+    delivered = run(message, store=store, config=CONFIG, model=NativeFake(responses=[AIMessage(content="可以优先蒸煮。")]))
+    from agent.graph import mark_reply_presented
+    mark_reply_presented(store, "user", "test", delivered)
     model = NativeFake(responses=[AIMessage(content="可以沿用刚才的做法。")])
     run({**message, "message_id": "chat-followup", "text": "刚才那个呢？"}, store=store, config=CONFIG, model=model)
     assert any(m.content == "可以优先蒸煮。" for m in model.requests[0])
@@ -107,21 +111,22 @@ def CX02():
     summary = NativeFake(responses=[AIMessage(content="用户偏好清淡，曾查询餐食。")])
     model = NativeFake(responses=[respond])
     with patch.object(store, "today_summary", side_effect=AssertionError("saved tool result must replay")):
-        result = run(message, store=store, config=replace(CONFIG, summary_trigger_tokens=500, summary_keep_tokens=300),
-                     model=model, summary_model=summary)
+        result = run(message, store=store, config=replace(CONFIG, input_target_tokens=5000),
+                     model=model)
     assert result["status"] == "ok", result["errors"]
     assert result["reply"] == "今天合计0千卡。"
     assert result["tool_results"] == [fact] and result["model_calls"] == 2
-    assert summary.requests
+    assert not summary.requests
     assert all("525.6" not in json.dumps(messages_to_dict(ms), ensure_ascii=False) for ms in summary.requests)
     saved = store.load_session("user", "test")
-    summaries = [m for m in messages_from_dict(saved["messages"]) if m.additional_kwargs.get("lc_source") == "summarization"]
-    assert summaries and all(m.additional_kwargs.get("fact_scope") == "dialogue" for m in summaries)
+    from agent.storage.conversation import history as clean_history
+    clean, baseline = clean_history(store, "user", "test")
+    assert "525.6" not in json.dumps(messages_to_dict(clean), ensure_ascii=False)
     next_model = NativeFake(responses=[call("query_today", {}), respond])
     continued = run({**message, "message_id": "next", "text": "再看看今天热量。"}, store=store, config=CONFIG,
                     intake_date="2026-11-02", model=next_model)
     assert continued["reply"] == "今天合计0千卡。"
-    assert any(m.additional_kwargs.get("fact_scope") == "dialogue" for m in next_model.requests[0])
+    assert "清淡" in json.dumps(messages_to_dict(next_model.requests[0]), ensure_ascii=False)
     # Restore an already-compressed legacy execution without its original Human.
     store = setup()
     collapsed = deepcopy(payload)
@@ -142,9 +147,9 @@ def CX02():
     def die(_): raise Death()
     model = NativeFake(responses=[call("query_today", {}), die])
     summary = NativeFake(responses=[AIMessage(content="不应压缩当前消息")])
-    config = replace(CONFIG, summary_trigger_tokens=500, summary_keep_tokens=100)
+    config = replace(CONFIG, input_target_tokens=5000)
     try:
-        run(long_message, store=store, config=config, intake_date="2026-11-02", model=model, summary_model=summary)
+        run(long_message, store=store, config=config, intake_date="2026-11-02", model=model)
     except Death:
         pass
     else:
@@ -153,7 +158,7 @@ def CX02():
     assert any(m["type"] == "human" and m["data"]["content"] == long_message["text"] for m in durable["messages"])
     assert not summary.requests and durable["model_calls"] == 2
     with patch.object(store, "today_summary", side_effect=AssertionError("saved tool result must replay")):
-        restored = run(long_message, store=store, config=config, model=NativeFake(responses=[respond]), summary_model=summary)
+        restored = run(long_message, store=store, config=config, model=NativeFake(responses=[respond]))
     assert restored["status"] == "ok" and restored["reply"] == "今天合计0千卡。", restored
     assert restored["model_calls"] == 3 and not summary.requests
 
@@ -285,7 +290,7 @@ def CX03():
             def revise(messages):
                 fact = json.loads(next(m for m in reversed(messages) if isinstance(m, ToolMessage)).content)
                 return call("revise_intake", {"record_id": fact["data"]["items"][0]["record_id"], "grams": 300}, "c2")
-            invoke(store, "other-chat", [call("query_history", {"period": "today"}), revise, done], chat="other")
+            invoke(store, "other-chat", [call("query_history", {"period": "today", "detail": "items"}), revise, done], chat="other")
         result = invoke(store, "accept-halving", [call("revise_intake", {"mode": "confirm"}), done], text="ok")
         assert result["tool_results"][0]["status"] == ("pending" if changed else "ok")
         assert store.intake_items("user")[0]["grams"] == (300 if changed is True else 100 if changed == "legacy" else 50)

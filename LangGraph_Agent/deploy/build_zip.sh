@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build with the actual SCF Python version on Linux; no host-platform wheels.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 PYTHON="${PYTHON:-python3.10}"
 BUILD="$ROOT/deploy/build"
 ZIP="$ROOT/deploy/calorie-agent-v4.zip"

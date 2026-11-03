@@ -1,12 +1,16 @@
 # Trace v2
 
+本文记录当前 trace，完成及预算语义见 [交流体验规格](../CONVERSATION_EXPERIENCE_SPEC.md#63-完成与交付)。
+
 每次运行 stdout 输出一行 JSON，并按 TRACE_PATH 追加（默认 /tmp/traces.jsonl，TRACE_ENABLED=false 仅关文件）。不输出密钥。
 
 字段：schema_version=calorie_agent_trace.v2、created_at、trace_id、message_id/user_id/chat_id/text/raw_text、preset、model、retriever、status、reply/reply_source、latency_ms、errors、guard_result、model_calls、native_calls、model_requests、tool_results。
 
-native_calls 为按模型返回顺序固定的 `{call_id,tool,args,index,action_id}`；model_requests 保存本轮每次主决策当前轮实际消息序列、history_message_count及从注册表派生的 tools（相同tools_digest后续仅存工具名，完整较早历史在会话messages中保存一次），tools（name/description/schema/risk），消息包含此前 ToolMessage，供核对原生工具选择、结果回传与后续决策。
+native_calls 为按模型返回顺序固定的 `{call_id,tool,args,index,action_id,batch_id,finish_after_tools}`，未执行终结项带terminated原因；控制标记不在业务args中。completion记录最后批次声明与adopted。model_requests 保存每次主决策的step_id、projection_ms、当前轮消息、history_message_count及注册表tools（相同tools_digest后续仅存工具名），供核对实际选择及结果回传。
 
-tool_results 为完整原生工具事实；query_knowledge.data.retriever 标记实际检索器，evidence 保存本轮原文。model_reply保存模型原始最终正文，reply是实际交付正文；response_adjustments记录来源引用替换或确认提示合成等局部调整。reply_source为agent/agent_adjusted/fallback。guard_result记录checked_scope、fallback_used及具体调整。
+tool_results 为完整原生工具事实；query_knowledge.data.retriever 标记实际检索器，evidence 保存本轮原文。model_reply保存模型原始最终正文，reply是实际交付正文；response_adjustments记录来源引用替换或确认提示合成等局部调整。reply_source为agent/agent_adjusted/tool_facts/fallback。tool_facts的model_reply为空，guard_result.checked_scope=committed_tool_facts_and_batch_completion且fallback_used=false。
+
+deadline_at为固定消息epoch截止，legacy_budget标记一次性旧收件接管。model_steps保存id/started_at/deadline_at/status及逐次attempts；请求wire和已接收response只在恢复日志保存，公共trace不复制。attempts逐次记录reserved_at/started_at/ended_at/state/status_code/provider_request_id/response_headers_ms/first_nonempty_response_byte_ms/completed_ms/usage/finish_reason及脱敏error，重试等待保存retry_delay_seconds/retry_not_before，不只留下最后一次。空白保活不算first_nonempty_response_byte。model_calls仅统计语义步骤。terminal/termination_reason/completion_status/business_status分别区分终结、待补全、待核对及已提交业务；未执行action终结列表保存在journal.termination。
 
 model_requests的ToolMessage审计项用result_ref（call_id）和原content_sha256关联已持久化工具事实。实际模型输入在 journal.messages/session.messages 中用 LangChain 标准序列化保存；历史业务工具视图为 historical＋记录引用，助手消息带 `fact_scope=business/knowledge/dialogue`，摘要另带 `lc_source=summarization`。当前用户消息 ID 为 `calorie-user:{message_key}`。完整工具事实保留于对应执行的 calls.result。
 
@@ -16,8 +20,14 @@ latency_events为增量字段，含id/parent、instance_id、started_epoch_ms、
 
 阶段事件带message_id；Runtime与delivery只附实际本消息事件，整次webhook仍保留分消息事件及dispatch父阶段。queue_wait单列锁等待与acquired；旧任务执行通过其消息ID区别，避免计入本消息模型／HTTP耗时。
 
-COS生产链路保留原Runtime trace字段，新增storage_revision表示本次可见COS提交版本（只读预设亦返回）。投递状态存入 `receipt_state` 文档：receipt_id、sequence、attempts、result、delivery.uuid/presented/sent_at/send_result/t_service_ms。source沿receipt_id关联原受理文档及投递日志。T_service从原受理received_at到发送API成功，重试不重置起点；create_time可用时另列t_user_ms。CLI／DSH回报实际展示时间。正文及UUID在交付前持久化，原结果重投不产生新的投递样本。
+COS生产链路新增storage_revision表示可见提交版本。receipt_state保存receipt_id/sequence/attempts/queue_wait_ms/budget_started_at/deadline_at/legacy_budget/result/work_status及delivery.uuid/result_digest/presented/sent_at/send_result/t_service_ms/send_duration_ms/slow_request。提升进度正文另存progress_reply/update_result/recovery_attempts；原结果、UUID及新正文摘要在交付前同次保存。旧展示事件记录presentation_rejected，不确认新正文。T_service始终从原received_at计，缺时间为空；>10秒仅标慢。create_time可用时另列t_user_ms，CLI/DSH回报实际展示及结果摘要。重投不产生新测速样本。
 
 生产COS阶段为cos_versioning/cos_list/cos_get/cos_create，含对象键、bytes和duration_ms。Journal提交编号关联ingress_revision、message COS revision和独立sync_revision；action_id在业务提交中固定，归档日志archive_confirmed/failed含稳定业务key、对象revision、实际飞书record_id、ack_revision及inflight_revision。各阶段事件只计一次，嵌套耗时不直接相加。
 
 scf_handoff记录入口到目标消息函数的Invoke。事件携带receipt_id、原message/user/chat身份及ingress_revision，worker按确切收件版本校验后执行。latency_delivery与latency_worker携带BUILD_ID及收件／COS版本关联，归档网络等待不在消息执行span内。
+
+## 上下文预算与后台摘要（2026-11-03）
+
+model_requests[].budget与model_http事件记录purpose、encoding、wire_encoding、parts(system/state/summary/history/current/reasoning/calls/tools/protocol)、input_tokens、input_target、output_reserve、protocol_margin、hard_input_limit、removed_turns、over_target_reason。供应商实际usage及finish_reason在HTTP返回后填入；本地wire计量不是供应商私有消息模板的精确计数。拒绝发送记录budget_exceeded，terminal=true，Pipeline work_status=terminated。
+
+summary_task记录task_id/status/attempts/duration_ms/measurement；summary_application记录task_id/status。候选包含user_id/chat_id/base_id/turn_ids/source_hash，边界由程序确定。后台摘要费用与主模型调用数分别记录。dialogue_turn_id关联实际交付与清洁来源，不新增业务收件身份。

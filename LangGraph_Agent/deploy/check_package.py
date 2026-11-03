@@ -55,6 +55,7 @@ def runtime_check(package, layer):
                       TIKTOKEN_CACHE_DIR=str(layer / "tiktoken_cache"))
     from langchain.agents import create_agent
     from agent.model import DeepSeekModel
+    from agent.context import tokens
     from agent.tools.registry import TOOL_REGISTRY
     from agent.storage.knowledge_retriever import _build_lightrag
     from app import reminder_handler, ingress_handler, message_handler, maintenance_handler
@@ -63,6 +64,8 @@ def runtime_check(package, layer):
     from agent.storage.cos_archive import archive_pending
     from qcloud_cos import CosS3Client
     create_agent(model=DeepSeekModel(), tools=list(TOOL_REGISTRY.values()))
+    if tokens("中文、reasoning 与完整工具请求") <= 0:
+        raise RuntimeError("DeepSeek encoding failed to load")
     rag = _build_lightrag()
     if rag is None or not all(callable(obj) for obj in (reminder_handler, ingress_handler, message_handler,
             maintenance_handler, CosStore, CosObjects, archive_pending, CosS3Client)):

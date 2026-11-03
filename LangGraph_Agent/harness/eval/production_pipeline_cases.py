@@ -80,8 +80,8 @@ def P01():
     from harness.eval.personal_cases import NativeFake, call
     from langchain_core.messages import AIMessage
     objects, pipeline, config = fixture()
-    first = pipeline.accept(message("order-first", "记录夹具A200克"), received_at=1793375940)
-    second = pipeline.accept(message("order-second"), received_at=1793462340)
+    first = pipeline.accept(message("order-first", "记录夹具A200克"), received_at=time.time()-20)
+    second = pipeline.accept(message("order-second"), received_at=time.time()-10)
     assert pipeline.accept(message("order-first", "改变的文本"))["sequence"] == first["sequence"]
     assert pipeline.accept(message("order-first"))["received_at"] == first["received_at"]
     executed, sent = [], []
@@ -97,7 +97,7 @@ def P01():
         assert executed == ["order-first", "order-second"]
         assert pipeline.worker(event(first), execute=execute, send=send)["duplicate"]
         assert len(sent) == 2
-        # A worker starts a fresh 90-second attempt even for old intake receipts.
+        # The original receipt date and fixed deadline survive out-of-order wakes.
         store = CosStore(objects, pipeline.prefix, readonly=True)
         rows = store.intake_items("user")
         assert len(rows) == 1 and rows[0]["date"] == first["intake_date"] and rows[0]["nutrition"]["kcal"] == 120
@@ -175,9 +175,12 @@ def P01():
             assert msg["message_id"] == "partial-manual"
             store.save_document("user_settings", "user", "", {"preferences": {"cooking": "少油"}})
             return {"status": "ok", "reply": "偏好已保存。", "errors": []}
-        recovered = pipeline.worker({**event(unfinished), "manual_recovery": True}, execute=recover_partial, send=send)
+        edits=[]
+        recovered = pipeline.worker({**event(unfinished), "manual_recovery": True}, execute=recover_partial, send=send, update_send=lambda mid,text: edits.append((mid,text)) or {"code":0})
         assert recovered["work_status"] == "completed" and recovered["recovery_result"]["status"] == "ok"
-        assert recovered["result"] == delivered["result"] and recovered["delivery"] == delivered["delivery"]
+        assert recovered["result"]["reply"] == "偏好已保存。"
+        assert recovered["delivery"]["uuid"] == delivered["delivery"]["uuid"]
+        assert len(edits)==1 and edits[0][1]=="偏好已保存。"
         assert len(sent) == sent_count
         # Timer execution is a durable intake too. Maintenance can wake a failed
         # tick days later, preserving its original local minute and delivery ID.
@@ -407,7 +410,7 @@ def P03():
 
 
 def P04():
-    """暖样本须有同worker新执行证据；最终报告退出码与门槛结论一致。"""
+    """三类候选逐样本保留；只缺暖时可追加一次，质量失败不能洗白。"""
     from copy import deepcopy
     from harness.eval import production_live as live
 
@@ -417,25 +420,26 @@ def P04():
     for index, step in enumerate(live.STEPS):
         mid, rid = 'fresh-'+step, 'receipt-'+step
         received = 1000+10*index
-        service = {'initial':6395, 'record':4535, 'revise':4076, 'today':3677, 'knowledge':11000}[step]
+        service = {'record':4535, 'revise':4076, 'today':3677}[step]
         events = [{'kind':'cos_create', 'id':'ingress-'+step, 'instance_id':ingress,
                    'message_id':mid, 'started_epoch_ms':received*1000+10, 'duration_ms':20}]
         events.extend({'kind':'model_http', 'purpose':'main', 'id':mid+'-model-'+str(call),
                        'instance_id':worker, 'message_id':mid, 'outcome':'ok',
                        'started_epoch_ms':received*1000+1000+call*300, 'duration_ms':100}
-                      for call in range(2))
+                      for call in range(1))
         samples.append({'step':step, 'message_id':mid, 'receipt_id':rid, 'replay':False,
             'entry_mode':'synthetic_webhook', 'ack_elapsed_ms':900, 't_service_ms':service,
             'original_received_at':received, 'auto_quality_passed':True,
             'receipt_state':{'status':'completed', 'receipt_id':rid, 'completed_at':received+service/1000+.1,
-                             'result':{'latency_events':events}}})
+                             'result':{'latency_events':events, 'model_calls':1, 'reply_source':'tool_facts', 'model_reply':''}}})
         evidence = {'cold_start':None, 'build_id':'candidate-build', 'semantic_review_passed':True,
                     'worker_instance_id':worker, 'reference':'actual-platform-log-reference'}
         if index:
             evidence.update(process_reused=True, warm_basis='worker_process_reuse', reference={
                 'current':f'/requests/{index}/receipt_state/result/latency_events',
                 'prior':'/requests/0/receipt_state/result/latency_events'})
-        if step == 'knowledge': evidence['first_load'] = True
+        else:
+            evidence['cold_start'] = False
         platform['messages'][mid] = evidence
     base = {'requests':samples, 'archive':{'status':'passed'}, 'cleanup':{'status':'passed'}}
     plan = {'platform_evidence_file':__file__, 'build_id':'candidate-build'}
@@ -448,18 +452,20 @@ def P04():
 
     passed = checked()
     assert passed['release_gate_passed']
-    assert passed['gates']['initial']['platform_cold_start'] is None and passed['gates']['initial']['warm_basis'] is None
-    for step in ('record','revise','today'):
-        gate = passed['gates'][step]
+    old_loop = deepcopy(base)
+    old_loop['requests'][0]['receipt_state']['result']['model_calls'] = 2
+    assert not checked(old_loop)['release_gate_passed']
+    assert tuple(passed['gates']) == ('record', 'revise', 'today')
+    assert passed['gates']['record']['samples'][0]['warm_basis'] == 'platform_cold_start_false'
+    for step in ('revise','today'):
+        gate = passed['gates'][step]['samples'][0]
         assert gate['platform_cold_start'] is None and gate['warm_basis']=='worker_process_reuse'
-        assert gate['warm_speed_passed'] and not gate['warm_sample_needed']
+        assert gate['warm_speed_passed'] and not passed['gates'][step]['warm_sample_needed']
         assert gate['worker_reuse_proof']['worker_instance_id']==worker
-    assert passed['knowledge_speed']['first_load'] is True and passed['knowledge_speed']['difference_ms']==1000
-    assert passed['gates']['knowledge']['platform_cold_start'] is None
 
     def rejected(report, evidence=platform):
         result = checked(report, evidence)
-        gate = result['gates'].get('record', {})
+        gate = next(iter(result['gates']['revise']['samples']), {})
         assert not result['release_gate_passed'] and not gate.get('warm_speed_passed')
         assert not gate.get('warm_basis') and not gate.get('worker_reuse_proof')
         return result
@@ -474,13 +480,13 @@ def P04():
     for sample in ingress_only['requests']:
         sample['receipt_state']['result']['latency_events'] = sample['receipt_state']['result']['latency_events'][:1]
     copied_ingress = deepcopy(platform)
-    copied_ingress['messages']['fresh-record']['worker_instance_id'] = ingress
+    copied_ingress['messages']['fresh-revise']['worker_instance_id'] = ingress
     rejected(ingress_only, copied_ingress)
     other_worker = deepcopy(base)
     for event in other_worker['requests'][1]['receipt_state']['result']['latency_events'][1:]:
         event['instance_id'] = 'c'*32
     other_evidence = deepcopy(platform)
-    other_evidence['messages']['fresh-record']['worker_instance_id'] = 'c'*32
+    other_evidence['messages']['fresh-revise']['worker_instance_id'] = 'c'*32
     rejected(other_worker, other_evidence)
     mixed_worker = deepcopy(base)
     mixed_worker['requests'][1]['receipt_state']['result']['latency_events'][-1]['instance_id'] = 'c'*32
@@ -495,29 +501,61 @@ def P04():
     copied_result['requests'][1]['receipt_state']['result'] = deepcopy(copied_result['requests'][0]['receipt_state']['result'])
     rejected(copied_result)
     explicit_cold = deepcopy(platform)
-    explicit_cold['messages']['fresh-record']['cold_start'] = True
+    explicit_cold['messages']['fresh-revise']['cold_start'] = True
     conflict = rejected(base, explicit_cold)
-    assert conflict['gates']['record']['platform_cold_start'] is True
+    assert conflict['gates']['revise']['samples'][0]['platform_cold_start'] is True
     manual_warm = deepcopy(platform)
-    evidence = manual_warm['messages']['fresh-record']
+    evidence = manual_warm['messages']['fresh-revise']
     evidence['warm'] = True
     evidence.pop('process_reused')
     rejected(base, manual_warm)
     for field,value in [('worker_instance_id','c'*32), ('warm_basis','operator_says_warm'),
                         ('reference',{'current':'/requests/1/receipt_state/result/latency_events','prior':'/requests/2/receipt_state/result/latency_events'})]:
         mismatch = deepcopy(platform)
-        mismatch['messages']['fresh-record'][field] = value
+        mismatch['messages']['fresh-revise'][field] = value
         rejected(base, mismatch)
 
     explicit_warm = deepcopy(platform)
-    explicit_warm['messages']['fresh-record'] = {'cold_start':False, 'build_id':'candidate-build',
+    explicit_warm['messages']['fresh-revise'] = {'cold_start':False, 'build_id':'candidate-build',
         'semantic_review_passed':True, 'reference':'actual-platform-warm-log'}
-    marked = checked(base, explicit_warm)['gates']['record']
+    marked = checked(base, explicit_warm)['gates']['revise']['samples'][0]
     assert marked['warm_basis']=='platform_cold_start_false' and marked['warm_speed_passed'] and marked['worker_reuse_proof'] is None
     slow = deepcopy(base)
     slow['requests'][1]['t_service_ms'] = 5000.1
-    slow_gate = checked(slow)['gates']['record']
-    assert not slow_gate['warm_speed_passed'] and not slow_gate['warm_sample_needed']
+    slow_report = checked(slow)
+    slow_gate = slow_report['gates']['revise']['samples'][0]
+    assert not slow_gate['warm_speed_passed'] and not slow_report['gates']['revise']['warm_sample_needed']
+
+    # A cold original may be supplemented; it remains visible beside the new warm result.
+    cold = deepcopy(base)
+    cold['requests'][0]['t_service_ms'] = 6395
+    cold['requests'][0]['receipt_state']['completed_at'] = 1006.5
+    cold_evidence = deepcopy(platform)
+    cold_evidence['messages']['fresh-record']['cold_start'] = True
+    cold_report = checked(cold, cold_evidence)
+    assert not cold_report['release_gate_passed'] and cold_report['missing_warm_categories'] == ['record']
+    assert not cold_report['unresolved_quality_failures'] and not cold_report['evidence_gaps']
+    warm = deepcopy(samples[0])
+    warm.update(message_id='new-warm-record', receipt_id='new-warm-receipt', original_received_at=1040)
+    warm['receipt_state'].update(receipt_id=warm['receipt_id'], completed_at=1045)
+    for event in warm['receipt_state']['result']['latency_events']:
+        event.update(message_id=warm['message_id'], id='new-'+event['id'], started_epoch_ms=event['started_epoch_ms']+40000)
+    appended = deepcopy(cold_report)
+    appended['requests'].append(warm)
+    cold_evidence['messages'][warm['message_id']] = deepcopy(platform['messages']['fresh-record'])
+    appended = checked(appended, cold_evidence)
+    assert appended['release_gate_passed'] and len(appended['gates']['record']['samples']) == 2
+    assert appended['requests'][:3] == cold['requests']
+    replayed = deepcopy(appended)
+    replayed['requests'][-1]['replay'] = True
+    assert not checked(replayed, cold_evidence)['release_gate_passed']
+    # Later passing samples and edited evidence cannot erase an observed quality failure.
+    poisoned = deepcopy(appended)
+    poisoned['requests'][0]['ack_elapsed_ms'] = 3001
+    poisoned = checked(poisoned, cold_evidence)
+    assert not poisoned['release_gate_passed'] and poisoned['unresolved_quality_failures']
+    poisoned['requests'][0]['ack_elapsed_ms'] = 900
+    assert not checked(poisoned, cold_evidence)['release_gate_passed']
 
     # Final report status is a CLI gate; generating a rejected report is not success.
     import tempfile
@@ -534,16 +572,112 @@ def P04():
         platform_path.write_text('{}', encoding='utf-8')
         with patch.object(live, 'ROOT', root), patch.object(live, 'validate_plan', lambda value:value), patch.object(live, 'Driver') as driver:
             assert live.main(['--plan', str(plan_path), '--stage', 'report']) == 1
-            assert json.loads(report_path.read_text())['release_gate_passed'] is False
+            assert json.loads(report_path.read_text(encoding='utf-8'))['release_gate_passed'] is False
             platform_path.write_text(json.dumps(platform), encoding='utf-8')
             assert live.main(['--plan', str(plan_path), '--stage', 'report']) == 0
-            final = json.loads(report_path.read_text())
+            final = json.loads(report_path.read_text(encoding='utf-8'))
             assert final['release_gate_passed'] is True and final['requests'] == base['requests']
             driver.assert_not_called()
             # A successful intermediate operation may still have incomplete final evidence.
             platform_path.write_text('{}', encoding='utf-8')
             assert live.main(['--plan', str(plan_path), '--stage', 'archive']) == 0
             driver.return_value.archive.assert_called_once_with()
+
+        # No new stage/controller: business appends the single fixed missing-warm plan.
+        rows = [{'food_name':name, 'date':'2026-11-03', 'meal_type':'dinner', 'grams':100,
+                 'nutrition':{'kcal':100, 'carbs':10, 'protein':5, 'fat':2}, 'estimated':False}
+                for name in ('known-A', 'known-B')]
+        message = {'step':'record', 'message_id':warm['message_id'], 'text':'记录已知A和B各100克',
+                   'expected_items':rows, 'expected_total_kcal':200}
+        fixed = json.loads((live.ROOT / 'harness/eval/production-live-plan.template.json').read_text(encoding='utf-8'))
+        fixed.update(run_id='minimum-plan', build_id='candidate-build', bucket='approved',
+                     prefix='cos-probe/production-candidate/minimum-plan/', user_id='candidate', sender_open_id='sender',
+                     chat_id='chat', webhook_url='https://approved.example/webhook/feishu/events', webhook_auth='feishu_token',
+                     intake_table_id='candidate-table', bitable_app_token='existing-app', production_intake_table_id='production-table',
+                     candidate_table_verified=True, source_evidence=[{'source':'independent','excerpt':'100 kcal/100g'}])
+        fixed['messages'] = [{**deepcopy(message), 'step':step, 'message_id':'planned-'+step} for step in live.STEPS]
+        assert live.validate_plan(fixed) is fixed
+        assert not any(key in fixed for key in ('pause_confirmation_file','resume_confirmation_file','knowledge_evidence'))
+        driver = live.Driver.__new__(live.Driver)
+        driver.plan, driver.report, driver.save = fixed, {}, lambda:None
+        with patch.object(driver, 'run_message') as run:
+            driver.business()
+            assert [call.args[0]['step'] for call in run.call_args_list] == list(live.STEPS)
+            assert 'driver_create_time_ms' not in fixed['messages'][0]
+        supplement_path = root / 'supplement.json'
+        addition_plan = {**plan, 'platform_evidence_file':str(platform_path),
+                         'warm_supplement_plan_file':str(supplement_path), 'entry_mode':'synthetic_webhook'}
+        addition = {'base_plan_sha256':live._digest(addition_plan), 'source_evidence':[{'source':'independent','excerpt':'100 kcal/100g'}],
+                    'message':message}
+        supplement_path.write_text(json.dumps(addition), encoding='utf-8')
+        platform_path.write_text(json.dumps(cold_evidence), encoding='utf-8')
+        driver = live.Driver.__new__(live.Driver)
+        driver.plan = addition_plan
+        driver.report = {**deepcopy(cold_report), 'plan_sha256':live._digest(addition_plan), 'business_stage':'auto_checks_passed'}
+        driver.report.pop('cleanup')
+        original_samples = deepcopy(driver.report['requests'])
+        driver.save = lambda:None
+        def run_message(planned):
+            assert planned == message
+            sample = deepcopy(warm)
+            driver.report['requests'].append(sample)
+            return sample
+        with patch.object(driver, 'run_message', side_effect=run_message) as run:
+            driver.business()
+            assert driver.report['requests'][:3] == original_samples
+            assert driver.report['warm_supplements'][0]['plan'] == addition
+            assert driver.report['prior_archives'] == [{'status':'passed'}]
+            try:
+                driver.business()
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('same warm supplement ran twice')
+            run.assert_called_once()
+        failed_driver = live.Driver.__new__(live.Driver)
+        failed_driver.plan, failed_driver.save = addition_plan, lambda:None
+        failed_driver.report = deepcopy(cold_report)
+        failed_driver.report.pop('cleanup')
+        failed_driver.report.update(business_stage='auto_checks_passed', plan_sha256=live._digest(addition_plan))
+        failed_driver.report['requests'][0]['auto_quality_passed'] = False
+        with patch.object(failed_driver, 'run_message') as forbidden:
+            try:
+                failed_driver.business()
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('quality failure was replaced by a warm supplement')
+            forbidden.assert_not_called()
+
+        # With the scheduler running, an earlier confirmed revision is not the final readback.
+        from agent.storage import bitable_adapter as bitable
+        target_rows = [{**deepcopy(row), 'record_id':'fixed-'+str(index), 'user_id':'candidate',
+                        'created_at':1000000, 'agent_revision':2} for index, row in enumerate(rows)]
+        target = {'items':target_rows, 'commit_key':'exact-final-commit'}
+        archive_driver = live.Driver.__new__(live.Driver)
+        archive_driver.plan = {'bitable_app_token':'existing-app', 'intake_table_id':'candidate-table'}
+        archive_driver.report = {'business_stage':'auto_checks_passed', 'requests':[{
+            'step':'record', 'replay':False, 'auto_quality_passed':True, 'original_received_at':1000,
+            'planned_message':message, 'raw_cos_audit':target}]}
+        archive_driver.save = lambda:None
+        class Sync:
+            reads = 0
+            def snapshot(self):
+                self.reads += 1
+                return self.reads, {'item:archive:intake:'+row['record_id']:'ref' for row in target_rows}
+            def document(self, index, key):
+                return {'status':'confirmed', 'ack_revision':min(self.reads, 2), 'confirmed_at':1005}
+        archive_driver.sync = Sync()
+        actual_rows = [('feishu-'+row['record_id'], {'agent_item_id':row['record_id'], 'agent_revision':2,
+                        bitable._intake_field('date'):row['date']}) for row in target_rows]
+        with patch.object(bitable, '_list_records', return_value=actual_rows), \
+                patch.object(bitable, 'BitableStore') as store, \
+                patch.object(live.time, 'time', return_value=1005), patch.object(live.time, 'sleep') as sleep:
+            store.return_value._intake_summary_item.side_effect = lambda identity, fields:deepcopy(next(row for row in target_rows if row['record_id']==identity))
+            archive_driver.archive()
+            sleep.assert_called_once_with(2)
+            assert archive_driver.report['archive']['status'] == 'passed'
+            assert archive_driver.report['archive']['fixed_cleanup_record_ids'] == [rid for rid, _ in actual_rows]
 
 
 CHECKS = {"P01": P01, "P02": P02, "P03": P03, "P04": P04}

@@ -29,8 +29,10 @@ class LiveClient:
         while time.monotonic() < deadline:
             state = self._request("GET", "/internal/result", params={"receipt_id": rid})
             if state.get("result"):
+                digest = state["delivery"].get("result_digest")
                 return {**state["result"], "delivery_reference": {
                     "receipt_id": rid, "uuid": state["delivery"]["uuid"], "source": source,
+                    **({"result_digest": digest} if digest else {}),
                     "message": message}}
             if state.get("status") == "needs_attention":
                 raise RuntimeError(state.get("error", "message requires recovery"))
@@ -38,10 +40,13 @@ class LiveClient:
         raise TimeoutError("durable message remains accepted; retry with the original message key: " + rid)
 
     def presented(self, reference):
-        message = {**reference["message"], "message_id": reference["message"]["message_id"] + ":presented", "text": ""}
+        digest = reference.get("result_digest")
+        suffix = ":presented:" + digest[:16] if digest else ":presented"
+        message = {**reference["message"], "message_id": reference["message"]["message_id"] + suffix, "text": ""}
         return self._request("POST", "/internal/presented", json={
             "message": message, "source": reference["source"], "reference": {
-                "receipt_id": reference["receipt_id"], "uuid": reference["uuid"], "presented_at": time.time()}})
+                "receipt_id": reference["receipt_id"], "uuid": reference["uuid"],
+                **({"result_digest": digest} if digest else {}), "presented_at": time.time()}})
 
     def submit_reminder(self, scheduled_time):
         # This timer is itself running in the serial message function. Waiting

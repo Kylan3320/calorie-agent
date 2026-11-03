@@ -1,0 +1,8 @@
+{
+  "source": "https://cdn.deepseek.com/api-docs/deepseek_v4_tokenizer.zip",
+  "sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614",
+  "encoding": "deepseek-v4-official-20261103",
+  "wire_encoding": "json-wire-v1",
+  "window": 1048576,
+  "window_source": "https://api-docs.deepseek.com/quick_start/pricing/"
+}

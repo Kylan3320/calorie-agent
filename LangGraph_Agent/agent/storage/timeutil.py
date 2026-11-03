@@ -9,12 +9,38 @@ import unicodedata
 from contextvars import ContextVar
 from functools import wraps
 from typing import Any
+from contextlib import contextmanager
 
 DEFAULT_TIMEZONE_OFFSET_HOURS = 8.0
 PROCESSING_DEADLINE = ContextVar("processing_deadline", default=None)
 WORK_DEADLINE = ContextVar("work_deadline", default=None)
 BUSINESS_DATE = ContextVar("business_date", default=None)
 BUSINESS_IO = ContextVar("business_io", default=False)
+
+
+@contextmanager
+def execution_deadline(seconds):
+    """Bound the entire Linux Event invocation, including slow HTTP streams."""
+    import signal
+    import threading
+    deadline = min(PROCESSING_DEADLINE.get() or float("inf"), time.monotonic() + seconds)
+    token = PROCESSING_DEADLINE.set(deadline)
+    armed = hasattr(signal, "setitimer") and threading.current_thread() is threading.main_thread()
+    if armed:
+        def expired(signum, frame):
+            raise TimeoutError("execution wall-clock deadline reached")
+        previous_handler = signal.signal(signal.SIGALRM, expired)
+        previous_timer = signal.setitimer(signal.ITIMER_REAL, max(.001, deadline - time.monotonic()))
+        started = time.monotonic()
+    try:
+        yield deadline
+    finally:
+        PROCESSING_DEADLINE.reset(token)
+        if armed:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous_handler)
+            if previous_timer[0] > 0:
+                signal.setitimer(signal.ITIMER_REAL, max(.001, previous_timer[0] - (time.monotonic() - started)), previous_timer[1])
 
 def task_date_scope(fn):
     @wraps(fn)

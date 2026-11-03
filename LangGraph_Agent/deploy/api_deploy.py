@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     zip_path = args.zip.expanduser().resolve()
     zip_b64 = base64.b64encode(zip_path.read_bytes()).decode()
     target = {"FunctionName": args.function, "Namespace": NAMESPACE}
-    tc3_request("UpdateFunctionCode", {**target, "ZipFile": zip_b64})
+    tc3_request("UpdateFunctionCode", {**target, "CodeSource": "ZipFile", "Code": {"ZipFile": zip_b64}})
     status = tc3_request("GetFunction", target)
     print(f"已提交 {args.function}/{zip_path.name}; Status={status.get('Status')} ModTime={status.get('ModTime')}")
     return 0

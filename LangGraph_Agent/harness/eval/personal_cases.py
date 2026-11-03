@@ -180,10 +180,10 @@ def U04():
     pending=next(iter(s.load_session("user","test")["unfinished"].values()))
     send(s,"减脂期间可以吃米饭吗",[call("query_knowledge",{"query":"减脂期间可以吃米饭吗"}),answer],mid="m2")
     summary=NativeFake(responses=[AIMessage(content="用户有待补全夹具A，刚询问米饭知识。")])
-    compressed=replace(CONFIG,summary_trigger_tokens=200,summary_keep_tokens=60)
-    r,m=send(s,"先看看今天",[call("query_today",{}),answer],mid="m3",config=compressed,summary_model=summary)
-    assert len(summary.requests)>=1
-    assert any("summary" in str(x.content).lower() for x in m.requests[0])
+    compressed=replace(CONFIG,input_target_tokens=5000)
+    r,m=send(s,"先看看今天",[call("query_today",{}),answer],mid="m3",config=compressed)
+    assert not summary.requests
+    assert any("米饭" in str(x.content) for x in m.requests[0])
     assert m.schemas[0][0]["function"]["description"]
     assert {x["function"]["name"] for x in m.schemas[0]}==set(DEFAULT_ALLOWED_TOOLS)
     assert m.schemas[0][0]["function"]["parameters"]["properties"]
@@ -269,21 +269,22 @@ def U07():
     """写成功/结果未保存时崩溃，恢复连续两动作、原日期及原回复，重放不覆盖新会话。"""
     from agent.graph import run
     s=setup()
-    original=s.save_execution
+    original=s.commit_action
     batch=AIMessage(content="",tool_calls=[{"name":"record_meal","args":{"items":[{"food_query":"夹具A","grams":200}]},"id":"c1","type":"tool_call"},
         {"name":"record_meal","args":{"items":[{"food_query":"夹具B","quantity":2,"unit":"个"}]},"id":"c2","type":"tool_call"}])
     # Force a process death rather than a retryable business error.
     class Death(BaseException): pass
-    def dead(task,payload,**kwargs):
-        if s.intake and any("result" in e for e in payload.get("calls",[])): raise Death()
-        original(task,payload,**kwargs)
-    s.save_execution=dead
+    def dead(action_id,callback):
+        result=original(action_id,callback)
+        if action_id=='m1:agent:1': raise Death()
+        return result
+    s.commit_action=dead
     msg=dict(message_id="m1",user_id="user",chat_id="test",text="记录两项")
     try: run(msg,store=s,config=CONFIG,model=NativeFake(responses=[batch,answer]))
     except Death: pass
     else: raise AssertionError("crash was not injected")
     assert len(s.intake)==1
-    s.save_execution=original;s.today="2026-11-01"
+    s.commit_action=original;s.today="2026-11-01"
     r=run(msg,store=s,config=CONFIG,model=NativeFake(responses=[answer]))
     assert r["status"]=="ok",r["errors"]
     assert len(s.intake)==2 and {x["date"] for x in s.intake}=={"2026-10-31"}
