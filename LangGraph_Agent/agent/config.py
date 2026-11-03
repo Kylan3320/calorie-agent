@@ -27,11 +27,19 @@ class Config:
     allowed_tools: tuple[str, ...]
     timezone_offset_hours: float
     knowledge_retriever: str = "faq"
-    summary_trigger_tokens: int = 12000
-    summary_keep_tokens: int = 4000
+    context_window: int = 1048576
+    input_target_tokens: int = 16000
+    output_tokens: int = 8192
+    protocol_margin_tokens: int = 2048
+    recent_turns: int = 2
+    summary_pending_tokens: int = 4000
+    summary_input_tokens: int = 12000
+    summary_output_tokens: int = 1024
+    summary_max_tokens: int = 4096
     max_model_calls: int = 4
     max_tool_calls: int = 8
     deadline_seconds: float = 90
+    model_step_seconds: float = 40
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -86,7 +94,7 @@ def load_config() -> Config:
         allowed_tools=tuple(str(item) for item in allowed),
         timezone_offset_hours=offset,
         knowledge_retriever=knowledge_retriever,
-        **{k: raw[k] for k in ("summary_trigger_tokens", "summary_keep_tokens", "max_model_calls", "max_tool_calls", "deadline_seconds") if k in raw},
+        **{k: raw[k] for k in ("context_window", "input_target_tokens", "output_tokens", "protocol_margin_tokens", "recent_turns", "summary_pending_tokens", "summary_input_tokens", "summary_output_tokens", "summary_max_tokens", "max_model_calls", "max_tool_calls", "deadline_seconds", "model_step_seconds") if k in raw},
     )
 
 

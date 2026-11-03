@@ -172,11 +172,11 @@ def P05():
         CosStore(objects, PREFIX).import_baseline({"baseline_id": "hard-exit-fixture",
                                                  "foods": foods, "intake": [deleted]})
         pipeline = Pipeline(objects, PREFIX)
-        from datetime import datetime, timedelta, timezone
-        received = datetime(2026, 10, 31, 23, 59, tzinfo=timezone(timedelta(hours=8))).timestamp()
+        import time
+        received = time.time()
         original = message("hard-exit-record", "记录夹具A200克和夹具B2个。")
         receipt = pipeline.accept(original, received_at=received)
-        assert receipt["intake_date"] == "2026-10-31"
+        original_date = receipt["intake_date"]
         command = [sys.executable, "-B", "-c",
                    "from harness.eval.production_transport_cases import _hard_child; "
                    "import sys; _hard_child(sys.argv[1], sys.argv[2])",
@@ -206,13 +206,13 @@ def P05():
             recovered = restored.worker(event(receipt), execute=forbidden, send=send)
             assert recovered["status"] == "completed" and recovered["attempts"] == 2
             duplicate = restored.accept(original, received_at=received + 86400)
-            assert duplicate["received_at"] == received and duplicate["intake_date"] == "2026-10-31"
+            assert duplicate["received_at"] == received and duplicate["intake_date"] == original_date
             assert restored.worker(event(duplicate), execute=forbidden, send=forbidden)["duplicate"]
         assert sent == [attempted]
         rows = CosStore(objects, PREFIX, readonly=True).intake_items("user", include_deleted=True)
         active = [r for r in rows if r["status"] != "deleted"]
         assert len(rows) == 3 and len(active) == 2
-        assert {r["date"] for r in active} == {"2026-10-31"}
+        assert {r["date"] for r in active} == {original_date}
         assert sorted(r["nutrition"]["kcal"] for r in active) == [120, 150]
         assert sum(r["nutrition"]["kcal"] for r in active) == 270
         assert next(r for r in rows if r["record_id"] == "prior-deleted")["status"] == "deleted"

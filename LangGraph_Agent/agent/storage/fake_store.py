@@ -79,6 +79,8 @@ class FakeStore(StateStore):
         self.usage_events: list[dict[str, Any]] = []
         self.seen_client_tokens: set[str] = set()
         self._clock = 1000
+        self._committed_actions = {}
+        self._transaction_snapshot = None
         for index, row in enumerate(intake_seed or []):
             self.intake.append(
                 {
@@ -104,6 +106,34 @@ class FakeStore(StateStore):
 
     def kind(self) -> str:
         return "fake"
+
+    def _snapshot(self):
+        return {key: deepcopy(value) for key, value in self.__dict__.items() if key != '_transaction_snapshot' and not callable(value)}
+
+    def committed_action(self, action_id):
+        return deepcopy(self._committed_actions.get(action_id))
+
+    def commit_action(self, action_id, callback):
+        saved = self.committed_action(action_id)
+        if saved is not None:
+            return saved
+        if self._transaction_snapshot is not None:
+            raise RuntimeError('nested business action')
+        self._transaction_snapshot = self._snapshot()
+        try:
+            result = callback()
+            self._committed_actions[action_id] = deepcopy(result)
+            return result
+        except BaseException:
+            for key, value in self._transaction_snapshot.items():
+                setattr(self, key, value)
+            raise
+        finally:
+            self._transaction_snapshot = None
+
+    def flush_preparation(self):
+        if self._transaction_snapshot is not None:
+            self._transaction_snapshot = self._snapshot()
 
     def today_string(self) -> str:
         """Store-canonical "today" (contracts/tool_protocol.md)."""

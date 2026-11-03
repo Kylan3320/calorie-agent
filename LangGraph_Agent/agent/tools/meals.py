@@ -171,10 +171,11 @@ def record_meal(rt, p):
         session = deepcopy(rt.session)
         pending_items = session.setdefault("unfinished", {})
         cancelled = []
+        cancelled_items = []
         if p.get("cancel_pending"):
             for key in p["cancel_pending"]:
                 if key in pending_items:
-                    pending_items.pop(key)
+                    cancelled_items.append(deepcopy(pending_items.pop(key)))
                     cancelled.append(key)
         day = resolve_date(p.get("date"), rt.day)
         meal = p.get("meal_type") or "unknown"
@@ -241,7 +242,7 @@ def record_meal(rt, p):
             i.setdefault("meal_type", meal)
             if reuse:
                 i["snapshot"]["meal_id"] = rt.action_message["message_id"]
-        rt.prepare({"items": items, "session": session, "missing": list(pending_items.values()), "cancelled": cancelled})
+        rt.prepare({"items": items, "session": session, "missing": list(pending_items.values()), "cancelled": cancelled, "cancelled_items": cancelled_items})
     prepared = rt.prepared
     items = prepared["items"]
     rt.check_deadline()
@@ -261,7 +262,7 @@ def record_meal(rt, p):
     return {"status": "ok" if items or prepared["cancelled"] else "pending", "data": {
         "items": written, "total": totals(written),
         "meal_totals": meal_totals(rt, written),
-        "completed_count": len(items), "unfinished": prepared["missing"], "cancelled": prepared["cancelled"],
+        "completed_count": len(items), "unfinished": prepared["missing"], "cancelled": prepared["cancelled"], "cancelled_items": prepared.get("cancelled_items", []),
         "write_status": write["status"]}}
 
 def revise_intake(rt, p):
@@ -278,9 +279,9 @@ def revise_intake(rt, p):
             if p.get("ratio") is not None:
                 item = scale_item(item, p["ratio"])
             else:
-                item, missing = resolve_item(rt, {"food_query": row["food_name"], **p}, pending={"food": item["snapshot"]["food"]})
+                item, missing = resolve_item(rt, {**p, "food_query": row["food_name"]}, pending={"food": item["snapshot"]["food"]})
                 if missing:
-                    return {"status": "pending", "data": {"unfinished": [missing]}}
+                    return {"status": "pending", "data": {"unfinished": [{**missing, "date": row["date"], "meal_type": row["meal_type"]}]}}
             item["snapshot"]["meal_id"] = row.get("snapshot", {}).get("meal_id", row["message_id"])
         rt.prepare({"record_id": row["record_id"], "item": item, "date": row["date"], "original": row})
     plan = rt.prepared

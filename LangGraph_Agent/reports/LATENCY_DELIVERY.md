@@ -1,5 +1,34 @@
 # 飞书＋COS 生产交付记录
 
+## 当前正式上线：事实回执与固定预算（2026-11-03T21:57:00.419661+08:00）
+
+用户在知悉候选性能未通过后明确要求部署上线，本次已实际发布。三个正式函数均Active，BUILD_ID=`cos-production-8794be0e62e0015b`，Python3.10/512MB/120秒/平台并发1，Layer统一calorie-rag:7。保留HTTP受理类型、原飞书入口/令牌、角色、表及正式COS前缀；INGRESS_MAINTENANCE=0。线上health新构建、飞书有效token回调challenge、无效token403和tenant认证均通过。复用同构建隔离三条业务证据，本次未发送测试业务消息、未新增测试摄入。
+
+消息与归档下载ZIP SHA256等于`3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c`。HTTP受理下载ZIP由平台重新封装，SHA256=`f232614eeda7a0cab9bc8aa98abfff10f03f1fa4216b0c99fcc42a3e0054c12f`；BUILD_ID及所有成员内容逐字节与候选一致。初次整体ZIP断言过严触发回退，随后以完整成员核对闭合；未改业务代码或重建包。上传参数同步使用CodeSource=ZipFile及Code.ZipFile，避免旧顶层ZipFile文档20MB限制；[官方接口](https://cloud.tencent.com/document/api/583/18581)。
+
+部署前有两条旧reminder收件（一次processing已过最长执行时间、一次unstarted），无待处理记餐；保留原任务，由既有恢复/后续提醒入口处理，未手动重放或清除事实。原包和安全配置回退备份保存在仓库外 `C:\Users\33203\.config\calorie-agent\deploy-backups\facts-20261103-214110`。详细API操作、回退和最终核对见 [facts-production-deploy.json](facts-production-deploy.json)。
+
+本次上线不改变性能结论：改量暖5.107秒仍超5秒，记餐仍缺暖；原候选失败及此前历史失败保留。上一轮本机12个临时文件自动审批清理阻碍也未改判。
+
+
+## 普通事实回执与固定等待预算（2026-11-03，正式未部署）
+
+本轮实现及独立只读审查已完成。最终候选 `cos-production-8794be0e62e0015b`，ZIP SHA256 `3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c`，Layer7冻结未重建；Linux Python3.10实际装配及42运行时文件匹配通过。普通账本整批完成后直接工具事实回执；消息原收件+90秒/步骤40秒跨重投固定，模型最多一次传输重试，未知提交与同UUID交付分别恢复。
+
+定向53项组合52通过，旧CX06夹具与新契约冲突，更新后仅复验CX06/FN02/P05共3项通过，另补CB07通过，最终54个不同用例均有有效证据；保留原失败日志。Linux缩短墙钟实测覆盖Feishu/COS阻塞头、body与持续保活；独立审查确认终态来源和最终正文展示绑定闭合。
+
+隔离候选三条事实及完整账本均正确，均一次主决策/tool_facts。记餐ACK2317.928ms、T_service7898.710ms（冷/未定，缺暖）；改量ACK1360.802ms、5107.432ms（同worker暖，超5秒107.432ms，未通过）；今日ACK1843.592ms、4940.651ms（同worker暖，通过）。主模型HTTP依次1427.891/1737.907/1176.262ms，无503/重试；改量剩余耗时集中COS持久链路。候选总体未通过，未重发整组或补样洗白。两行归档最终字段/版本已独立读回；315个本轮COS对象、2条本轮Bitable行、三临时函数及URL/触发均删除核对，原8行保持；3条bot回复删除ACK均code0，独立消息GET受既有scope限制。本机展开构建等已清理，但候选TEMP目录12文件（802180字节）因两次自动审批blocked by policy尚未删除，证据如实标false。实际结果和可复现部署/核对步骤见 [交流体验交付记录](CONVERSATION_DELIVERY.md)。正式三个函数和此前失败结论保持。
+
+
+## 上下文治理（2026-11-03，正式未部署）
+
+本地实现、独立只读审查、定向离线验证、真实记忆对照和Linux实际包检查已完成；隔离云端候选未通过，未更新正式函数。详见 [交流体验交付记录](CONVERSATION_DELIVERY.md)。
+
+冻结候选构建 `cos-production-a0c20e95eb79b5cc`，ZIP SHA256 `cf05b8597183514b25320494b5a31badb5152c8529d8072a39de9fb259ebe064`，复用Layer7。云端记餐/改量分别60976.144/26377.773ms，主要耗在模型HTTP；今日请求受DeepSeek503影响，未通过。真实记忆摘要针对性复验2.546秒，两个分支语义正确；不能代替云端候选速度证据。
+
+三临时函数及触发、339个COS测试对象、两条固定Bitable测试行、三条测试机器人回复均已清理并核对；正式前缀和原有历史数据未修改。本机临时数据清理见 context-local-cleanup.json。现有正式构建、线上质量失败和此前知识速度差额仍按下文保留，不因本轮离线通过改判。
+
+
 ## 本地维护（2026-11-02，尚未部署）
 
 精简规格和失效流程；评测改为显式选择、完整校验 ID 且各用例独立执行。旧业务结果、回执及无来源旧助手正文不进入新事实输入；历史压缩保留当前整轮，旧执行从收件及已存调用恢复。发布显式指定函数，知识构建复用冻结依赖；旧探针及三份知识临时脚本的有效检查已迁入现有入口。
@@ -32,9 +61,9 @@ RL01 的运行时子进程使用替身，只证明产物选择、解压、隔离
 
 更新：2026-11-02。生产迁移和切换已完成，飞书查询与发送可用；正式自然回复质量项仍未通过。
 
-## 当前部署
+## 2026-11-02原部署（已由上文替换）
 
-- 构建：`cos-production-4c3fe0d5ea618cc5`；业务包 `deploy/calorie-agent-v4.zip`，17,068,647 字节，SHA256 `d81e0cfc0477f6120cdaa003334e042ea6e5d3db4ad951bc0819fc881a492564`。
+- 已上线构建：`cos-production-4c3fe0d5ea618cc5`；历史业务包17,068,647字节，SHA256 `d81e0cfc0477f6120cdaa003334e042ea6e5d3db4ad951bc0819fc881a492564`。工作区同名 `deploy/calorie-agent-v4.zip` 已是上文本轮候选，不代表正式已更新。
 - 上海/default：受理 `calorie-agent-api-v3-test`、消息 `calorie-agent-reminder`、归档 `calorie-agent-archive`；三个函数各平台并发 1。每分钟提醒、每五分钟维护／归档已启用，启用时间 `2026-11-02T02:51:04+08:00`。
 - 消息／归档层：`calorie-rag:7`，INDEX_VERSION=`sourcefix-20261102-69ca0bd3e30f6317`，Layer ZIP SHA256 `3ac484a780b3adff15d2c2c625a67ac4fd05247994dc1ee6193071e9f7662936`。
 - 原飞书 webhook 和验证 Token 保留；三个运行角色按正式 COS 前缀及指定函数资源授权。正式前缀为 `calorie-agent/production/20261102/`，私有桶 `calorie-cos-probe-20261101-1440448581`。

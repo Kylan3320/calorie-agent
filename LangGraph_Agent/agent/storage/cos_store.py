@@ -55,6 +55,10 @@ class CosStore(StateStore):
         finally:
             self._changes = None
 
+    def committed_action(self, action_id):
+        """Point-read after the writer's confirmation barrier; never re-execute."""
+        return self._get('action:' + action_id)
+
     def flush_preparation(self):
         """Publish fixed prepared facts before any corresponding business effect."""
         if self._changes is not None:

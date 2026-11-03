@@ -3,4 +3,6 @@ langgraph==1.2.7
 langchain-core==1.4.8
 PyYAML==6.0.3
 httpx==0.28.1
+httpcore==1.0.9
 cos-python-sdk-v5==1.9.44
+tokenizers==0.22.1

@@ -19,7 +19,7 @@ def load_checks():
         "personal_cases", "conversation_cases", "latency_checks",
         "production_store_cases", "production_archive_cases", "production_pipeline_cases",
         "production_role_cases", "production_cutover_cases", "production_transport_cases",
-        "release_cases", "runtime_cases",
+        "release_cases", "runtime_cases", "context_cases", "receipt_cases", "receipt_runtime_cases", "model_transport_cases", "rpc_deadline_cases", "delivery_binding_cases", "finalization_cases", "completion_budget_cases",
     ):
         group = importlib.import_module("harness.eval." + module).CHECKS
         duplicates = checks.keys() & group.keys()

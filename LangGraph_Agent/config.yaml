@@ -22,8 +22,16 @@ allowed_tools:
 # 本地时区偏移（小时），用于“今天”的口径
 timezone_offset_hours: 8
 
-summary_trigger_tokens: 12000
-summary_keep_tokens: 4000
+context_window: 1048576
+input_target_tokens: 16000
+output_tokens: 8192
+protocol_margin_tokens: 2048
+recent_turns: 2
+summary_pending_tokens: 4000
+summary_input_tokens: 12000
+summary_output_tokens: 1024
+summary_max_tokens: 4096
 max_model_calls: 4
 max_tool_calls: 8
 deadline_seconds: 90
+model_step_seconds: 40

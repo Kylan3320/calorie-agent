@@ -111,13 +111,138 @@ class Pipeline:
                              "errors": [state.get("error", "reminder retry budget exhausted")]})
         def finish():
             store.save_document("receipt_state", "system", rid, state)
-            store.save_document("ingress_cursor", "system", session_id, {"sequence": receipt["sequence"]})
+            store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0))})
             return {"status": "completed"}
         store.commit_action("receipt-complete:" + rid, finish)
         return state
 
-    def worker(self, event, *, execute=None, send=None):
+    def budget_message(self, receipt, state):
+        from agent.config import load_config
+        if "deadline_at" not in state:
+            origin = receipt.get("received_at")
+            state["legacy_budget"] = origin is None
+            state["budget_started_at"] = origin if origin is not None else time.time()
+            state["deadline_at"] = state["budget_started_at"] + load_config().deadline_seconds
+        return {**receipt["message"], "received_at": receipt.get("received_at"),
+                "budget_started_at": state["budget_started_at"], "legacy_budget": state["legacy_budget"],
+                "deadline_at": state["deadline_at"], "recovery_attempt": state.get("attempts", 0) + state.get("manual_attempts", 0)}
+
+    def present(self, store, receipt):
+        try:
+            return self._confirm_presented(store, receipt)
+        except ValueError as exc:
+            # Reject only this control acknowledgement. It must neither confirm
+            # the business reply nor block later messages in the same queue.
+            rejected = {"status": "completed", "presentation_rejected": True,
+                        "error": str(exc), "receipt_id": receipt["receipt_id"],
+                        "sequence": receipt["sequence"]}
+            store.save_document("receipt_state", "system", receipt["receipt_id"], rejected)
+            return rejected
+
+    def _confirm_presented(self, store, receipt):
+        from agent.graph import mark_reply_presented
+        message, reference = receipt["message"], receipt["reference"]
+        original = store.load_document("receipt_state", "system", reference["receipt_id"])
+        original_receipt = self.inbox(readonly=True).get("receipt:" + reference["receipt_id"])
+        if not original_receipt or original_receipt["source"] != receipt["source"] or any(original_receipt["message"][key] != message[key] for key in ("user_id", "chat_id")):
+            raise ValueError("presentation identity mismatch")
+        delivery = original.get("delivery", {})
+        if not original.get("result") or delivery.get("uuid") != reference.get("uuid"):
+            raise ValueError("presentation does not reference the saved reply")
+        expected = delivery.get("result_digest")
+        if expected and reference.get("result_digest") != expected and (reference.get("result_digest") or delivery.get("progress_reply") is not None):
+            raise ValueError("presentation references an older reply")
+        mark_reply_presented(store, message["user_id"], message["chat_id"], {"dialogue_turn_id": "calorie-user:" + message_key(original_receipt["message"]), **original["result"]})
+        original["status"] = "needs_attention" if original.get("work_status") == "needs_attention" else "completed"
+        delivery.update(presented=True, presented_at=reference["presented_at"])
+        store.save_document("receipt_state", "system", reference["receipt_id"], original)
+        state = {"status": "completed", "receipt_id": receipt["receipt_id"], "sequence": receipt["sequence"]}
+        store.save_document("receipt_state", "system", receipt["receipt_id"], state)
+        return state
+
+    def deliver(self, store, receipt, state, send=None, update_send=None):
+        import json
+        from pathlib import Path
+        from agent.graph import mark_reply_presented
+        from . import feishu_client
+        from .telemetry import span, EVENTS
+        message, delivery = receipt["message"], state["delivery"]
+        delivery["result_digest"] = hashlib.sha256(state["result"]["reply"].encode()).hexdigest()
+        unresolved = state.get("work_status") == "needs_attention"
+        if receipt["source"] != "feishu":
+            state["status"] = "needs_attention" if unresolved else "awaiting_presentation"
+            return
+        started = time.monotonic()
+        with span("send_reply", receipt_id=receipt["receipt_id"]):
+            if "progress_reply" in delivery:
+                mid = delivery.get("message_id") or delivery.get("send_result", {}).get("data", {}).get("message_id")
+                if not mid:
+                    prior = (send or feishu_client.send_text)(message["chat_id"], delivery["progress_reply"], uuid_key=delivery["uuid"])
+                    mid = prior.get("data", {}).get("message_id")
+                    if not mid:
+                        raise RuntimeError("original progress delivery is not confirmed")
+                    delivery.update(send_result=prior, message_id=mid)
+                    store.save_document("receipt_state", "system", receipt["receipt_id"], state)
+                delivery["update_result"] = (update_send or feishu_client.update_text)(mid, state["result"]["reply"])
+                sent = delivery["send_result"]
+            else:
+                sent = (send or feishu_client.send_text)(message["chat_id"], state["result"]["reply"], uuid_key=delivery["uuid"])
+        now = time.time()
+        delivery.update(presented=True, sent_at=now, send_result=sent, message_id=sent.get("data", {}).get("message_id"),
+                        t_service_ms=round((now - receipt["received_at"]) * 1000, 3) if receipt.get("received_at") is not None else None,
+                        send_duration_ms=round((time.monotonic() - started) * 1000, 3), cos_revision=store.journal.revision)
+        delivery["slow_request"] = delivery["t_service_ms"] is not None and delivery["t_service_ms"] > 10000
+        delivery["t_user_ms"] = round(now * 1000 - int(message["create_time"]), 3) if message.get("create_time", "").isdigit() else None
+        build = Path(__file__).resolve().parents[2] / "BUILD_ID"
+        print(json.dumps({"event": "latency_delivery", "message_id": message["message_id"], "receipt_id": receipt["receipt_id"],
+                          "sequence": receipt["sequence"], "source": receipt["source"], "build_id": build.read_text().strip() if build.exists() else "development",
+                          "events": list(EVENTS.get() or []), **delivery}, ensure_ascii=False))
+        mark_reply_presented(store, message["user_id"], message["chat_id"], {"dialogue_turn_id": "calorie-user:" + message_key(message), **state["result"]})
+        state["status"] = "needs_attention" if unresolved else "completed"
+
+    def recover_result(self, store, receipt, state, execute, send, update_send):
+        from agent import run
+        from agent.config import load_config
+        state["manual_attempts"] = state.get("manual_attempts", 0) + 1
+        message = self.budget_message(receipt, state)
+        state["recovery_started_at"] = time.time()
+        store.save_document("receipt_state", "system", receipt["receipt_id"], state)
+        token = PROCESSING_DEADLINE.set(min(PROCESSING_DEADLINE.get() or float("inf"), time.monotonic() + load_config().deadline_seconds))
+        try:
+            recovered = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"])
+            state["recovery_result"] = deepcopy(recovered)
+            if recovered.get("status") == "error" and not recovered.get("terminal"):
+                state.update(work_status="needs_attention", recovered_at=time.time())
+                store.save_document("receipt_state", "system", receipt["receipt_id"], state)
+                return state
+            state["delivery"].setdefault("progress_reply", state["result"]["reply"])
+            state["delivery"]["presented"] = False
+            state["result"] = deepcopy(recovered)
+            state["delivery"]["result_digest"] = hashlib.sha256(recovered["reply"].encode()).hexdigest()
+            state["delivery"]["recovery_attempts"] = 1
+            state["work_status"] = "terminated" if recovered.get("terminal") else "completed"
+            state["status"] = "retry"
+            store.save_document("receipt_state", "system", receipt["receipt_id"], state)
+            self.deliver(store, receipt, state, send, update_send)
+            state["recovered_at"] = time.time()
+            session = receipt_id(receipt["message"]["user_id"], receipt["message"]["chat_id"])
+            def finish():
+                store.save_document("receipt_state", "system", receipt["receipt_id"], state)
+                cursor = store.load_document("ingress_cursor", "system", session).get("sequence", 0)
+                store.save_document("ingress_cursor", "system", session, {"sequence": max(cursor, receipt["sequence"])})
+                return {"status": state["status"]}
+            store.commit_action("receipt-complete:" + receipt["receipt_id"], finish)
+            return state
+        finally:
+            PROCESSING_DEADLINE.reset(token)
+
+    def worker(self, event, *, execute=None, send=None, update_send=None):
         attempt_started = time.monotonic()
+        if event.get("type") == "calorie_summary":
+            from .conversation import apply_candidate
+            store = self.store()
+            store.confirm_current()
+            return apply_candidate(store, event)
         from agent import run
         from agent.config import load_config
         from agent.graph import mark_reply_presented
@@ -134,26 +259,23 @@ class Pipeline:
         store = self.store()
         store.confirm_current()
         requested_state = store.load_document("receipt_state", "system", event["receipt_id"])
-        if event.get("manual_recovery") and requested_state.get("work_status") == "needs_attention" and requested_state.get("result"):
-            # A fact receipt was already delivered after automatic recovery was
-            # exhausted. Continue the original execution, keeping that delivery
-            # immutable; later user messages read the newly committed facts.
+        if requested["kind"] == "presented":
+            if requested_state.get("status") == "completed":
+                return {**requested_state, "duplicate": True}
+            return self.present(store, requested)
+        if event.get("manual_recovery") and requested_state.get("work_status") == "needs_attention" and requested["kind"] == "reminder":
             requested_state["manual_attempts"] = requested_state.get("manual_attempts", 0) + 1
-            requested_state["recovery_started_at"] = time.time()
-            store.save_document("receipt_state", "system", event["receipt_id"], requested_state)
-            deadline = PROCESSING_DEADLINE.set(attempt_started + load_config().deadline_seconds)
+            token = PROCESSING_DEADLINE.set(min(PROCESSING_DEADLINE.get() or float("inf"), attempt_started + load_config().deadline_seconds))
             try:
-                if requested["kind"] == "reminder":
-                    stamp = datetime.fromisoformat(requested["reference"]["scheduled_time"])
-                    recovered = check_reminders(store, stamp, send)
-                else:
-                    recovered = (execute or run)(requested["message"], store=store, config=load_config(), intake_date=requested["intake_date"])
+                recovered = check_reminders(store, datetime.fromisoformat(requested["reference"]["scheduled_time"]), send)
                 requested_state.update(recovery_result=deepcopy(recovered), recovered_at=time.time(),
                                        work_status="completed" if recovered.get("status", "ok") == "ok" else "needs_attention")
                 store.save_document("receipt_state", "system", event["receipt_id"], requested_state)
                 return requested_state
             finally:
-                PROCESSING_DEADLINE.reset(deadline)
+                PROCESSING_DEADLINE.reset(token)
+        if event.get("manual_recovery") and requested_state.get("work_status") == "needs_attention" and requested_state.get("result") and requested["kind"] == "message":
+            return self.recover_result(store, requested, requested_state, execute, send, update_send)
         if requested_state.get("status") in {"completed", "awaiting_presentation"}:
             return {**requested_state, "duplicate": True}
         session_id = receipt_id(requested["message"]["user_id"], requested["message"]["chat_id"])
@@ -174,7 +296,7 @@ class Pipeline:
                          "receipt_id": rid, "sequence": receipt["sequence"]}
                 def finish_legacy():
                     store.save_document("receipt_state", "system", rid, state)
-                    store.save_document("ingress_cursor", "system", session_id, {"sequence": receipt["sequence"]})
+                    store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0))})
                     return {"status": "completed"}
                 store.commit_action("legacy-receipt:" + rid, finish_legacy)
             if state.get("status") in {"completed", "awaiting_presentation"}:
@@ -186,27 +308,22 @@ class Pipeline:
                 continue
             if state.get("status") == "needs_attention" and not event.get("manual_recovery"):
                 raise RuntimeError("earlier receipt requires recovery: " + rid)
-            if state.get("attempts", 0) >= 3 and not event.get("manual_recovery"):
+            automatic_attempts = state.get("delivery", {}).get("recovery_attempts", state.get("attempts", 0))
+            if automatic_attempts >= 3 and not event.get("manual_recovery"):
                 raise RuntimeError("receipt retry budget exhausted: " + rid)
             state = {**state, "attempts": state.get("attempts", 0) + 1, "status": "processing",
                      "receipt_id": rid, "sequence": receipt["sequence"], "started_at": time.time()}
+            if "recovery_attempts" in state.get("delivery", {}):
+                state["delivery"]["recovery_attempts"] = automatic_attempts + 1
+            if receipt["kind"] == "message":
+                message = self.budget_message(receipt, state)
+                state.setdefault("queue_wait_ms", round(max(0, time.time() - state["budget_started_at"]) * 1000, 3) if not state["legacy_budget"] else None)
             store.save_document("receipt_state", "system", rid, state)
-            deadline = PROCESSING_DEADLINE.set(attempt_started + load_config().deadline_seconds)
-            message = receipt["message"]
+            deadline = PROCESSING_DEADLINE.set(min(PROCESSING_DEADLINE.get() or float("inf"), attempt_started + load_config().deadline_seconds))
+            message = self.budget_message(receipt, state) if receipt["kind"] == "message" else receipt["message"]
             try:
                 if receipt["kind"] == "presented":
-                    reference = receipt["reference"]
-                    original = store.load_document("receipt_state", "system", reference["receipt_id"])
-                    original_receipt = inbox.get("receipt:" + reference["receipt_id"])
-                    if not original_receipt or original_receipt["source"] != receipt["source"] or original_receipt["message"]["user_id"] != message["user_id"] or original_receipt["message"]["chat_id"] != message["chat_id"]:
-                        raise ValueError("presentation identity mismatch")
-                    if not original.get("result") or original.get("delivery", {}).get("uuid") != reference.get("uuid"):
-                        raise ValueError("presentation does not reference the saved reply")
-                    mark_reply_presented(store, message["user_id"], message["chat_id"], original["result"])
-                    original["status"] = "completed"
-                    original["delivery"].update(presented=True, presented_at=reference["presented_at"])
-                    store.save_document("receipt_state", "system", reference["receipt_id"], original)
-                    state.update(status="completed")
+                    state = self.present(store, receipt)
                 elif receipt["kind"] == "reminder":
                     stamp = datetime.fromisoformat(receipt["reference"]["scheduled_time"].replace("Z", "+00:00"))
                     state.update(status="completed", result=check_reminders(store, stamp, send))
@@ -219,39 +336,24 @@ class Pipeline:
                         result = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"])
                         errors = ";".join(result.get("errors", []))
                         deterministic = errors.startswith(("KeyError:", "ValueError:", "PermissionError:", "stale_execution_requires_new_message"))
-                        if result.get("status") == "error" and state["attempts"] < 3 and not deterministic:
+                        if result.get("status") == "error" and state["attempts"] < 3 and not deterministic and not result.get("terminal"):
                             raise RuntimeError(errors)
-                        if result.get("status") == "error":
+                        if result.get("terminal"):
+                            state.update(work_status="terminated", unfinished_error=errors)
+                        elif result.get("status") == "error":
                             state.update(work_status="needs_attention", unfinished_error=errors)
                         # Commit final text and reference before any delivery API.
-                        state.update(result=deepcopy(result), delivery={"uuid": reply_uuid(message), "presented": False})
+                        state.update(result=deepcopy(result), delivery={"uuid": reply_uuid(message), "presented": False,
+                            "result_digest": hashlib.sha256(result["reply"].encode()).hexdigest()})
                         store.save_document("receipt_state", "system", rid, state)
-                    if receipt["source"] == "feishu":
-                        delivery = state["delivery"]
-                        from .telemetry import span
-                        with span("send_reply", receipt_id=rid):
-                            sent = (send or feishu_client.send_text)(message["chat_id"], state["result"]["reply"], uuid_key=delivery["uuid"])
-                        now = time.time()
-                        delivery.update(presented=True, sent_at=now, send_result=sent,
-                                        t_service_ms=round((now - receipt["received_at"]) * 1000, 3),
-                                        cos_revision=store.journal.revision)
-                        import json
-                        from pathlib import Path
-                        from .telemetry import EVENTS
-                        build_file = Path(__file__).resolve().parents[2] / "BUILD_ID"
-                        delivery["t_user_ms"] = round(now*1000-int(message["create_time"]), 3) if message.get("create_time", "").isdigit() else None
-                        print(json.dumps({"event": "latency_delivery", "message_id": message["message_id"],
-                                          "receipt_id": rid, "sequence": receipt["sequence"], "source": receipt["source"],
-                                          "build_id": build_file.read_text().strip() if build_file.exists() else "development",
-                                          "events": list(EVENTS.get() or []), **delivery}, ensure_ascii=False))
-                        mark_reply_presented(store, message["user_id"], message["chat_id"], state["result"])
-                        state["status"] = "completed"
-                    else:
-                        state["status"] = "awaiting_presentation"
+                    self.deliver(store, receipt, state, send, update_send)
+                    if state.get("work_status") == "needs_attention":
+                        store.save_document("receipt_state", "system", rid, state)
+                        return state
                 state["completed_at"] = time.time()
                 def finish_receipt():
                     store.save_document("receipt_state", "system", rid, state)
-                    store.save_document("ingress_cursor", "system", session_id, {"sequence": receipt["sequence"]})
+                    store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0))})
                     if receipt["kind"] == "message":
                         from .bitable_adapter import usage_event_token
                         store.append_usage_event({"event_id": usage_event_token(message_key(message)),
@@ -259,14 +361,14 @@ class Pipeline:
                             "user_id": message["user_id"], "source": receipt["source"], "preset": "live",
                             "status": state["result"].get("status"), "receipt_id": rid,
                             "reply_sent": state["delivery"]["presented"],
-                            "latency_ms": round((time.time()-receipt["received_at"])*1000)})
+                            "latency_ms": round((time.time()-receipt["received_at"])*1000) if receipt.get("received_at") is not None else None})
                     return {"status": state["status"]}
                 store.commit_action("receipt-complete:" + rid, finish_receipt)
                 requested_state = state
                 attempt_started = time.monotonic()
             except Exception as exc:
                 state.update(error=f"{type(exc).__name__}:{str(exc)[:300]}",
-                             status="needs_attention" if state["attempts"] >= 3 or isinstance(exc, (ValueError, KeyError)) else "retry")
+                             status="needs_attention" if automatic_attempts + 1 >= 3 or isinstance(exc, (ValueError, KeyError)) else "retry")
                 if receipt["kind"] == "reminder" and state["attempts"] >= 3:
                     requested_state = self.defer_reminder(store, receipt, state, session_id)
                     attempt_started = time.monotonic()
@@ -283,6 +385,7 @@ class Pipeline:
         """Maintenance only wakes; it never writes business/session state."""
         inbox = self.inbox(readonly=True)
         pending = []
+        blocked = []
         store = self.readonly_store()
         for key in inbox.state:
             if not key.startswith("session:"):
@@ -292,11 +395,13 @@ class Pipeline:
                 if entry["sequence"] <= cursor:
                     continue
                 state = store.load_document("receipt_state", "system", entry["receipt_id"])
-                if state.get("status") not in {"completed", "awaiting_presentation", "needs_attention"} and state.get("attempts", 0) < 3:
+                if state.get("status") == "needs_attention" or (state.get("error") and state.get("status") not in {"completed", "awaiting_presentation"}):
+                    blocked.append(entry["receipt_id"])
+                if state.get("status") not in {"completed", "awaiting_presentation", "needs_attention"} and state.get("delivery", {}).get("recovery_attempts", state.get("attempts", 0)) < 3:
                     pending.append(inbox.get("receipt:" + entry["receipt_id"]))
         for receipt in sorted(pending, key=lambda r: r["sequence"]):
             (wake or self.wake)({**receipt, "ingress_revision": inbox.revision})
-        return {"woken": len(pending)}
+        return {"woken": len(pending), "blocked": blocked}
 
 
 _PIPELINE = None

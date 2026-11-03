@@ -225,10 +225,13 @@ def message_handler(event, context=None):
     events_token = EVENTS.set(list(event.get("ingress_events", [])))
     message_token = MESSAGE_ID.set(event.get("message_id"))
     try:
-        if event.get("type") != "calorie_message":
-            from agent.storage.reminders import handler
-            return handler(event, context)
-        return configured_pipeline().worker(event)
+        from agent.storage.timeutil import execution_deadline
+        limit_ms = context["time_limit_in_ms"] if isinstance(context, dict) else context.time_limit_in_ms if context is not None else 120000
+        with execution_deadline(limit_ms / 1000 - 1):
+            if event.get("type") not in {"calorie_message", "calorie_summary"}:
+                from agent.storage.reminders import handler
+                return handler(event, context)
+            return configured_pipeline().worker(event)
     finally:
         print(json.dumps({"event": "latency_worker", "receipt_id": event.get("receipt_id"),
                           "message_id": event.get("message_id"), "events": EVENTS.get()}, ensure_ascii=False))
@@ -237,11 +240,23 @@ def message_handler(event, context=None):
 
 
 def maintenance_handler(event, context=None):
-    pipeline = configured_pipeline()
-    recovery = pipeline.recover()
+    from agent.storage.timeutil import execution_deadline
     from agent.storage.cos_archive import archive_pending
-    archive = archive_pending()
-    return {"recovery": recovery, "archive": archive}
+    from agent.storage.cos_journal import Journal
+    from agent.storage.conversation import run_background
+    from agent.storage.scf_dispatch import dispatch_event
+    limit_ms = context["time_limit_in_ms"] if isinstance(context, dict) else context.time_limit_in_ms if context is not None else 120000
+    remaining = limit_ms / 1000
+    with execution_deadline(remaining - 1) as deadline:
+        pipeline = configured_pipeline()
+        recovery = pipeline.recover()
+        store = pipeline.readonly_store()
+        progress = Journal(pipeline.objects, pipeline.prefix + "sync/")
+        archive = archive_pending(store=store, progress=progress)
+        summary = {"status": "skipped_maintenance_error"}
+        if not archive["failed"] and not recovery.get("blocked"):
+            summary = run_background(store, progress, dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
+        return {"recovery": recovery, "archive": archive, "summary": summary}
 
 
 def reminder_handler(event, context=None):

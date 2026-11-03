@@ -19,28 +19,27 @@
   "candidate_table_verified": false,
   "message_wait_seconds": 180,
   "source_evidence": [{"source": null, "excerpt": null}],
-  "knowledge_evidence": [{"source": null, "excerpt": null}],
-  "pause_confirmation_file": "reports/production-candidate/archive-paused.json",
-  "resume_confirmation_file": "reports/production-candidate/archive-resumed.json",
   "platform_evidence_file": "reports/production-candidate/platform-evidence.json",
+  "warm_supplement_plan_file": "reports/production-candidate/warm-supplement-plan.json",
   "actual_message_ids_file": "reports/production-candidate/actual-feishu-message-ids.json",
   "actual_message_ids": {},
   "cleanup_authorization": "soft-delete-listed-candidate-records",
   "messages": [
-    {"step": "initial", "message_id": null, "text": null, "expected_total_kcal": null, "expected_items": [], "required_reply_terms": [], "forbidden_reply_terms": []},
     {"step": "record", "message_id": null, "text": null, "expected_total_kcal": null, "expected_items": [], "required_reply_terms": [], "forbidden_reply_terms": []},
     {"step": "revise", "message_id": null, "text": null, "expected_total_kcal": null, "expected_items": [], "required_reply_terms": [], "forbidden_reply_terms": []},
-    {"step": "today", "message_id": null, "text": null, "expected_total_kcal": null, "expected_items": [], "required_reply_terms": [], "forbidden_reply_terms": []},
-    {"step": "knowledge", "message_id": null, "text": null, "expected_total_kcal": null, "expected_items": [], "required_reply_terms": [], "forbidden_reply_terms": []}
+    {"step": "today", "message_id": null, "text": null, "expected_total_kcal": null, "expected_items": [], "required_reply_terms": [], "forbidden_reply_terms": []}
   ],
   "template_instructions": {
     "fixed_before_execution": "Replace every missing value using actual source data and an independently calculated two-item meal. Each expected item has food_name/date/meal_type/grams/nutrition(kcal,carbs,protein,fat)/estimated. Do not populate from the agent's results.",
-    "operator_schedule_evidence": {"state": "paused or resumed", "confirmed": true, "observed_at": "actual epoch seconds", "trigger_name": "exact trigger", "evidence": "actual platform state evidence reference"},
-    "platform_evidence": {"messages": {"ACTUAL_MESSAGE_ID": {"build_id": "actual BUILD_ID", "cold_start": "actual boolean or null if unavailable", "first_load": "actual knowledge index load flag if available", "ack_elapsed_ms": "full entrance-to-HTTP-return measurement required for observed Feishu mode", "semantic_review_passed": "explicit review boolean", "reference": "actual platform log/review artifact reference"}}},
-    "observed_mode": "Start business driver before sending the five planned messages in the actual Feishu chat. Add their actual IDs to actual_message_ids_file keyed initial/record/revise/today/knowledge. The driver observes persisted receipts; it does not send the five user messages. The final duplicate is an explicit synthetic replay of the actual original record message key.",
+    "platform_evidence": {"messages": {"ACTUAL_MESSAGE_ID": {"build_id": "actual BUILD_ID", "cold_start": "actual boolean or null if unavailable", "ack_elapsed_ms": "full entrance-to-HTTP-return measurement required for observed Feishu mode", "semantic_review_passed": "explicit review boolean", "reference": "actual platform log/review artifact reference"}}},
+    "worker_warm_evidence": {"cold_start": null, "warm_basis": "worker_process_reuse", "process_reused": true, "worker_instance_id": "actual shared 32-hex main-model worker ID", "reference": {"current": "/requests/CURRENT_INDEX/receipt_state/result/latency_events", "prior": "/requests/EARLIER_COMPLETED_INDEX/receipt_state/result/latency_events"}},
+    "observed_mode": "Start business driver before sending the three planned messages in the actual Feishu chat. Add actual IDs to actual_message_ids_file keyed record/revise/today. The driver only observes persisted receipts. There is no initial query, knowledge request, or forced replay.",
     "synthetic_mode": "Set entry_mode=synthetic_webhook and fixed unique message_id for each row. This measures the real webhook/COS/model/send path with synthetic Feishu-shaped input. It never claims actual user-message T_user or platform warmth without separate evidence.",
-    "phases": "business (archive pre-paused); operator explicitly resumes archive scheduler; archive (wait/read back within 10-minute original commit bound); cleanup (only fixed candidate Bitable rows soft-deleted, no COS chain deletion); report (offline evidence refresh)",
+    "phases": "business (three planned requests, archive scheduler remains operational); report (offline evidence refresh); if a category only lacks warmth, explicitly plan one new sample and run business again; archive (actual independent readback within 10-minute original commit bound); cleanup (only fixed candidate Bitable rows soft-deleted); report (offline final evidence refresh).",
+    "warm_supplement": {"base_plan_sha256": "copy original report plan_sha256; never change the base plan", "source_evidence": [{"source": "independent source", "excerpt": "independent facts"}], "message": {"step": "only the category missing a warm sample", "message_id": "one fixed new message ID, including observed mode", "text": "fixed original request", "expected_total_kcal": "independent full-ledger total after this request", "expected_items": "independent full-ledger expected rows, same schema as base plan"}},
+    "summary_concurrency": "Run an independent real background summary / controlled blocking task as required by CONVERSATION_EXPERIENCE_SPEC.md 6.2; bind task_id, worker and timing evidence in the overall acceptance report. The driver neither creates a blocking service nor requires one summary task to span all three messages.",
+    "cleanup_scope": "This driver's cleanup only soft-deletes fixed read-back Bitable rows. After the isolated candidate is fully stopped, the coordinating task removes COS objects by this run's exact prefix and local temporary data, preserving production and historical evidence chains.",
     "auth": "FEISHU_VERIFICATION_TOKEN, Tencent COS read credentials, and existing Feishu/Bitable credentials come from the environment; never put secrets into this plan. The candidate webhook must allow the approved caller; no automatic CAM permission expansion is performed.",
-    "failures": "Every started attempt and failure is retained. Missing warmth/build/semantic evidence keeps release_gate_passed=false. Cold-only categories require one separately planned new warm sample; never relabel an old/replayed receipt as a new warm sample. This five-message driver reports that gap rather than manufacturing a passing sample."
+    "failures": "Every started attempt, platform evidence version and quality failure is retained. Each category needs one real warm passing sample (service <=5s, ACK <=3s), complete build/semantic evidence, and no unresolved quality failure. Missing evidence is refreshed only with report. A cold-only category allows at most one explicitly planned new warm sample via warm_supplement_plan_file; old/replayed receipts never count. A failed or slow warm sample cannot be replaced with a supplement. Knowledge uses existing real evidence plus offline dedup checks; no new knowledge request is made."
   }
 }

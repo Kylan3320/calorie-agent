@@ -20,6 +20,7 @@ class Objects:
         self.lose_action = False
         self.interrupt_action = False
         self.fail_document = False
+        self.fault_action_prefix = 'action:'
 
     def get(self, key): return None if key in self.hidden else self.data.get(key)
     def list(self, prefix): return [] if self.stale else [k for k in self.data if k.startswith(prefix)]
@@ -30,7 +31,7 @@ class Objects:
         if self.fail_document and '/documents/' in key and isinstance(value,dict) and value.get('intent')=='message_execution' and any('result' in c for c in value.get('payload',{}).get('calls',[])):
             self.fail_document = False
             raise OSError('injected tool result document upload failure')
-        action_commit = '/commits/' in key and any(k.startswith('action:') and k!='action:baseline-import' for k in value.get('changes',{}))
+        action_commit = '/commits/' in key and any(k.startswith(self.fault_action_prefix) and k!='action:baseline-import' for k in value.get('changes',{}))
         if action_commit and self.interrupt_action:
             self.interrupt_action=False
             raise OSError('injected before commit')
@@ -103,6 +104,7 @@ def production_recovery():
     for fault in ('lose_action','interrupt_action','fail_document'):
         store=open_store()
         objects=store.objects
+        objects.fault_action_prefix = 'action:p-crash:agent:'
         setattr(objects,fault,True)
         try: send(store,'p-crash',[call('record_meal',MEAL),answer])
         except (CommitUnavailable,OSError): pass
