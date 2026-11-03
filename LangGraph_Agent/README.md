@@ -2,7 +2,7 @@
 
 飞书饮食记录助手：整餐记录、改量／撤销、追问补全、历史聚合及知识问答。
 
-产品决定见 [REQUIREMENTS.md](REQUIREMENTS.md)，业务行为见 [个人功能规格](PERSONAL_CALORIE_SPEC.md) 和 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，存储执行见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，接口见 [contracts/](contracts/)。协作与验证见 [AGENTS.md](AGENTS.md)，当前部署及验收结果见 [交付记录](reports/LATENCY_DELIVERY.md)。
+产品决定见 [REQUIREMENTS.md](REQUIREMENTS.md)，饮食业务见 [个人功能规格](PERSONAL_CALORIE_SPEC.md)，回复与上下文治理见 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，持久化与数据回收见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，接口见 [contracts/](contracts/)。协作与验证见 [AGENTS.md](AGENTS.md)，当前部署及验收结果见 [交付记录](reports/LATENCY_DELIVERY.md)。
 
 ## 本地运行
 
@@ -69,6 +69,20 @@ python3.10 deploy/check_package.py --package deploy/calorie-agent-v4.zip --layer
 ```
 
 检查从两个 ZIP 临时解压加载，隔离仓库源码和本机 site-packages；记录业务包／Layer 的 SHA256、BUILD_ID 和 INDEX_VERSION，业务包身份与 `production_release.py freeze` 复用同一实现。该检查证明装配和启动，不代替业务正确性验证。候选 `production_live.py --stage report` 在最终门槛未满足时返回非零；补证据后可仅重算报告，无需重发业务消息。
+
+本机日常更新可直接调用腾讯云 API。部署凭据在仓库外 `%USERPROFILE%\.config\calorie-agent\tencentcloud-credentials.csv`，CSV 列为 `SecretId`、`SecretKey`；文件只允许本机用户和 SYSTEM 访问。不要回显密钥或将文件复制进仓库、报告、部署包。
+
+PowerShell 中把加载语句与后续 API 命令放在同一次脚本／终端调用中；变量仅对当前进程及其子进程生效，另一次工具调用需重新加载。下面示例只查询函数，不部署：
+
+```powershell
+$deployCredential = Import-Csv -LiteralPath (Join-Path $env:USERPROFILE '.config\calorie-agent\tencentcloud-credentials.csv')
+$env:TENCENTCLOUD_SECRET_ID = $deployCredential.SecretId
+$env:TENCENTCLOUD_SECRET_KEY = $deployCredential.SecretKey
+Remove-Variable deployCredential
+python deploy/production_release.py inspect --function calorie-agent-reminder
+```
+
+执行部署时，在同一次调用中将上述最后一行换为对应上传命令：
 
 ```bash
 python deploy/api_deploy.py --function calorie-agent-reminder  # 默认 deploy/calorie-agent-v4.zip

@@ -64,7 +64,9 @@ COS 文档保留原散列身份，document_index:<kind> 保存按类型的键列
 
 仅摄入、食物、个人设置业务值变化创建 `archive:<kind>:<id>` 最新结果并推进该对象业务版本。会话、收件、模型审计、交付等元数据不推进账本版本；feishu_chat_id为运行路由。同步函数只写 `sync/`，先保存inflight绝对字段与固定client_token，响应丢失先核对原稳定ID，读回字段及版本后确认水位；尚未发出的同项改量合并。COS当前事实不因归档成功删除。迁移按 `migration.export_cos_baseline`／`import_cos_baseline`，独立核对含软删除ID、日合计和幂等任务；已交付旧收件转换为completed receipt_state，重投不重发旧回执。
 
-## 限制和压缩
+## 当前实现的限制和压缩
+
+本节记录当前同步摘要行为；上下文治理的替换目标见 [交流体验规格](../CONVERSATION_EXPERIENCE_SPEC.md#3-完整请求预算)，随代码实现更新本契约。
 
 内置 SummarizationMiddleware 只压缩当前逻辑消息之前的历史，默认12000 tokens触发、保留4000 tokens近期历史；当前整轮以固定用户消息 ID 定位并完整保留。旧压缩执行缺原消息时，由收件及 calls/results 重建当前交换。摘要为 `fact_scope=dialogue`，旧无标记摘要不进入新输入。ModelCallLimitMiddleware/ToolCallLimitMiddleware限制每消息4次主决策/8次工具，处理预算90秒；无自动模型重试。摘要仅触发压缩时额外调用。先存整批调用，再按序执行；恢复复用 prepared 原参数、日期与目标。
 
