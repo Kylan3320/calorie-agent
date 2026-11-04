@@ -1,0 +1,15 @@
+[PASS] MQ09 Direct partial calculation displays and binds real unresolved choices; next turn uses that exact source.
+[PASS] AN01 首轮知识说明在检索前确认，最终编辑同message；普通账本无额外发送。
+[PASS] AN02 说明发送回包丢失后重建不重发，独立最终UUID只交付一次终态。
+[PASS] AN03 最终编辑回包丢失仅重投同消息同正文，业务与说明均不重复。
+[PASS] AN04 首轮缺说明或非文本字段均继续正常任务，无额外模型补调用。
+[PASS] AN05 规划首工具仅查目标仍先说明；确认说明后重启，最终展示才提升草案。
+[PASS] TB04 真实来源单位为数值字符串时，普通展示及模型失败异常回执均可交付。
+[PASS] TB05 同轮营养候选投影仅给可执行source_ref和完整单位，可直接算稿；记餐choice保护保持。
+[PASS] TE03 异常回执保留当前答案、历史筛选、计划小计及关闭提醒实际缺项。
+[PASS] E05 分级历史统计一致、完整定位、万行投影有界、动态待办与来源不丢失。
+[PASS] RR02 完整批次与两批依赖不截断；建议/缺声明/不一致/proposal/error继续模型正文。
+[PASS] CB06 已存事实回执发送ACK丢失，过期重投原正文/UUID；零工具模型且只一次账本。
+[PASS] P01 生产受理序号、原日期、迟到重试、持久尝试和交付丢状态恢复。
+
+13 passed, 0 failed (total 13)

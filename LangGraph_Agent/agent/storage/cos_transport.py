@@ -97,11 +97,16 @@ class CosObjects:
             if exc.get_status_code() == 409 and exc.get_error_code() in {'ObjectAlreadyExists', 'FileAlreadyExists'}: return False
             raise
 
-    def list(self, prefix):
-        keys, marker = [], ''
+    def list(self, prefix, marker='', limit=None):
+        """Lexical keys strictly after marker; optionally stop at limit keys."""
+        if limit is not None and limit <= 0:
+            raise ValueError('COS list limit must be positive')
+        keys = []
         while True:
             with span('cos_list', prefix=prefix):
-                result = self.client.list_objects(Bucket=self.bucket, Prefix=prefix, Marker=marker, MaxKeys=1000)
+                result = self.client.list_objects(Bucket=self.bucket, Prefix=prefix, Marker=marker,
+                    MaxKeys=min(1000, limit - len(keys)) if limit is not None else 1000)
             keys.extend(row['Key'] for row in result.get('Contents', []))
+            if limit is not None and len(keys) >= limit: return keys
             if str(result.get('IsTruncated', 'false')).lower() != 'true': return keys
             marker = result['NextMarker']

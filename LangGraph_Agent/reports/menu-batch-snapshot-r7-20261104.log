@@ -1,0 +1,3 @@
+[PASS] MQ15 Batch snapshot choices keep their known amounts; projection and exceptional receipts retain per-query facts once.
+
+1 passed, 0 failed (total 1)

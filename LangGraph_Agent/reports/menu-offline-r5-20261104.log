@@ -1,0 +1,16 @@
+[PASS] MQ01 §6.1 fixed-source 2230/250/150/70 counterexample selects B and binds exactly that draft.
+[PASS] MQ02 Daily ignores today's target/intake; full_day and remaining use dated targets with one intake subtraction.
+[PASS] MQ03 Missing fixed portions keep a partial subtotal and cannot earn calorie tolerance or a complete choice.
+[PASS] MQ04 Native comparisons obey tolerance, macro tradeoff, portion preference, stable ties, and fixed/max limits.
+[PASS] MQ05 Displayed selected drafts survive reconstruction and targeted replacements preserve source/fixed scope without ledger writes.
+[PASS] MQ06 Chicken-to-egg replacement covers every named meal group, retaining servings, fixed sources and the intake ledger.
+[PASS] AN06 首批第二项才有有效说明，整批执行前发送，拒绝已完成/已保存陈述。
+[PASS] AN07 首批全空在首个计算批次补发，不增加模型决策且终态同消息。
+[PASS] AN08 补发确认后工具前重启，仅恢复原批次，零第二次进度。
+[PASS] AN09 补发ACK丢失重建后跳过重发，独立最终UUID只投递一份终态。
+[PASS] AN10 两个机会均空或只剩最终正文正常完成，第三批文案不重开补发机会。
+[PASS] TD02 Nutrition candidates retain source refs/order across reconstruction and stay separate from intake pending.
+[PASS] TD04 Only delivered drafts become editable, and replacements preserve other groups, servings and constraints.
+[PASS] TD08 原话鸭腿饭完整任务：两份无卤蛋组成假设、微波炉菜单、独立1200及跨轮只换鸡胸。
+
+14 passed, 0 failed (total 14)

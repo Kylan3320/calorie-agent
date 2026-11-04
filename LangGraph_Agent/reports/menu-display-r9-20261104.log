@@ -1,0 +1,12 @@
+[PASS] MQ01 §6.1 fixed-source 2230/250/150/70 counterexample selects B and binds exactly that draft.
+[PASS] MQ02 Daily ignores today's target/intake; full_day and remaining use dated targets with one intake subtraction.
+[PASS] MQ03 Missing fixed portions keep a partial subtotal and cannot earn calorie tolerance or a complete choice.
+[PASS] MQ04 Native comparisons obey tolerance, macro tradeoff, portion preference, stable ties, and fixed/max limits.
+[PASS] MQ08 A nutrition lookup cannot erase the no-chicken/no-object answer or replace the active draft.
+[PASS] MQ09 Direct partial calculation displays and binds real unresolved choices; next turn uses that exact source.
+[PASS] MQ11 Known final calculation survives budget/model termination as one displayed, resumable draft.
+[PASS] TD04 Only delivered drafts become editable, and replacements preserve other groups, servings and constraints.
+[PASS] TD05 Partial plans label source/portion assumptions, preserve intake pending, and cannot claim tolerance success.
+[PASS] TB04 真实来源单位为数值字符串时，普通展示及模型失败异常回执均可交付。
+
+10 passed, 0 failed (total 10)

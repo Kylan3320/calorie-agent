@@ -1,0 +1,119 @@
+{
+  "status": "partial_cleanup_blocked",
+  "deleted_superseded_pair_reports": [
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\preflight-cos-before-fixed-20261104.json",
+      "bytes": 6594
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\preflight-cos-before-20261104.json",
+      "bytes": 6596
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\preflight-cos-after-20261104.json",
+      "bytes": 6594
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\preflight-cos-paired-final-20261104.json",
+      "bytes": 18322
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\task-preflight-cos-paired-r2-20261104.json",
+      "bytes": 18321
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\task-preflight-cos-paired-controlled-20261104.json",
+      "bytes": 18323
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\task-preflight-cos-final-20261104.json",
+      "bytes": 18323
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\task-preflight-cos-paired-20261104.json",
+      "bytes": 18322
+    }
+  ],
+  "retained_final_pair": "reports/task-preflight-cos-r4-20261104.json",
+  "retained_final_package": "deploy/calorie-agent-v4.zip",
+  "candidate_temp": "Blocked by automatic approval review; see candidate_temporary. No retry or bypass.",
+  "previous_blocked_cleanup": {
+    "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-facts-candidate-20261103",
+    "status": "not retried; previous automatic approval rejection",
+    "files": 12,
+    "bytes": 802180
+  },
+  "blocked_build_and_python_cache": [
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\deploy\\build",
+      "files": 2004,
+      "bytes": 81160363
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\__pycache__",
+      "files": 1,
+      "bytes": 4931
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\agent\\__pycache__",
+      "files": 8,
+      "bytes": 203516
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\agent\\policy\\__pycache__",
+      "files": 2,
+      "bytes": 2068
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\agent\\storage\\__pycache__",
+      "files": 22,
+      "bytes": 369379
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\agent\\tools\\__pycache__",
+      "files": 6,
+      "bytes": 67588
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\harness\\eval\\__pycache__",
+      "files": 25,
+      "bytes": 664319
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\deploy\\__pycache__",
+      "files": 10,
+      "bytes": 173968
+    }
+  ],
+  "automatic_review_rejection": {
+    "action": "Recursive deletion of verified workspace deploy/build and Python __pycache__ directories",
+    "reason": "blocked by policy",
+    "attempts": 1,
+    "retried": false
+  },
+  "deleted_superseded_pair_reports_bytes": 111395,
+  "candidate_temporary": {
+    "target": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-task-20261104",
+    "status": "blocked_by_automatic_approval_review",
+    "reason": "blocked by policy",
+    "deletion_retried": false,
+    "deletion_bypassed": false,
+    "target_still_exists": true,
+    "remaining_file_count": 55,
+    "remaining_bytes": 10153947,
+    "file_count": 55,
+    "bytes": 10153947,
+    "manifest_sha256": "d4ffd327b5e3ff66452eae30f9124516cb97fd9d8f17624ec1f05d6fc2ad04a1",
+    "old_20261103_directory_touched": false
+  },
+  "cloud_cleanup": {
+    "functions_remaining": [],
+    "triggers_remaining": 0,
+    "bitable_matching_rows_remaining": 0,
+    "preexisting_candidate_rows_preserved": 8,
+    "cos_deleted_count": 951,
+    "cos_objects_remaining": 0,
+    "production_unchanged": true,
+    "bot_messages_delete_code_zero": 9
+  }
+}

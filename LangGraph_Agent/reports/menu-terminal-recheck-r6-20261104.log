@@ -1,0 +1,6 @@
+[PASS] MQ11 Known final calculation survives budget/model termination as one displayed, resumable draft.
+[PASS] TD04 Only delivered drafts become editable, and replacements preserve other groups, servings and constraints.
+[PASS] AN08 补发确认后工具前重启，仅恢复原批次，零第二次进度。
+[PASS] CB06 已存事实回执发送ACK丢失，过期重投原正文/UUID；零工具模型且只一次账本。
+
+4 passed, 0 failed (total 4)

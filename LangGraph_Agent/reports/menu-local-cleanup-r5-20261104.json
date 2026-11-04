@@ -1,0 +1,106 @@
+{
+  "scope": "R5-R7 local outputs; old rejected targets not retried",
+  "packaging": "Existing build_zip.sh packer and verified R4 dependency bytes reused read-only in fresh WSL TemporaryDirectory for R5, R6 and R7. Staging contexts exit/clean automatically; old deploy/build remains read-only and no rejected target deletion was retried.",
+  "new_test_files": "Required deidentified logs/package/source/candidate evidence retained; no trace files enabled.",
+  "old_rejected_targets_untouched": [
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\deploy\\build",
+      "files": 2004,
+      "bytes": 81160363
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\__pycache__",
+      "files": 1,
+      "bytes": 4931
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\agent\\__pycache__",
+      "files": 8,
+      "bytes": 203516
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\agent\\policy\\__pycache__",
+      "files": 2,
+      "bytes": 2068
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\agent\\storage\\__pycache__",
+      "files": 22,
+      "bytes": 369379
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\agent\\tools\\__pycache__",
+      "files": 6,
+      "bytes": 67588
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\harness\\eval\\__pycache__",
+      "files": 25,
+      "bytes": 664319
+    },
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\deploy\\__pycache__",
+      "files": 10,
+      "bytes": 173968
+    }
+  ],
+  "old_candidate_temp": {
+    "target": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-task-20261104",
+    "status": "blocked_by_automatic_approval_review",
+    "reason": "blocked by policy",
+    "deletion_retried": false,
+    "deletion_bypassed": false,
+    "target_still_exists": true,
+    "remaining_file_count": 55,
+    "remaining_bytes": 10153947,
+    "file_count": 55,
+    "bytes": 10153947,
+    "manifest_sha256": "d4ffd327b5e3ff66452eae30f9124516cb97fd9d8f17624ec1f05d6fc2ad04a1",
+    "old_20261103_directory_touched": false
+  },
+  "old_nov3_temp": {
+    "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-facts-candidate-20261103",
+    "status": "not retried; previous automatic approval rejection",
+    "files": 12,
+    "bytes": 802180
+  },
+  "candidate_cleanup": {
+    "evidence_report": "reports/menu-candidate-evidence-r5-20261104.json",
+    "evidence_sha256": "e58dd319c3f1179e1a8b7e3fb28d1bcadd66e7597f5779fe69ea4ac6055e5314",
+    "evidence_bytes": 14479925,
+    "cloud_functions_remaining": 0,
+    "cos_objects_deleted": 1345,
+    "cos_objects_remaining": 0,
+    "test_intake_rows_deleted": 6,
+    "original_intake_rows_preserved": 8,
+    "new_tables_deleted": 2,
+    "bot_delete_ack_count": 17,
+    "bot_independent_get": "Unavailable under existing app scope; not claimed",
+    "production_configuration_unchanged": true,
+    "production_source_snapshot_unchanged": true,
+    "local_temp": {
+      "target": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-menu-r5-20261104-143904",
+      "status": "blocked_by_automatic_approval_review",
+      "reason": "blocked by policy",
+      "attempt_count": 1,
+      "process_started": false,
+      "target_exists": true,
+      "remaining_file_count": 58,
+      "remaining_bytes": 26303420,
+      "manifest_location": "menu-candidate-evidence-r5-20261104.json: manifest.local_files",
+      "deletion_retried": false,
+      "alternate_delete_attempted": false
+    }
+  },
+  "final_package_sha256": "5d84ac5911665033669a0fc3c21fb182f46351fc970d31cea49b9bbc76a94c18",
+  "final_delivery_checks": {
+    "targeted_case_unique_pass_count": 42,
+    "full_suite_run": false,
+    "production_deployed": false,
+    "original_messages_exact": true,
+    "ledger_comparison": "Unified sort by record_id plus complete fields and revision equality",
+    "linux310_same_zip_layer": "reports/menu-package-r7-20261104.json",
+    "runtime_source_binding": "reports/menu-source-r7-20261104.json",
+    "credentials_exact_scan": "23 menu reports/logs; no CSV SecretId/SecretKey matches; cleanup-only final additions contain no credentials"
+  }
+}

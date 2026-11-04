@@ -1,0 +1,5 @@
+[PASS] MQ12 Brand-bearing candidate profiles expose real per-100g facts; conflicting names stay pending with exact correction facts.
+[FAIL] TD02 Nutrition candidates retain source refs/order across reconstruction and stay separate from intake pending.
+       - AssertionError: 
+
+1 passed, 1 failed (total 2)

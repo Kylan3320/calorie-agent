@@ -1,0 +1,2875 @@
+{
+  "kind": "offline exact R5 calculation args on real captured source facts",
+  "scope": "No LLM/network; strict source/name rejection unchanged, feedback now exposes selected source original name and numerical profile. Original exact corrected args still fail the 200kcal target; not relabelled success.",
+  "source_snapshot": {
+    "food:e725b1db82178fba4264a9da": {
+      "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+      "name": "米饭",
+      "kcal_per_100g": 116.0,
+      "carbs_per_100g": 25.9,
+      "protein_per_100g": 2.6,
+      "fat_per_100g": 0.3,
+      "units": [
+        {
+          "eat_weight": "1.00",
+          "unit_id": 0,
+          "unit_name": "克",
+          "weight": "1.00"
+        },
+        {
+          "eat_weight": "40.00",
+          "unit_id": 233,
+          "unit_name": "勺",
+          "weight": "40.00"
+        },
+        {
+          "eat_weight": "20.00",
+          "unit_id": 587542,
+          "unit_name": "口",
+          "weight": "20.00"
+        },
+        {
+          "eat_weight": "150.00",
+          "unit_id": 132,
+          "unit_name": "小碗",
+          "weight": "150.00"
+        },
+        {
+          "eat_weight": "180.00",
+          "unit_id": 980,
+          "unit_name": "碗",
+          "weight": "180.00"
+        }
+      ],
+      "source": "boohee",
+      "boohee_id": "mifan_zheng",
+      "detail_loaded": true
+    },
+    "food:ea3866e535cc0fcadbad4584": {
+      "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+      "name": "水煮鸡胸肉",
+      "kcal_per_100g": 149.0,
+      "carbs_per_100g": 0.0,
+      "protein_per_100g": 27.96,
+      "fat_per_100g": 3.26,
+      "units": [
+        {
+          "eat_weight": "1.00",
+          "unit_id": 0,
+          "unit_name": "克",
+          "weight": "1.00"
+        },
+        {
+          "eat_weight": "200.00",
+          "unit_id": 1155082,
+          "unit_name": "盘",
+          "weight": "200.00"
+        }
+      ],
+      "source": "boohee",
+      "boohee_id": "fd2a01ea",
+      "detail_loaded": true
+    },
+    "food:54937e505e0499773bdeb66a": {
+      "food_id": "food_egg",
+      "name": "鸡蛋",
+      "kcal_per_100g": 139.0,
+      "carbs_per_100g": 2.4,
+      "protein_per_100g": 13.1,
+      "fat_per_100g": 8.6,
+      "units": [
+        {
+          "eat_weight": "1.00",
+          "unit_id": 0,
+          "unit_name": "克",
+          "weight": "1.00"
+        },
+        {
+          "eat_weight": "52.80",
+          "unit_id": 34,
+          "unit_name": "只(中)",
+          "weight": "60.00"
+        },
+        {
+          "eat_weight": "61.60",
+          "unit_id": 210,
+          "unit_name": "只(大)",
+          "weight": "70.00"
+        }
+      ],
+      "source": "boohee",
+      "boohee_id": "jidan_junzhi",
+      "detail_loaded": true
+    },
+    "food:d06527fc2841da02d8bfd82a": {
+      "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+      "name": "煮土豆",
+      "kcal_per_100g": 65.0,
+      "carbs_per_100g": 14.2,
+      "protein_per_100g": 3.2,
+      "fat_per_100g": 0.0,
+      "units": [
+        {
+          "eat_weight": "1.00",
+          "unit_id": 0,
+          "unit_name": "克",
+          "weight": "1.00"
+        },
+        {
+          "eat_weight": "200.00",
+          "unit_id": 1698,
+          "unit_name": "个",
+          "weight": "200.00"
+        }
+      ],
+      "source": "boohee",
+      "boohee_id": "malingshu_zhu",
+      "detail_loaded": true
+    },
+    "food:84c8ddb6b7f3c146b72d335c": {
+      "food_id": "7836df60-89f2-4709-9ad3-322608fc44e2",
+      "name": "童记 烤鸭腿",
+      "kcal_per_100g": 221.0,
+      "carbs_per_100g": 9.1,
+      "protein_per_100g": 28.3,
+      "fat_per_100g": 7.8,
+      "units": [
+        {
+          "eat_weight": "1.00",
+          "unit_id": 0,
+          "unit_name": "克",
+          "weight": "1.00"
+        }
+      ],
+      "source": "boohee",
+      "boohee_id": "fd4b7d7f",
+      "detail_loaded": true
+    },
+    "food:f9dae8959720c70bb1a5b478": {
+      "food_id": "89401026-9a39-4de4-a7d2-6437a52ce785",
+      "name": "Artealca 煮甜玉米",
+      "kcal_per_100g": 103.0,
+      "carbs_per_100g": 14.0,
+      "protein_per_100g": 3.5,
+      "fat_per_100g": 2.6,
+      "units": [
+        {
+          "eat_weight": "1.00",
+          "unit_id": 0,
+          "unit_name": "克",
+          "weight": "1.00"
+        },
+        {
+          "eat_weight": "450.00",
+          "unit_id": 834006,
+          "unit_name": "份",
+          "weight": "450.00"
+        }
+      ],
+      "source": "boohee",
+      "boohee_id": "fdbf4ff7",
+      "detail_loaded": true
+    }
+  },
+  "replayed": [
+    {
+      "original_call_index": 7,
+      "original_business_args": {
+        "adjustment": {
+          "replacements": [
+            {
+              "food_query": "水煮鸡胸肉",
+              "grams": 200,
+              "item_id": "chicken",
+              "source_ref": "food:ea3866e535cc0fcadbad4584"
+            },
+            {
+              "food_query": "煮甜玉米",
+              "grams": 250,
+              "item_id": "corn",
+              "source_ref": "food:f9dae8959720c70bb1a5b478"
+            },
+            {
+              "food_query": "煮土豆",
+              "grams": 250,
+              "item_id": "potato",
+              "source_ref": "food:d06527fc2841da02d8bfd82a"
+            }
+          ]
+        },
+        "constraints": [
+          "两顿沙县小吃鸭腿饭固定保留",
+          "鸭腿饭不要卤蛋",
+          "补充食物以玉米、土豆、鸡蛋、鸡胸肉等微波炉易加工食材为主",
+          "单项食物份量不宜过多"
+        ],
+        "date": "2026-11-04",
+        "items": [
+          {
+            "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实",
+            "fixed": true,
+            "food_query": "米饭",
+            "grams": 200,
+            "group": "鸭腿饭（午、晚各一份）",
+            "item_id": "rice",
+            "portion_basis": "assumed_takeout",
+            "servings": 2,
+            "source_ref": "food:e725b1db82178fba4264a9da"
+          },
+          {
+            "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋",
+            "fixed": true,
+            "food_query": "烤鸭腿",
+            "grams": 120,
+            "group": "鸭腿饭（午、晚各一份）",
+            "item_id": "duck",
+            "portion_basis": "assumed_takeout",
+            "servings": 2,
+            "source_ref": "food:84c8ddb6b7f3c146b72d335c"
+          },
+          {
+            "assumption": "按水煮/微波加热、不额外加油估算",
+            "food_query": "水煮鸡胸肉",
+            "grams": 250,
+            "group": "微波炉配菜",
+            "item_id": "chicken",
+            "portion_basis": "suggested",
+            "source_ref": "food:ea3866e535cc0fcadbad4584"
+          },
+          {
+            "assumption": "约2个中等大小鸡蛋，水煮或微波加热",
+            "food_query": "鸡蛋",
+            "grams": 100,
+            "group": "微波炉配菜",
+            "item_id": "egg",
+            "portion_basis": "suggested",
+            "source_ref": "food:54937e505e0499773bdeb66a"
+          },
+          {
+            "food_query": "煮甜玉米",
+            "grams": 200,
+            "group": "微波炉配菜",
+            "item_id": "corn",
+            "portion_basis": "suggested",
+            "source_ref": "food:f9dae8959720c70bb1a5b478"
+          },
+          {
+            "food_query": "煮土豆",
+            "grams": 200,
+            "group": "微波炉配菜",
+            "item_id": "potato",
+            "portion_basis": "suggested",
+            "source_ref": "food:d06527fc2841da02d8bfd82a"
+          }
+        ],
+        "portion_preference": "smaller_portions",
+        "scope": "daily",
+        "tolerance_kcal": 200
+      },
+      "actual_fact": {
+        "status": "pending",
+        "data": {
+          "items": [
+            {
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "matched_name": "米饭",
+              "grams": 400.0,
+              "nutrition": {
+                "carbs": 103.6,
+                "protein": 10.4,
+                "fat": 1.2,
+                "kcal": 464.0
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                  "name": "米饭",
+                  "kcal_per_100g": 116.0,
+                  "carbs_per_100g": 25.9,
+                  "protein_per_100g": 2.6,
+                  "fat_per_100g": 0.3,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "40.00",
+                      "unit_id": 233,
+                      "unit_name": "勺",
+                      "weight": "40.00"
+                    },
+                    {
+                      "eat_weight": "20.00",
+                      "unit_id": 587542,
+                      "unit_name": "口",
+                      "weight": "20.00"
+                    },
+                    {
+                      "eat_weight": "150.00",
+                      "unit_id": 132,
+                      "unit_name": "小碗",
+                      "weight": "150.00"
+                    },
+                    {
+                      "eat_weight": "180.00",
+                      "unit_id": 980,
+                      "unit_name": "碗",
+                      "weight": "180.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "mifan_zheng",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 2.0,
+                "portion_basis": "assumed_takeout",
+                "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实"
+              },
+              "source_ref": "food:e725b1db82178fba4264a9da",
+              "item_id": "rice",
+              "group": "鸭腿饭（午、晚各一份）",
+              "servings": 2.0,
+              "portion_basis": "assumed_takeout",
+              "fixed": true,
+              "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实",
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 51.8,
+                  "protein": 5.2,
+                  "fat": 0.6,
+                  "kcal": 232.0
+                }
+              }
+            },
+            {
+              "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+              "matched_name": "水煮鸡胸肉",
+              "grams": 250.0,
+              "nutrition": {
+                "carbs": 0.0,
+                "protein": 69.9,
+                "fat": 8.2,
+                "kcal": 372.5
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                  "name": "水煮鸡胸肉",
+                  "kcal_per_100g": 149.0,
+                  "carbs_per_100g": 0.0,
+                  "protein_per_100g": 27.96,
+                  "fat_per_100g": 3.26,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "200.00",
+                      "unit_id": 1155082,
+                      "unit_name": "盘",
+                      "weight": "200.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "fd2a01ea",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 1.0,
+                "portion_basis": "suggested",
+                "assumption": "按水煮/微波加热、不额外加油估算"
+              },
+              "source_ref": "food:ea3866e535cc0fcadbad4584",
+              "item_id": "chicken",
+              "group": "微波炉配菜",
+              "servings": 1.0,
+              "portion_basis": "suggested",
+              "fixed": false,
+              "assumption": "按水煮/微波加热、不额外加油估算",
+              "per_serving": {
+                "grams": 250.0,
+                "nutrition": {
+                  "carbs": 0.0,
+                  "protein": 69.9,
+                  "fat": 8.2,
+                  "kcal": 372.5
+                }
+              }
+            },
+            {
+              "food_id": "food_egg",
+              "matched_name": "鸡蛋",
+              "grams": 100.0,
+              "nutrition": {
+                "carbs": 2.4,
+                "protein": 13.1,
+                "fat": 8.6,
+                "kcal": 139.0
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "food_egg",
+                  "name": "鸡蛋",
+                  "kcal_per_100g": 139.0,
+                  "carbs_per_100g": 2.4,
+                  "protein_per_100g": 13.1,
+                  "fat_per_100g": 8.6,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "jidan_junzhi",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 1.0,
+                "portion_basis": "suggested",
+                "assumption": "约2个中等大小鸡蛋，水煮或微波加热"
+              },
+              "source_ref": "food:54937e505e0499773bdeb66a",
+              "item_id": "egg",
+              "group": "微波炉配菜",
+              "servings": 1.0,
+              "portion_basis": "suggested",
+              "fixed": false,
+              "assumption": "约2个中等大小鸡蛋，水煮或微波加热",
+              "per_serving": {
+                "grams": 100.0,
+                "nutrition": {
+                  "carbs": 2.4,
+                  "protein": 13.1,
+                  "fat": 8.6,
+                  "kcal": 139.0
+                }
+              }
+            },
+            {
+              "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+              "matched_name": "煮土豆",
+              "grams": 200.0,
+              "nutrition": {
+                "carbs": 28.4,
+                "protein": 6.4,
+                "fat": 0.0,
+                "kcal": 130.0
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                  "name": "煮土豆",
+                  "kcal_per_100g": 65.0,
+                  "carbs_per_100g": 14.2,
+                  "protein_per_100g": 3.2,
+                  "fat_per_100g": 0.0,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "200.00",
+                      "unit_id": 1698,
+                      "unit_name": "个",
+                      "weight": "200.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "malingshu_zhu",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 1.0,
+                "portion_basis": "suggested",
+                "assumption": ""
+              },
+              "source_ref": "food:d06527fc2841da02d8bfd82a",
+              "item_id": "potato",
+              "group": "微波炉配菜",
+              "servings": 1.0,
+              "portion_basis": "suggested",
+              "fixed": false,
+              "assumption": "",
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 28.4,
+                  "protein": 6.4,
+                  "fat": 0.0,
+                  "kcal": 130.0
+                }
+              }
+            }
+          ],
+          "total": {
+            "carbs": 134.4,
+            "protein": 99.8,
+            "fat": 18.0,
+            "kcal": 1105.5
+          },
+          "unfinished": [
+            {
+              "item_id": "duck",
+              "source_ref": "food:84c8ddb6b7f3c146b72d335c",
+              "food_query": "烤鸭腿",
+              "grams": 120.0,
+              "group": "鸭腿饭（午、晚各一份）",
+              "servings": 2.0,
+              "portion_basis": "assumed_takeout",
+              "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋",
+              "fixed": true,
+              "reason": "食物名称与来源引用不一致；请使用所引来源的完整原名或省略food_query",
+              "candidates": [
+                {
+                  "name": "童记 烤鸭腿",
+                  "source_ref": "food:33275c49bd847fd0d7670e75",
+                  "features": {
+                    "source": "boohee",
+                    "boohee_id": "fd4b7d7f",
+                    "units": [
+                      {
+                        "unit": "克",
+                        "eat_weight": "1.00"
+                      }
+                    ],
+                    "per_100g": {
+                      "carbs": 9.1,
+                      "protein": 28.3,
+                      "fat": 7.8,
+                      "kcal": 221.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "item_id": "corn",
+              "source_ref": "food:f9dae8959720c70bb1a5b478",
+              "food_query": "煮甜玉米",
+              "grams": 200.0,
+              "group": "微波炉配菜",
+              "portion_basis": "suggested",
+              "reason": "食物名称与来源引用不一致；请使用所引来源的完整原名或省略food_query",
+              "candidates": [
+                {
+                  "name": "Artealca 煮甜玉米",
+                  "source_ref": "food:da132520f94e5554c14351a3",
+                  "features": {
+                    "source": "boohee",
+                    "boohee_id": "fdbf4ff7",
+                    "units": [
+                      {
+                        "unit": "克",
+                        "eat_weight": "1.00"
+                      },
+                      {
+                        "unit": "份",
+                        "eat_weight": "450.00"
+                      }
+                    ],
+                    "per_100g": {
+                      "carbs": 14.0,
+                      "protein": 3.5,
+                      "fat": 2.6,
+                      "kcal": 103.0
+                    }
+                  }
+                }
+              ],
+              "servings": 1.0,
+              "assumption": ""
+            }
+          ],
+          "date": "2026-11-04",
+          "scope": "daily",
+          "targets": {
+            "carbs": 250,
+            "protein": 150,
+            "fat": 70,
+            "kcal": 2230
+          },
+          "consumed": {
+            "carbs": 0.0,
+            "protein": 0.0,
+            "fat": 0.0,
+            "kcal": 0.0
+          },
+          "consumed_count": 0,
+          "consumed_scope": {
+            "date": "2026-11-04",
+            "included": false,
+            "record_ids": []
+          },
+          "budget_difference": {
+            "carbs": 115.6,
+            "protein": 50.2,
+            "fat": 52.0,
+            "kcal": 1124.5
+          },
+          "complete": false,
+          "estimated": true,
+          "within_tolerance": false,
+          "tolerance_kcal": 200.0,
+          "constraints": [
+            "两顿沙县小吃鸭腿饭固定保留",
+            "鸭腿饭不要卤蛋",
+            "补充食物以玉米、土豆、鸡蛋、鸡胸肉等微波炉易加工食材为主",
+            "单项食物份量不宜过多"
+          ],
+          "draft_id": "draft:4240a636fb31d4d9caf3c909",
+          "fixed_subtotal": {
+            "carbs": 103.6,
+            "protein": 10.4,
+            "fat": 1.2,
+            "kcal": 464.0
+          },
+          "fixed_complete": false,
+          "supplement_gap": {
+            "carbs": 146.4,
+            "protein": 139.6,
+            "fat": 68.8,
+            "kcal": 1766.0
+          },
+          "selection": {
+            "selected": "initial",
+            "reason": "incomplete_keep_initial",
+            "candidates": [
+              {
+                "variant": "initial",
+                "items": [
+                  {
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "matched_name": "米饭",
+                    "grams": 400.0,
+                    "nutrition": {
+                      "carbs": 103.6,
+                      "protein": 10.4,
+                      "fat": 1.2,
+                      "kcal": 464.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                        "name": "米饭",
+                        "kcal_per_100g": 116.0,
+                        "carbs_per_100g": 25.9,
+                        "protein_per_100g": 2.6,
+                        "fat_per_100g": 0.3,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "40.00",
+                            "unit_id": 233,
+                            "unit_name": "勺",
+                            "weight": "40.00"
+                          },
+                          {
+                            "eat_weight": "20.00",
+                            "unit_id": 587542,
+                            "unit_name": "口",
+                            "weight": "20.00"
+                          },
+                          {
+                            "eat_weight": "150.00",
+                            "unit_id": 132,
+                            "unit_name": "小碗",
+                            "weight": "150.00"
+                          },
+                          {
+                            "eat_weight": "180.00",
+                            "unit_id": 980,
+                            "unit_name": "碗",
+                            "weight": "180.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "mifan_zheng",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 2.0,
+                      "portion_basis": "assumed_takeout",
+                      "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实"
+                    },
+                    "source_ref": "food:e725b1db82178fba4264a9da",
+                    "item_id": "rice",
+                    "group": "鸭腿饭（午、晚各一份）",
+                    "servings": 2.0,
+                    "portion_basis": "assumed_takeout",
+                    "fixed": true,
+                    "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实",
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 51.8,
+                        "protein": 5.2,
+                        "fat": 0.6,
+                        "kcal": 232.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                    "matched_name": "水煮鸡胸肉",
+                    "grams": 250.0,
+                    "nutrition": {
+                      "carbs": 0.0,
+                      "protein": 69.9,
+                      "fat": 8.2,
+                      "kcal": 372.5
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                        "name": "水煮鸡胸肉",
+                        "kcal_per_100g": 149.0,
+                        "carbs_per_100g": 0.0,
+                        "protein_per_100g": 27.96,
+                        "fat_per_100g": 3.26,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "200.00",
+                            "unit_id": 1155082,
+                            "unit_name": "盘",
+                            "weight": "200.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "fd2a01ea",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": "按水煮/微波加热、不额外加油估算"
+                    },
+                    "source_ref": "food:ea3866e535cc0fcadbad4584",
+                    "item_id": "chicken",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "按水煮/微波加热、不额外加油估算",
+                    "per_serving": {
+                      "grams": 250.0,
+                      "nutrition": {
+                        "carbs": 0.0,
+                        "protein": 69.9,
+                        "fat": 8.2,
+                        "kcal": 372.5
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "food_egg",
+                    "matched_name": "鸡蛋",
+                    "grams": 100.0,
+                    "nutrition": {
+                      "carbs": 2.4,
+                      "protein": 13.1,
+                      "fat": 8.6,
+                      "kcal": 139.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "food_egg",
+                        "name": "鸡蛋",
+                        "kcal_per_100g": 139.0,
+                        "carbs_per_100g": 2.4,
+                        "protein_per_100g": 13.1,
+                        "fat_per_100g": 8.6,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "jidan_junzhi",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": "约2个中等大小鸡蛋，水煮或微波加热"
+                    },
+                    "source_ref": "food:54937e505e0499773bdeb66a",
+                    "item_id": "egg",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "约2个中等大小鸡蛋，水煮或微波加热",
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 2.4,
+                        "protein": 13.1,
+                        "fat": 8.6,
+                        "kcal": 139.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                    "matched_name": "煮土豆",
+                    "grams": 200.0,
+                    "nutrition": {
+                      "carbs": 28.4,
+                      "protein": 6.4,
+                      "fat": 0.0,
+                      "kcal": 130.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                        "name": "煮土豆",
+                        "kcal_per_100g": 65.0,
+                        "carbs_per_100g": 14.2,
+                        "protein_per_100g": 3.2,
+                        "fat_per_100g": 0.0,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "200.00",
+                            "unit_id": 1698,
+                            "unit_name": "个",
+                            "weight": "200.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "malingshu_zhu",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": ""
+                    },
+                    "source_ref": "food:d06527fc2841da02d8bfd82a",
+                    "item_id": "potato",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "",
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 28.4,
+                        "protein": 6.4,
+                        "fat": 0.0,
+                        "kcal": 130.0
+                      }
+                    }
+                  }
+                ],
+                "total": {
+                  "carbs": 134.4,
+                  "protein": 99.8,
+                  "fat": 18.0,
+                  "kcal": 1105.5
+                },
+                "unfinished": [
+                  {
+                    "item_id": "duck",
+                    "source_ref": "food:84c8ddb6b7f3c146b72d335c",
+                    "food_query": "烤鸭腿",
+                    "grams": 120.0,
+                    "group": "鸭腿饭（午、晚各一份）",
+                    "servings": 2.0,
+                    "portion_basis": "assumed_takeout",
+                    "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋",
+                    "fixed": true,
+                    "reason": "食物名称与来源引用不一致；请使用所引来源的完整原名或省略food_query",
+                    "candidates": [
+                      {
+                        "name": "童记 烤鸭腿",
+                        "source_ref": "food:33275c49bd847fd0d7670e75",
+                        "features": {
+                          "source": "boohee",
+                          "boohee_id": "fd4b7d7f",
+                          "units": [
+                            {
+                              "unit": "克",
+                              "eat_weight": "1.00"
+                            }
+                          ],
+                          "per_100g": {
+                            "carbs": 9.1,
+                            "protein": 28.3,
+                            "fat": 7.8,
+                            "kcal": 221.0
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "item_id": "corn",
+                    "source_ref": "food:f9dae8959720c70bb1a5b478",
+                    "food_query": "煮甜玉米",
+                    "grams": 200.0,
+                    "group": "微波炉配菜",
+                    "portion_basis": "suggested",
+                    "reason": "食物名称与来源引用不一致；请使用所引来源的完整原名或省略food_query",
+                    "candidates": [
+                      {
+                        "name": "Artealca 煮甜玉米",
+                        "source_ref": "food:da132520f94e5554c14351a3",
+                        "features": {
+                          "source": "boohee",
+                          "boohee_id": "fdbf4ff7",
+                          "units": [
+                            {
+                              "unit": "克",
+                              "eat_weight": "1.00"
+                            },
+                            {
+                              "unit": "份",
+                              "eat_weight": "450.00"
+                            }
+                          ],
+                          "per_100g": {
+                            "carbs": 14.0,
+                            "protein": 3.5,
+                            "fat": 2.6,
+                            "kcal": 103.0
+                          }
+                        }
+                      }
+                    ],
+                    "servings": 1.0,
+                    "assumption": ""
+                  }
+                ],
+                "complete": false,
+                "budget_difference": {
+                  "carbs": 115.6,
+                  "protein": 50.2,
+                  "fat": 52.0,
+                  "kcal": 1124.5
+                },
+                "within_tolerance": false,
+                "macro_relative_deviation": {
+                  "carbs": 0.4624,
+                  "protein": 0.33466666666666667,
+                  "fat": 0.7428571428571429
+                },
+                "worst_macro_relative_deviation": 0.7428571428571429,
+                "portion_preference": [
+                  250.0,
+                  3
+                ]
+              },
+              {
+                "variant": "adjustment",
+                "items": [
+                  {
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "matched_name": "米饭",
+                    "grams": 400.0,
+                    "nutrition": {
+                      "carbs": 103.6,
+                      "protein": 10.4,
+                      "fat": 1.2,
+                      "kcal": 464.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                        "name": "米饭",
+                        "kcal_per_100g": 116.0,
+                        "carbs_per_100g": 25.9,
+                        "protein_per_100g": 2.6,
+                        "fat_per_100g": 0.3,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "40.00",
+                            "unit_id": 233,
+                            "unit_name": "勺",
+                            "weight": "40.00"
+                          },
+                          {
+                            "eat_weight": "20.00",
+                            "unit_id": 587542,
+                            "unit_name": "口",
+                            "weight": "20.00"
+                          },
+                          {
+                            "eat_weight": "150.00",
+                            "unit_id": 132,
+                            "unit_name": "小碗",
+                            "weight": "150.00"
+                          },
+                          {
+                            "eat_weight": "180.00",
+                            "unit_id": 980,
+                            "unit_name": "碗",
+                            "weight": "180.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "mifan_zheng",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 2.0,
+                      "portion_basis": "assumed_takeout",
+                      "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实"
+                    },
+                    "source_ref": "food:e725b1db82178fba4264a9da",
+                    "item_id": "rice",
+                    "group": "鸭腿饭（午、晚各一份）",
+                    "servings": 2.0,
+                    "portion_basis": "assumed_takeout",
+                    "fixed": true,
+                    "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实",
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 51.8,
+                        "protein": 5.2,
+                        "fat": 0.6,
+                        "kcal": 232.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                    "matched_name": "水煮鸡胸肉",
+                    "grams": 200.0,
+                    "nutrition": {
+                      "carbs": 0.0,
+                      "protein": 55.9,
+                      "fat": 6.5,
+                      "kcal": 298.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                        "name": "水煮鸡胸肉",
+                        "kcal_per_100g": 149.0,
+                        "carbs_per_100g": 0.0,
+                        "protein_per_100g": 27.96,
+                        "fat_per_100g": 3.26,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "200.00",
+                            "unit_id": 1155082,
+                            "unit_name": "盘",
+                            "weight": "200.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "fd2a01ea",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": "按水煮/微波加热、不额外加油估算"
+                    },
+                    "source_ref": "food:ea3866e535cc0fcadbad4584",
+                    "item_id": "chicken",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "按水煮/微波加热、不额外加油估算",
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 0.0,
+                        "protein": 55.9,
+                        "fat": 6.5,
+                        "kcal": 298.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "food_egg",
+                    "matched_name": "鸡蛋",
+                    "grams": 100.0,
+                    "nutrition": {
+                      "carbs": 2.4,
+                      "protein": 13.1,
+                      "fat": 8.6,
+                      "kcal": 139.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "food_egg",
+                        "name": "鸡蛋",
+                        "kcal_per_100g": 139.0,
+                        "carbs_per_100g": 2.4,
+                        "protein_per_100g": 13.1,
+                        "fat_per_100g": 8.6,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "jidan_junzhi",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": "约2个中等大小鸡蛋，水煮或微波加热"
+                    },
+                    "source_ref": "food:54937e505e0499773bdeb66a",
+                    "item_id": "egg",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "约2个中等大小鸡蛋，水煮或微波加热",
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 2.4,
+                        "protein": 13.1,
+                        "fat": 8.6,
+                        "kcal": 139.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                    "matched_name": "煮土豆",
+                    "grams": 250.0,
+                    "nutrition": {
+                      "carbs": 35.5,
+                      "protein": 8.0,
+                      "fat": 0.0,
+                      "kcal": 162.5
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                        "name": "煮土豆",
+                        "kcal_per_100g": 65.0,
+                        "carbs_per_100g": 14.2,
+                        "protein_per_100g": 3.2,
+                        "fat_per_100g": 0.0,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "200.00",
+                            "unit_id": 1698,
+                            "unit_name": "个",
+                            "weight": "200.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "malingshu_zhu",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": ""
+                    },
+                    "source_ref": "food:d06527fc2841da02d8bfd82a",
+                    "item_id": "potato",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "",
+                    "per_serving": {
+                      "grams": 250.0,
+                      "nutrition": {
+                        "carbs": 35.5,
+                        "protein": 8.0,
+                        "fat": 0.0,
+                        "kcal": 162.5
+                      }
+                    }
+                  }
+                ],
+                "total": {
+                  "carbs": 141.5,
+                  "protein": 87.4,
+                  "fat": 16.3,
+                  "kcal": 1063.5
+                },
+                "unfinished": [
+                  {
+                    "item_id": "duck",
+                    "source_ref": "food:84c8ddb6b7f3c146b72d335c",
+                    "food_query": "烤鸭腿",
+                    "grams": 120.0,
+                    "group": "鸭腿饭（午、晚各一份）",
+                    "servings": 2.0,
+                    "portion_basis": "assumed_takeout",
+                    "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋",
+                    "fixed": true,
+                    "reason": "食物名称与来源引用不一致；请使用所引来源的完整原名或省略food_query",
+                    "candidates": [
+                      {
+                        "name": "童记 烤鸭腿",
+                        "source_ref": "food:33275c49bd847fd0d7670e75",
+                        "features": {
+                          "source": "boohee",
+                          "boohee_id": "fd4b7d7f",
+                          "units": [
+                            {
+                              "unit": "克",
+                              "eat_weight": "1.00"
+                            }
+                          ],
+                          "per_100g": {
+                            "carbs": 9.1,
+                            "protein": 28.3,
+                            "fat": 7.8,
+                            "kcal": 221.0
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "item_id": "corn",
+                    "source_ref": "food:f9dae8959720c70bb1a5b478",
+                    "food_query": "煮甜玉米",
+                    "grams": 250.0,
+                    "group": "微波炉配菜",
+                    "portion_basis": "suggested",
+                    "reason": "食物名称与来源引用不一致；请使用所引来源的完整原名或省略food_query",
+                    "candidates": [
+                      {
+                        "name": "Artealca 煮甜玉米",
+                        "source_ref": "food:da132520f94e5554c14351a3",
+                        "features": {
+                          "source": "boohee",
+                          "boohee_id": "fdbf4ff7",
+                          "units": [
+                            {
+                              "unit": "克",
+                              "eat_weight": "1.00"
+                            },
+                            {
+                              "unit": "份",
+                              "eat_weight": "450.00"
+                            }
+                          ],
+                          "per_100g": {
+                            "carbs": 14.0,
+                            "protein": 3.5,
+                            "fat": 2.6,
+                            "kcal": 103.0
+                          }
+                        }
+                      }
+                    ],
+                    "servings": 1.0,
+                    "assumption": ""
+                  }
+                ],
+                "complete": false,
+                "budget_difference": {
+                  "carbs": 108.5,
+                  "protein": 62.6,
+                  "fat": 53.7,
+                  "kcal": 1166.5
+                },
+                "within_tolerance": false,
+                "macro_relative_deviation": {
+                  "carbs": 0.434,
+                  "protein": 0.41733333333333333,
+                  "fat": 0.7671428571428572
+                },
+                "worst_macro_relative_deviation": 0.7671428571428572,
+                "portion_preference": [
+                  250.0,
+                  3
+                ]
+              }
+            ]
+          }
+        },
+        "tool": "calculate_meal",
+        "call_id": "c1",
+        "action_id": "r5-real-repro-7:agent:1"
+      },
+      "actual_reply": "营养查询选项：\n1. 童记 烤鸭腿（单位：克（每单位可食1克），每100克：221千卡、9.1克碳水、28.3克蛋白质、7.8克脂肪，薄荷食物资料）\n\n日常完整菜单（长期目标，2026-11-04）：\n鸭腿饭（午、晚各一份）：\n- 米饭，每份可食200克×2份（固定餐，外卖组成假设），464千卡。\n微波炉配菜：\n- 水煮鸡胸肉，每份可食250克×1份（建议份量），372.5千卡。\n- 鸡蛋，每份可食100克×1份（建议份量），139千卡。\n- 煮土豆，每份可食200克×1份（建议份量），130千卡。\n估算前提：沙县鸭腿饭一份约为米饭200克（可食），配方未核实；按水煮/微波加热、不额外加油估算；约2个中等大小鸡蛋，水煮或微波加热。\n保留条件：两顿沙县小吃鸭腿饭固定保留；鸭腿饭不要卤蛋；补充食物以玉米、土豆、鸡蛋、鸡胸肉等微波炉易加工食材为主；单项食物份量不宜过多。\n已知小计估算1105.5千卡，碳水134.4克、蛋白质99.8克、脂肪18克。\n适用目标：2230千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1124.5千卡，碳水115.6克，蛋白质50.2克，脂肪52克。\n尚未计入：鸭腿饭（午、晚各一份） 烤鸭腿：食物名称与来源引用不一致；请使用所引来源的完整原名或省略food_query；微波炉配菜 煮甜玉米：食物名称与来源引用不一致；请使用所引来源的完整原名或省略food_query。差额仅基于已知小计。\n请先补充烤鸭腿的明确来源或可食份量。\n当前不能确认方案满足热量容差。",
+      "presented_candidates": {
+        "food_offer_candidate": "offer:ed5e5137887405c7adb953af",
+        "meal_draft_candidate": "draft:4240a636fb31d4d9caf3c909"
+      }
+    },
+    {
+      "original_call_index": 8,
+      "original_business_args": {
+        "adjustment": {
+          "replacements": [
+            {
+              "food_query": "水煮鸡胸肉",
+              "grams": 200,
+              "item_id": "chicken",
+              "source_ref": "food:ea3866e535cc0fcadbad4584"
+            },
+            {
+              "food_query": "Artealca 煮甜玉米",
+              "grams": 300,
+              "item_id": "corn",
+              "source_ref": "food:f9dae8959720c70bb1a5b478"
+            },
+            {
+              "food_query": "煮土豆",
+              "grams": 300,
+              "item_id": "potato",
+              "source_ref": "food:d06527fc2841da02d8bfd82a"
+            }
+          ]
+        },
+        "constraints": [
+          "两顿沙县小吃鸭腿饭固定保留",
+          "鸭腿饭不要卤蛋",
+          "补充食物以玉米、土豆、鸡蛋、鸡胸肉等微波炉易加工食材为主",
+          "单项食物份量不宜过多"
+        ],
+        "date": "2026-11-04",
+        "items": [
+          {
+            "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实",
+            "fixed": true,
+            "food_query": "米饭",
+            "grams": 200,
+            "group": "鸭腿饭（午、晚各一份）",
+            "item_id": "rice",
+            "portion_basis": "assumed_takeout",
+            "servings": 2,
+            "source_ref": "food:e725b1db82178fba4264a9da"
+          },
+          {
+            "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋",
+            "fixed": true,
+            "food_query": "童记 烤鸭腿",
+            "grams": 120,
+            "group": "鸭腿饭（午、晚各一份）",
+            "item_id": "duck",
+            "portion_basis": "assumed_takeout",
+            "servings": 2,
+            "source_ref": "food:84c8ddb6b7f3c146b72d335c"
+          },
+          {
+            "assumption": "按水煮/微波加热、不额外加油估算",
+            "food_query": "水煮鸡胸肉",
+            "grams": 250,
+            "group": "微波炉配菜",
+            "item_id": "chicken",
+            "portion_basis": "suggested",
+            "source_ref": "food:ea3866e535cc0fcadbad4584"
+          },
+          {
+            "assumption": "约2个中等大小鸡蛋，水煮或微波加热",
+            "food_query": "鸡蛋",
+            "grams": 100,
+            "group": "微波炉配菜",
+            "item_id": "egg",
+            "portion_basis": "suggested",
+            "source_ref": "food:54937e505e0499773bdeb66a"
+          },
+          {
+            "food_query": "Artealca 煮甜玉米",
+            "grams": 250,
+            "group": "微波炉配菜",
+            "item_id": "corn",
+            "portion_basis": "suggested",
+            "source_ref": "food:f9dae8959720c70bb1a5b478"
+          },
+          {
+            "food_query": "煮土豆",
+            "grams": 250,
+            "group": "微波炉配菜",
+            "item_id": "potato",
+            "portion_basis": "suggested",
+            "source_ref": "food:d06527fc2841da02d8bfd82a"
+          }
+        ],
+        "portion_preference": "smaller_portions",
+        "scope": "daily",
+        "tolerance_kcal": 200
+      },
+      "actual_fact": {
+        "status": "ok",
+        "data": {
+          "items": [
+            {
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "matched_name": "米饭",
+              "grams": 400.0,
+              "nutrition": {
+                "carbs": 103.6,
+                "protein": 10.4,
+                "fat": 1.2,
+                "kcal": 464.0
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                  "name": "米饭",
+                  "kcal_per_100g": 116.0,
+                  "carbs_per_100g": 25.9,
+                  "protein_per_100g": 2.6,
+                  "fat_per_100g": 0.3,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "40.00",
+                      "unit_id": 233,
+                      "unit_name": "勺",
+                      "weight": "40.00"
+                    },
+                    {
+                      "eat_weight": "20.00",
+                      "unit_id": 587542,
+                      "unit_name": "口",
+                      "weight": "20.00"
+                    },
+                    {
+                      "eat_weight": "150.00",
+                      "unit_id": 132,
+                      "unit_name": "小碗",
+                      "weight": "150.00"
+                    },
+                    {
+                      "eat_weight": "180.00",
+                      "unit_id": 980,
+                      "unit_name": "碗",
+                      "weight": "180.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "mifan_zheng",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 2.0,
+                "portion_basis": "assumed_takeout",
+                "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实"
+              },
+              "source_ref": "food:e725b1db82178fba4264a9da",
+              "item_id": "rice",
+              "group": "鸭腿饭（午、晚各一份）",
+              "servings": 2.0,
+              "portion_basis": "assumed_takeout",
+              "fixed": true,
+              "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实",
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 51.8,
+                  "protein": 5.2,
+                  "fat": 0.6,
+                  "kcal": 232.0
+                }
+              }
+            },
+            {
+              "food_id": "7836df60-89f2-4709-9ad3-322608fc44e2",
+              "matched_name": "童记 烤鸭腿",
+              "grams": 240.0,
+              "nutrition": {
+                "carbs": 21.8,
+                "protein": 67.9,
+                "fat": 18.7,
+                "kcal": 530.4
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "7836df60-89f2-4709-9ad3-322608fc44e2",
+                  "name": "童记 烤鸭腿",
+                  "kcal_per_100g": 221.0,
+                  "carbs_per_100g": 9.1,
+                  "protein_per_100g": 28.3,
+                  "fat_per_100g": 7.8,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "fd4b7d7f",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 2.0,
+                "portion_basis": "assumed_takeout",
+                "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋"
+              },
+              "source_ref": "food:84c8ddb6b7f3c146b72d335c",
+              "item_id": "duck",
+              "group": "鸭腿饭（午、晚各一份）",
+              "servings": 2.0,
+              "portion_basis": "assumed_takeout",
+              "fixed": true,
+              "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋",
+              "per_serving": {
+                "grams": 120.0,
+                "nutrition": {
+                  "carbs": 10.9,
+                  "protein": 34.0,
+                  "fat": 9.4,
+                  "kcal": 265.2
+                }
+              }
+            },
+            {
+              "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+              "matched_name": "水煮鸡胸肉",
+              "grams": 200.0,
+              "nutrition": {
+                "carbs": 0.0,
+                "protein": 55.9,
+                "fat": 6.5,
+                "kcal": 298.0
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                  "name": "水煮鸡胸肉",
+                  "kcal_per_100g": 149.0,
+                  "carbs_per_100g": 0.0,
+                  "protein_per_100g": 27.96,
+                  "fat_per_100g": 3.26,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "200.00",
+                      "unit_id": 1155082,
+                      "unit_name": "盘",
+                      "weight": "200.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "fd2a01ea",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 1.0,
+                "portion_basis": "suggested",
+                "assumption": "按水煮/微波加热、不额外加油估算"
+              },
+              "source_ref": "food:ea3866e535cc0fcadbad4584",
+              "item_id": "chicken",
+              "group": "微波炉配菜",
+              "servings": 1.0,
+              "portion_basis": "suggested",
+              "fixed": false,
+              "assumption": "按水煮/微波加热、不额外加油估算",
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 0.0,
+                  "protein": 55.9,
+                  "fat": 6.5,
+                  "kcal": 298.0
+                }
+              }
+            },
+            {
+              "food_id": "food_egg",
+              "matched_name": "鸡蛋",
+              "grams": 100.0,
+              "nutrition": {
+                "carbs": 2.4,
+                "protein": 13.1,
+                "fat": 8.6,
+                "kcal": 139.0
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "food_egg",
+                  "name": "鸡蛋",
+                  "kcal_per_100g": 139.0,
+                  "carbs_per_100g": 2.4,
+                  "protein_per_100g": 13.1,
+                  "fat_per_100g": 8.6,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "jidan_junzhi",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 1.0,
+                "portion_basis": "suggested",
+                "assumption": "约2个中等大小鸡蛋，水煮或微波加热"
+              },
+              "source_ref": "food:54937e505e0499773bdeb66a",
+              "item_id": "egg",
+              "group": "微波炉配菜",
+              "servings": 1.0,
+              "portion_basis": "suggested",
+              "fixed": false,
+              "assumption": "约2个中等大小鸡蛋，水煮或微波加热",
+              "per_serving": {
+                "grams": 100.0,
+                "nutrition": {
+                  "carbs": 2.4,
+                  "protein": 13.1,
+                  "fat": 8.6,
+                  "kcal": 139.0
+                }
+              }
+            },
+            {
+              "food_id": "89401026-9a39-4de4-a7d2-6437a52ce785",
+              "matched_name": "Artealca 煮甜玉米",
+              "grams": 300.0,
+              "nutrition": {
+                "carbs": 42.0,
+                "protein": 10.5,
+                "fat": 7.8,
+                "kcal": 309.0
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "89401026-9a39-4de4-a7d2-6437a52ce785",
+                  "name": "Artealca 煮甜玉米",
+                  "kcal_per_100g": 103.0,
+                  "carbs_per_100g": 14.0,
+                  "protein_per_100g": 3.5,
+                  "fat_per_100g": 2.6,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "450.00",
+                      "unit_id": 834006,
+                      "unit_name": "份",
+                      "weight": "450.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "fdbf4ff7",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 1.0,
+                "portion_basis": "suggested",
+                "assumption": ""
+              },
+              "source_ref": "food:f9dae8959720c70bb1a5b478",
+              "item_id": "corn",
+              "group": "微波炉配菜",
+              "servings": 1.0,
+              "portion_basis": "suggested",
+              "fixed": false,
+              "assumption": "",
+              "per_serving": {
+                "grams": 300.0,
+                "nutrition": {
+                  "carbs": 42.0,
+                  "protein": 10.5,
+                  "fat": 7.8,
+                  "kcal": 309.0
+                }
+              }
+            },
+            {
+              "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+              "matched_name": "煮土豆",
+              "grams": 300.0,
+              "nutrition": {
+                "carbs": 42.6,
+                "protein": 9.6,
+                "fat": 0.0,
+                "kcal": 195.0
+              },
+              "snapshot": {
+                "food": {
+                  "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                  "name": "煮土豆",
+                  "kcal_per_100g": 65.0,
+                  "carbs_per_100g": 14.2,
+                  "protein_per_100g": 3.2,
+                  "fat_per_100g": 0.0,
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "200.00",
+                      "unit_id": 1698,
+                      "unit_name": "个",
+                      "weight": "200.00"
+                    }
+                  ],
+                  "source": "boohee",
+                  "boohee_id": "malingshu_zhu",
+                  "detail_loaded": true
+                },
+                "quantity_text": "",
+                "quantity": null,
+                "unit": "",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "kcal_source": "source",
+                "reuse_ratio": 1.0,
+                "portion_basis": "suggested",
+                "assumption": ""
+              },
+              "source_ref": "food:d06527fc2841da02d8bfd82a",
+              "item_id": "potato",
+              "group": "微波炉配菜",
+              "servings": 1.0,
+              "portion_basis": "suggested",
+              "fixed": false,
+              "assumption": "",
+              "per_serving": {
+                "grams": 300.0,
+                "nutrition": {
+                  "carbs": 42.6,
+                  "protein": 9.6,
+                  "fat": 0.0,
+                  "kcal": 195.0
+                }
+              }
+            }
+          ],
+          "total": {
+            "carbs": 212.4,
+            "protein": 167.4,
+            "fat": 42.8,
+            "kcal": 1935.4
+          },
+          "unfinished": [],
+          "date": "2026-11-04",
+          "scope": "daily",
+          "targets": {
+            "carbs": 250,
+            "protein": 150,
+            "fat": 70,
+            "kcal": 2230
+          },
+          "consumed": {
+            "carbs": 0.0,
+            "protein": 0.0,
+            "fat": 0.0,
+            "kcal": 0.0
+          },
+          "consumed_count": 0,
+          "consumed_scope": {
+            "date": "2026-11-04",
+            "included": false,
+            "record_ids": []
+          },
+          "budget_difference": {
+            "carbs": 37.6,
+            "protein": -17.4,
+            "fat": 27.2,
+            "kcal": 294.6
+          },
+          "complete": true,
+          "estimated": true,
+          "within_tolerance": false,
+          "tolerance_kcal": 200.0,
+          "constraints": [
+            "两顿沙县小吃鸭腿饭固定保留",
+            "鸭腿饭不要卤蛋",
+            "补充食物以玉米、土豆、鸡蛋、鸡胸肉等微波炉易加工食材为主",
+            "单项食物份量不宜过多"
+          ],
+          "draft_id": "draft:ad8ed7ac68617d36d1ac7b82",
+          "fixed_subtotal": {
+            "carbs": 125.4,
+            "protein": 78.3,
+            "fat": 19.9,
+            "kcal": 994.4
+          },
+          "fixed_complete": true,
+          "supplement_gap": {
+            "carbs": 124.6,
+            "protein": 71.7,
+            "fat": 50.1,
+            "kcal": 1235.6
+          },
+          "selection": {
+            "selected": "adjustment",
+            "reason": "closest_calories",
+            "candidates": [
+              {
+                "variant": "initial",
+                "items": [
+                  {
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "matched_name": "米饭",
+                    "grams": 400.0,
+                    "nutrition": {
+                      "carbs": 103.6,
+                      "protein": 10.4,
+                      "fat": 1.2,
+                      "kcal": 464.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                        "name": "米饭",
+                        "kcal_per_100g": 116.0,
+                        "carbs_per_100g": 25.9,
+                        "protein_per_100g": 2.6,
+                        "fat_per_100g": 0.3,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "40.00",
+                            "unit_id": 233,
+                            "unit_name": "勺",
+                            "weight": "40.00"
+                          },
+                          {
+                            "eat_weight": "20.00",
+                            "unit_id": 587542,
+                            "unit_name": "口",
+                            "weight": "20.00"
+                          },
+                          {
+                            "eat_weight": "150.00",
+                            "unit_id": 132,
+                            "unit_name": "小碗",
+                            "weight": "150.00"
+                          },
+                          {
+                            "eat_weight": "180.00",
+                            "unit_id": 980,
+                            "unit_name": "碗",
+                            "weight": "180.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "mifan_zheng",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 2.0,
+                      "portion_basis": "assumed_takeout",
+                      "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实"
+                    },
+                    "source_ref": "food:e725b1db82178fba4264a9da",
+                    "item_id": "rice",
+                    "group": "鸭腿饭（午、晚各一份）",
+                    "servings": 2.0,
+                    "portion_basis": "assumed_takeout",
+                    "fixed": true,
+                    "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实",
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 51.8,
+                        "protein": 5.2,
+                        "fat": 0.6,
+                        "kcal": 232.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "7836df60-89f2-4709-9ad3-322608fc44e2",
+                    "matched_name": "童记 烤鸭腿",
+                    "grams": 240.0,
+                    "nutrition": {
+                      "carbs": 21.8,
+                      "protein": 67.9,
+                      "fat": 18.7,
+                      "kcal": 530.4
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "7836df60-89f2-4709-9ad3-322608fc44e2",
+                        "name": "童记 烤鸭腿",
+                        "kcal_per_100g": 221.0,
+                        "carbs_per_100g": 9.1,
+                        "protein_per_100g": 28.3,
+                        "fat_per_100g": 7.8,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "fd4b7d7f",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 2.0,
+                      "portion_basis": "assumed_takeout",
+                      "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋"
+                    },
+                    "source_ref": "food:84c8ddb6b7f3c146b72d335c",
+                    "item_id": "duck",
+                    "group": "鸭腿饭（午、晚各一份）",
+                    "servings": 2.0,
+                    "portion_basis": "assumed_takeout",
+                    "fixed": true,
+                    "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋",
+                    "per_serving": {
+                      "grams": 120.0,
+                      "nutrition": {
+                        "carbs": 10.9,
+                        "protein": 34.0,
+                        "fat": 9.4,
+                        "kcal": 265.2
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                    "matched_name": "水煮鸡胸肉",
+                    "grams": 250.0,
+                    "nutrition": {
+                      "carbs": 0.0,
+                      "protein": 69.9,
+                      "fat": 8.2,
+                      "kcal": 372.5
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                        "name": "水煮鸡胸肉",
+                        "kcal_per_100g": 149.0,
+                        "carbs_per_100g": 0.0,
+                        "protein_per_100g": 27.96,
+                        "fat_per_100g": 3.26,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "200.00",
+                            "unit_id": 1155082,
+                            "unit_name": "盘",
+                            "weight": "200.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "fd2a01ea",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": "按水煮/微波加热、不额外加油估算"
+                    },
+                    "source_ref": "food:ea3866e535cc0fcadbad4584",
+                    "item_id": "chicken",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "按水煮/微波加热、不额外加油估算",
+                    "per_serving": {
+                      "grams": 250.0,
+                      "nutrition": {
+                        "carbs": 0.0,
+                        "protein": 69.9,
+                        "fat": 8.2,
+                        "kcal": 372.5
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "food_egg",
+                    "matched_name": "鸡蛋",
+                    "grams": 100.0,
+                    "nutrition": {
+                      "carbs": 2.4,
+                      "protein": 13.1,
+                      "fat": 8.6,
+                      "kcal": 139.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "food_egg",
+                        "name": "鸡蛋",
+                        "kcal_per_100g": 139.0,
+                        "carbs_per_100g": 2.4,
+                        "protein_per_100g": 13.1,
+                        "fat_per_100g": 8.6,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "jidan_junzhi",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": "约2个中等大小鸡蛋，水煮或微波加热"
+                    },
+                    "source_ref": "food:54937e505e0499773bdeb66a",
+                    "item_id": "egg",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "约2个中等大小鸡蛋，水煮或微波加热",
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 2.4,
+                        "protein": 13.1,
+                        "fat": 8.6,
+                        "kcal": 139.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "89401026-9a39-4de4-a7d2-6437a52ce785",
+                    "matched_name": "Artealca 煮甜玉米",
+                    "grams": 250.0,
+                    "nutrition": {
+                      "carbs": 35.0,
+                      "protein": 8.8,
+                      "fat": 6.5,
+                      "kcal": 257.5
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "89401026-9a39-4de4-a7d2-6437a52ce785",
+                        "name": "Artealca 煮甜玉米",
+                        "kcal_per_100g": 103.0,
+                        "carbs_per_100g": 14.0,
+                        "protein_per_100g": 3.5,
+                        "fat_per_100g": 2.6,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "450.00",
+                            "unit_id": 834006,
+                            "unit_name": "份",
+                            "weight": "450.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "fdbf4ff7",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": ""
+                    },
+                    "source_ref": "food:f9dae8959720c70bb1a5b478",
+                    "item_id": "corn",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "",
+                    "per_serving": {
+                      "grams": 250.0,
+                      "nutrition": {
+                        "carbs": 35.0,
+                        "protein": 8.8,
+                        "fat": 6.5,
+                        "kcal": 257.5
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                    "matched_name": "煮土豆",
+                    "grams": 250.0,
+                    "nutrition": {
+                      "carbs": 35.5,
+                      "protein": 8.0,
+                      "fat": 0.0,
+                      "kcal": 162.5
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                        "name": "煮土豆",
+                        "kcal_per_100g": 65.0,
+                        "carbs_per_100g": 14.2,
+                        "protein_per_100g": 3.2,
+                        "fat_per_100g": 0.0,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "200.00",
+                            "unit_id": 1698,
+                            "unit_name": "个",
+                            "weight": "200.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "malingshu_zhu",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": ""
+                    },
+                    "source_ref": "food:d06527fc2841da02d8bfd82a",
+                    "item_id": "potato",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "",
+                    "per_serving": {
+                      "grams": 250.0,
+                      "nutrition": {
+                        "carbs": 35.5,
+                        "protein": 8.0,
+                        "fat": 0.0,
+                        "kcal": 162.5
+                      }
+                    }
+                  }
+                ],
+                "total": {
+                  "carbs": 198.3,
+                  "protein": 178.1,
+                  "fat": 43.2,
+                  "kcal": 1925.9
+                },
+                "unfinished": [],
+                "complete": true,
+                "budget_difference": {
+                  "carbs": 51.7,
+                  "protein": -28.1,
+                  "fat": 26.8,
+                  "kcal": 304.1
+                },
+                "within_tolerance": false,
+                "macro_relative_deviation": {
+                  "carbs": 0.2068,
+                  "protein": 0.18733333333333335,
+                  "fat": 0.38285714285714284
+                },
+                "worst_macro_relative_deviation": 0.38285714285714284,
+                "portion_preference": [
+                  250.0,
+                  4
+                ]
+              },
+              {
+                "variant": "adjustment",
+                "items": [
+                  {
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "matched_name": "米饭",
+                    "grams": 400.0,
+                    "nutrition": {
+                      "carbs": 103.6,
+                      "protein": 10.4,
+                      "fat": 1.2,
+                      "kcal": 464.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                        "name": "米饭",
+                        "kcal_per_100g": 116.0,
+                        "carbs_per_100g": 25.9,
+                        "protein_per_100g": 2.6,
+                        "fat_per_100g": 0.3,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "40.00",
+                            "unit_id": 233,
+                            "unit_name": "勺",
+                            "weight": "40.00"
+                          },
+                          {
+                            "eat_weight": "20.00",
+                            "unit_id": 587542,
+                            "unit_name": "口",
+                            "weight": "20.00"
+                          },
+                          {
+                            "eat_weight": "150.00",
+                            "unit_id": 132,
+                            "unit_name": "小碗",
+                            "weight": "150.00"
+                          },
+                          {
+                            "eat_weight": "180.00",
+                            "unit_id": 980,
+                            "unit_name": "碗",
+                            "weight": "180.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "mifan_zheng",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 2.0,
+                      "portion_basis": "assumed_takeout",
+                      "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实"
+                    },
+                    "source_ref": "food:e725b1db82178fba4264a9da",
+                    "item_id": "rice",
+                    "group": "鸭腿饭（午、晚各一份）",
+                    "servings": 2.0,
+                    "portion_basis": "assumed_takeout",
+                    "fixed": true,
+                    "assumption": "沙县鸭腿饭一份约为米饭200克（可食），配方未核实",
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 51.8,
+                        "protein": 5.2,
+                        "fat": 0.6,
+                        "kcal": 232.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "7836df60-89f2-4709-9ad3-322608fc44e2",
+                    "matched_name": "童记 烤鸭腿",
+                    "grams": 240.0,
+                    "nutrition": {
+                      "carbs": 21.8,
+                      "protein": 67.9,
+                      "fat": 18.7,
+                      "kcal": 530.4
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "7836df60-89f2-4709-9ad3-322608fc44e2",
+                        "name": "童记 烤鸭腿",
+                        "kcal_per_100g": 221.0,
+                        "carbs_per_100g": 9.1,
+                        "protein_per_100g": 28.3,
+                        "fat_per_100g": 7.8,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "fd4b7d7f",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 2.0,
+                      "portion_basis": "assumed_takeout",
+                      "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋"
+                    },
+                    "source_ref": "food:84c8ddb6b7f3c146b72d335c",
+                    "item_id": "duck",
+                    "group": "鸭腿饭（午、晚各一份）",
+                    "servings": 2.0,
+                    "portion_basis": "assumed_takeout",
+                    "fixed": true,
+                    "assumption": "按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋",
+                    "per_serving": {
+                      "grams": 120.0,
+                      "nutrition": {
+                        "carbs": 10.9,
+                        "protein": 34.0,
+                        "fat": 9.4,
+                        "kcal": 265.2
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                    "matched_name": "水煮鸡胸肉",
+                    "grams": 200.0,
+                    "nutrition": {
+                      "carbs": 0.0,
+                      "protein": 55.9,
+                      "fat": 6.5,
+                      "kcal": 298.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "84a60b7f-5936-4a39-949e-8eeeb238b867",
+                        "name": "水煮鸡胸肉",
+                        "kcal_per_100g": 149.0,
+                        "carbs_per_100g": 0.0,
+                        "protein_per_100g": 27.96,
+                        "fat_per_100g": 3.26,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "200.00",
+                            "unit_id": 1155082,
+                            "unit_name": "盘",
+                            "weight": "200.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "fd2a01ea",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": "按水煮/微波加热、不额外加油估算"
+                    },
+                    "source_ref": "food:ea3866e535cc0fcadbad4584",
+                    "item_id": "chicken",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "按水煮/微波加热、不额外加油估算",
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 0.0,
+                        "protein": 55.9,
+                        "fat": 6.5,
+                        "kcal": 298.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "food_egg",
+                    "matched_name": "鸡蛋",
+                    "grams": 100.0,
+                    "nutrition": {
+                      "carbs": 2.4,
+                      "protein": 13.1,
+                      "fat": 8.6,
+                      "kcal": 139.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "food_egg",
+                        "name": "鸡蛋",
+                        "kcal_per_100g": 139.0,
+                        "carbs_per_100g": 2.4,
+                        "protein_per_100g": 13.1,
+                        "fat_per_100g": 8.6,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "jidan_junzhi",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": "约2个中等大小鸡蛋，水煮或微波加热"
+                    },
+                    "source_ref": "food:54937e505e0499773bdeb66a",
+                    "item_id": "egg",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "约2个中等大小鸡蛋，水煮或微波加热",
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 2.4,
+                        "protein": 13.1,
+                        "fat": 8.6,
+                        "kcal": 139.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "89401026-9a39-4de4-a7d2-6437a52ce785",
+                    "matched_name": "Artealca 煮甜玉米",
+                    "grams": 300.0,
+                    "nutrition": {
+                      "carbs": 42.0,
+                      "protein": 10.5,
+                      "fat": 7.8,
+                      "kcal": 309.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "89401026-9a39-4de4-a7d2-6437a52ce785",
+                        "name": "Artealca 煮甜玉米",
+                        "kcal_per_100g": 103.0,
+                        "carbs_per_100g": 14.0,
+                        "protein_per_100g": 3.5,
+                        "fat_per_100g": 2.6,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "450.00",
+                            "unit_id": 834006,
+                            "unit_name": "份",
+                            "weight": "450.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "fdbf4ff7",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": ""
+                    },
+                    "source_ref": "food:f9dae8959720c70bb1a5b478",
+                    "item_id": "corn",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "",
+                    "per_serving": {
+                      "grams": 300.0,
+                      "nutrition": {
+                        "carbs": 42.0,
+                        "protein": 10.5,
+                        "fat": 7.8,
+                        "kcal": 309.0
+                      }
+                    }
+                  },
+                  {
+                    "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                    "matched_name": "煮土豆",
+                    "grams": 300.0,
+                    "nutrition": {
+                      "carbs": 42.6,
+                      "protein": 9.6,
+                      "fat": 0.0,
+                      "kcal": 195.0
+                    },
+                    "snapshot": {
+                      "food": {
+                        "food_id": "a641a036-0a9d-46c1-af65-ea2a7680b93c",
+                        "name": "煮土豆",
+                        "kcal_per_100g": 65.0,
+                        "carbs_per_100g": 14.2,
+                        "protein_per_100g": 3.2,
+                        "fat_per_100g": 0.0,
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "200.00",
+                            "unit_id": 1698,
+                            "unit_name": "个",
+                            "weight": "200.00"
+                          }
+                        ],
+                        "source": "boohee",
+                        "boohee_id": "malingshu_zhu",
+                        "detail_loaded": true
+                      },
+                      "quantity_text": "",
+                      "quantity": null,
+                      "unit": "",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "kcal_source": "source",
+                      "reuse_ratio": 1.0,
+                      "portion_basis": "suggested",
+                      "assumption": ""
+                    },
+                    "source_ref": "food:d06527fc2841da02d8bfd82a",
+                    "item_id": "potato",
+                    "group": "微波炉配菜",
+                    "servings": 1.0,
+                    "portion_basis": "suggested",
+                    "fixed": false,
+                    "assumption": "",
+                    "per_serving": {
+                      "grams": 300.0,
+                      "nutrition": {
+                        "carbs": 42.6,
+                        "protein": 9.6,
+                        "fat": 0.0,
+                        "kcal": 195.0
+                      }
+                    }
+                  }
+                ],
+                "total": {
+                  "carbs": 212.4,
+                  "protein": 167.4,
+                  "fat": 42.8,
+                  "kcal": 1935.4
+                },
+                "unfinished": [],
+                "complete": true,
+                "budget_difference": {
+                  "carbs": 37.6,
+                  "protein": -17.4,
+                  "fat": 27.2,
+                  "kcal": 294.6
+                },
+                "within_tolerance": false,
+                "macro_relative_deviation": {
+                  "carbs": 0.1504,
+                  "protein": 0.11599999999999999,
+                  "fat": 0.38857142857142857
+                },
+                "worst_macro_relative_deviation": 0.38857142857142857,
+                "portion_preference": [
+                  300.0,
+                  4
+                ]
+              }
+            ]
+          }
+        },
+        "tool": "calculate_meal",
+        "call_id": "c1",
+        "action_id": "r5-real-repro-8:agent:1"
+      },
+      "actual_reply": "日常完整菜单（长期目标，2026-11-04）：\n鸭腿饭（午、晚各一份）：\n- 米饭，每份可食200克×2份（固定餐，外卖组成假设），464千卡。\n- 童记 烤鸭腿，每份可食120克×2份（固定餐，外卖组成假设），530.4千卡。\n微波炉配菜：\n- 水煮鸡胸肉，每份可食200克×1份（建议份量），298千卡。\n- 鸡蛋，每份可食100克×1份（建议份量），139千卡。\n- Artealca 煮甜玉米，每份可食300克×1份（建议份量），309千卡。\n- 煮土豆，每份可食300克×1份（建议份量），195千卡。\n估算前提：沙县鸭腿饭一份约为米饭200克（可食），配方未核实；按每份鸭腿可食肉约120克估算，皮和骨未计入，且不含卤蛋；按水煮/微波加热、不额外加油估算；约2个中等大小鸡蛋，水煮或微波加热。\n保留条件：两顿沙县小吃鸭腿饭固定保留；鸭腿饭不要卤蛋；补充食物以玉米、土豆、鸡蛋、鸡胸肉等微波炉易加工食材为主；单项食物份量不宜过多。\n菜单合计估算1935.4千卡，碳水212.4克、蛋白质167.4克、脂肪42.8克。\n适用目标：2230千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量294.6千卡，碳水37.6克，蛋白质-17.4克，脂肪27.2克。\n当前不能确认方案满足热量容差。\n两版均超出热量容差，保留更接近热量目标的完整搭配。",
+      "presented_candidates": {
+        "meal_draft_candidate": "draft:ad8ed7ac68617d36d1ac7b82"
+      }
+    }
+  ],
+  "assertions_passed": true,
+  "implementation_scope": "Numerical replay after per-100g feedback was added and before the final snapshot-reference feedback correction; the numeric engine is unchanged. Final snapshot identity/known amount preservation is independently covered by MQ12 and TD02."
+}

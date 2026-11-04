@@ -11,6 +11,8 @@ from contextvars import copy_context
 from copy import deepcopy
 import hashlib
 import json
+import uuid
+from .telemetry import span
 
 CACHE_MAX_BYTES = 8 * 1024 * 1024
 CACHE_MAX_ENTRIES = 512
@@ -76,6 +78,7 @@ class Journal:
         self.revision, self.index, self.unavailable = -1, {}, False
         self.cache, self._cache_sizes, self.cache_bytes = OrderedDict(), {}, 0
         self.state = _State(self)
+        self.view_id = uuid.uuid4().hex[:12]
         self.refresh(confirm=not readonly)
 
     def cache_document(self, ref, value, size=None):
@@ -109,6 +112,18 @@ class Journal:
         return value
 
     def _catchup(self, revision):
+        start = self.revision
+        checkpoint = revision - revision % 128 if revision > start and not (start >= 0 and revision - start <= 128) else None
+        with span('cos_catchup', view_id=self.view_id, prefix=self.prefix, start_revision=start,
+                  requested_revision=revision, checkpoint_revision=checkpoint,
+                  read_from_revision=checkpoint if checkpoint is not None else start + 1,
+                  read_to_revision=revision) as event:
+            try:
+                return self._apply_catchup(revision)
+            finally:
+                event['end_revision'] = self.revision
+
+    def _apply_catchup(self, revision):
         try:
             checkpoint = None
             if self.revision >= 0 and 0 < revision - self.revision <= 128:
@@ -116,15 +131,17 @@ class Journal:
                 # Fetch only the warm delta; validate every exact key first.
                 chain = _transfer_batch(self._read, range(self.revision + 1, revision + 1))
             else:
-                chain = []
-                while revision > self.revision:
-                    value = self._read(revision)
-                    if 'index' in value:
-                        checkpoint = value
-                        break
-                    chain.append(value)
-                    revision = value['previous']
-                chain.reverse()
+                # The existing v1 writer publishes a checkpoint at every 128th
+                # position. Locate it directly, then validate the complete tail
+                # before changing shared state. Never serially search backwards.
+                base = revision - revision % 128
+                if revision > self.revision:
+                    checkpoint = self._read(base)
+                    if 'index' not in checkpoint:
+                        raise CommitUnavailable('known checkpoint unavailable')
+                    chain = _transfer_batch(self._read, range(base + 1, revision + 1))
+                else:
+                    chain = []
             # Worker threads never change the shared index, revision or cache.
             if checkpoint is not None:
                 self.index = checkpoint['index']
@@ -140,13 +157,49 @@ class Journal:
             self.unavailable = True
             raise
 
+    def _candidate(self):
+        prefix = self.prefix + 'commits/'
+
+        def numbers(keys):
+            return [int(key[-17:-5]) for key in keys
+                    if key.startswith(prefix) and key.endswith('.json') and key[-17:-5].isdigit()]
+
+        if self.revision >= 0:
+            # COS's native marker avoids enumerating already verified pages.
+            return max([self.revision, *numbers(self.objects.list(prefix, marker=self.key(self.revision)))])
+        # Commits are contiguous. Probe the first key of exponentially spaced
+        # 1000-position blocks, then bisect to the last occupied block. Only
+        # that final bounded page is enumerated, regardless of historic pages.
+        low, high = 0, 1
+        while self.objects.list(prefix, marker=self.key(high * 1000 - 1), limit=1):
+            low, high = high, high * 2
+        while high - low > 1:
+            middle = (low + high) // 2
+            if self.objects.list(prefix, marker=self.key(middle * 1000 - 1), limit=1):
+                low = middle
+            else:
+                high = middle
+        marker = self.key(low * 1000 - 1) if low else ''
+        return max([-1, *numbers(self.objects.list(prefix, marker=marker, limit=1000))])
+
     def refresh(self, confirm=True, minimum_revision=None):
+        with span('cos_refresh', view_id=self.view_id, prefix=self.prefix, readonly=self.readonly,
+                  start_revision=self.revision, minimum_revision=minimum_revision, confirm=confirm,
+                  reason='first_use' if self.revision < 0 else 'uncertain_commit' if self.unavailable else 'confirmed_view') as event:
+            try:
+                return self._refresh(confirm, minimum_revision)
+            finally:
+                event['end_revision'] = self.revision
+
+    def _refresh(self, confirm, minimum_revision):
         try:
             if self.readonly and confirm:
                 raise PermissionError('readonly journal cannot confirm by writing')
-            numbers = [int(k[-17:-5]) for k in self.objects.list(self.prefix+'commits/')
-                       if k.startswith(self.prefix+'commits/') and k.endswith('.json') and k[-17:-5].isdigit()]
-            candidate = max([self.revision, minimum_revision if minimum_revision is not None else -1, *numbers])
+            # An accepted ingress watermark is exact evidence; satisfy it before
+            # consulting LIST, which can only suggest additional candidates.
+            if minimum_revision is not None:
+                self._catchup(minimum_revision)
+            candidate = self._candidate()
             self._catchup(candidate)
             if confirm:
                 for _ in range(10000):

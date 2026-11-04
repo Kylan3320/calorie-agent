@@ -86,8 +86,55 @@ conversation_context(user,chat)保存摘要身份、fact_scope=dialogue、覆盖
 
 硬预算超限保存 terminal 结果及未执行动作终止原因，Pipeline 交付后设置 work_status=terminated 并推进游标；重投取原回执。完整原输入留在收件／执行审计，后续清洁历史使用终止说明。
 
-ModelCallLimitMiddleware／ToolCallLimitMiddleware 使用消息累计预算；整批调用先保存、再按序执行，恢复复用 prepared 的原参数、日期及目标。FakeStore 通过相同文档接口和注入后台执行器验证摘要语义。
+ModelCallLimitMiddleware与Runtime._execute固定动作序号分别限制消息累计4次模型决策/8次工具实际执行；整批调用先保存、再按序执行，恢复复用 prepared 的原参数、日期及目标。FakeStore 通过相同文档接口和注入后台执行器验证摘要语义。
 
 生产消息链路不访问 Bitable；来源资料通过迁移／维护发布 COS 快照，薄荷详情先提交 COS 后归档。LightRAG继续读取已发布索引。模型及工具前预算、整批原生调用、prepared和完整动作结果均保留原持久化边界。Bitable适配器的请求预取仅用于维护与旧实现检验，不属于生产入口链路。
 
 执行日志 messages 保存原生恢复交换，实际 HTTP 请求另存于 model_steps[].request_body；session 和 prepared.session 保存业务状态，result 保存回复等元数据，重放从 calls 复原完整工具结果。新执行的 previous_session_message_id 与会话 last_message_id/last_execution_complete 用于拒绝旧任务覆盖较新会话；offered_message_id 绑定实际展示候选。
+
+## 2026-11-04 任务接续与首次反馈（本地实现，待候选）
+
+- 显式record_ids的保存常用餐及复用逐项验证本人有效记录，任一失效则整次pending，不覆盖原同名快照或产生部分摄入。failed_selection保留本次原选择及缺项供修订；普通整餐部分完成规则不变。
+- query_food_nutrition返回options和source_ref，绑定归一用户/会话实际返回的食物或摄入快照。food_sources保存完整来源；food_offer_candidate带offer_id/message_id/有序options，实际展示后才成为food_offer。choice仅用于该已展示营养选项，不能消费记餐pending。无效引用返回可纠正结果。
+- calculate_meal支持scope=daily/full_day/remaining（旧调用缺省remaining），items中item_id/group/servings/portion_basis/assumption/source_ref；份数只缩放一次。daily用长期目标不扣当日摄入，full_day用当日目标不扣已吃，remaining扣一次有效摄入；data返回targets/consumed/consumed_scope/total/budget_difference/complete/within_tolerance，未计入只作小计。份量依据区分user_given/suggested/assumed_takeout。
+- meal_draft_candidate保存完整参数、计算、限制及draft_id/message_id；最终菜单由选中草案唯一渲染，不重复附模型清单；只有真实未解决的来源选择才展示并绑定food_offer。result.presented_candidates记录实际公开身份。mark_reply_presented核对当前消息及候选ID后提升meal_draft/food_offer，迟到/旧回执不回滚。草案修改传draft_id+replacements指定item_id，其余组合保留并重新计算。采用草案不等于摄入。
+- query_history的continue_scope=true继承history_scope中省略的日期/餐次/food_query，显式空串可清筛选，显式period重算日期。三detail、持久结果、投影和回执保留实际筛选；仍按当前账本重查。
+- 提醒缺条件时保存原关闭规则，reminder_pending保存rule_id/缺项/启用意图与原快照。后轮补缺重查原规则，只启用同一条；取消、禁用或快照冲突使旧启用意图失效。
+- 八工具均可携带action_note（可选公开文本字段）；与finish_after_tools一样在批次控制层剥离，不改变业务args/action_id/prepared。Feishu live首批按原调用顺序取第一条只读调用上的有效说明，整批直接事实收尾则跳过；首批全空且从未投递时，首个后续含calculate_meal/query_knowledge的批次另给一次机会。每个机会随完整原始批次持久，普通账本/非文本/已完成陈述跳过，无补调模型。
+- 行动说明发送前保存attempted，单次HTTP尝试最多1秒，受原业务截止；失败或未知继续业务、恢复跳过。确认message_id时将最终正文编辑到该消息，其他情况用独立最终UUID发送；mode/message_id/正文/摘要在最终API前同次保存。说明不触发来源完成、提案或草案展示确认。
+- CosObjects.list(prefix,marker='',limit=None)按字典序严格在marker之后返回，limit指定时最多该数量。Journal暖态从可信水位只追增量；冷态有界块探测定位头、直接最近128检查点、最多四并发校验尾段后按序应用。过期LIST/冲突仍精确追读相邻不可覆盖提交，最低版本不满足/检查点不可见不冒充成功；提交格式与Store接口不变。
+
+
+候选实际故障修复：wrap_tool_call将剥离完成声明/行动说明后的持久business args交给原生handler，避免同一控制字段被二次当作业务参数拒绝。其他未知业务参数仍由schema拒绝。工具上限以持久index为唯一执行守卫，不叠加每次invoke的框架工具计数器；超过8的固定调用保存结构化limit与终结原因、零业务执行，批次后形成确定终态并推进交付。框架旧ToolMessage.status=error的纯文本按明确错误身份包装，历史/投影不强行json解析。已保存终态恢复不再打开模型或过期动作。
+
+营养/计算的候选投影保留source_ref及单位名称/可食重，不注入记餐choice编号；本轮模型可依据source_ref直接计算并明确假设。用户营养choice仍只接受前轮实际展示选项，记餐pending候选仍按原编号接续。单位来自实际来源的unit/unit_name/name，投影统一为unit_name，eat_weight保留原数值或数值字符串；展示时作数字换算，不修改来源缓存。
+
+## R5 菜单选择与说明机会
+
+PlanItem.fixed标注用户指定的固定组成，max_grams是明确的每份上限。calculate_meal先计算固定subtotal，再用targets−consumed−fixed生成有符号supplement_gap。可选adjustment由replacements/item_id和additions组成，仅改变非固定补充项，复用同一固定来源及scope；初稿与备选在一次工具调用内计算。工具按个人规格3.6校正已有suggested补充项的每份量，不改固定/用户量/来源/份数/上限，不查新来源或添食材。改稿仅指定替换项可调。portion_preference=smaller_portions仅在宏量规则并列后用最大每份克重、备餐项数打破平局。selection保留实际比较版本的来源/份量/总量/差额/完整性/容差/相对偏差和selected/reason；选择按个人规格3.6，不能以热量达标替代宏量比较。未选审计仅留持久工具事实，模型投影只保留比较指标，下一轮草案视图不再复制全审计。
+
+meal_draft_candidate的items/calculation始终是选中版。固定餐、每餐清单、整日汇总只由该稿渲染一次；同条请求的已提交记录/统计回执和有据知识答复仍单独保留。没有新草案时，营养查询不能覆盖“无替换对象”等主答复。直接计算发现首个来源歧义时，从该稿真实unfinished.candidates生成公开offer身份；交付后才同时确认草案/选项。已解决的营养选项、未选对照及旧中间稿不作为可续选菜单展示。
+
+journal.action_note_opportunities记录first/supplement各自batch_id/status/call_id/text，与response_batch_saved同次落盘；status为ready/empty/direct/attempted/budget_skipped。说明只在该ready批次确未开始时开放原机会；投递前将action_notice及机会attempted持久，receipt_state另保存同一批次/调用/机会和原收件身份。任一次成功/失败/未知均用掉全消息唯一尝试，不因第三个批次有文案重新开放；旧执行没有已落盘ready机会时不事后补发。说明的1秒墙钟、最终同MID更新/独立UUID及展示确认沿R4。
+
+R6真实输入修复：营养候选features.per_100g仅包含该来源快照已有的四项每100克值，不猜缺值、不为候选追加HTTP。选择source_ref时省略food_query；错名仍pending，但纠错给被引来源原名/已有营养、同一个原ref及摄入快照份量，不能退化成另一通用食物引用。已提交计算稿在确定终态异常时也以同一稿呈现并附终止原因，仍保留error/terminal，且实际交付后才提升；未确认/较新稿/旧投递保护不变。
+
+归档核对使用独立精确Decimal数值解码，数字/数字文本及单值wrapper按原请求精确比较；不调用业务一位舍入，不以近似相等确认版本。只有限合法整数的较高agent_revision能证明superseded。Feishu已保存3.26/27.96的原值可直接读回确认，ACK丢失不因此重复create/update；字段真不等仍不推进水位。
+
+R7批量读源：query_food_nutrition.queries支持1–8个NutritionQuery，和顶层非空单项定位/份量互斥；元素不含action_note等控制字段。按序复用原单项计算、每项检查原deadline、共享会话来源但不创建摄入，完整返回data.queries[{query,status,data}]，一次原生调用/提交。不吞存储或预算异常、不增加传输重试。公开选项仅绑定批内首个未解决/多快照查询，后续已知项不能覆写它；同消息后续批已全部解决时清除旧候选，不重发已解决选项。模型投影只对batch去除options/unfinished中重复的同源profile，持久原结果不裁剪；异常回执仍保留逐项已知结果。八工具及原4决策/8工具上限不变。
+
+新归档prepare的client_token绑定app/table/kind/id/revision的canonical JSON；目的地/版本不同操作不共享创建键，旧已保存inflight请求的token与字段保持。显式操作员修复旧blocked属于独立处置，必须冻结写入者、核对原sync版本/请求哈希与目标稳定ID、先保留原失败审计，再依固定新请求恢复；运行时代码不自动换token，不把人工恢复当健康归档时效样本。
+
+## R8 菜单直接完成与定性说明
+
+份量校正从原建议到最近容差边界按来源单位或10克档位生成候选，两项互补只扩至另一项步长溢出所需范围；没有日常单位且明确上限不足10克时可用正整克。按既有热量/宏量/份量顺序选版，不新增距离排序或全域宏量优化。selection增加portion_adjustment版本及calibration（可调ID、搜索范围、起始版本、原/选份量、原/选数量假设、前后差额）供核对。已有版本达容差不再校正，改稿只有显式suggested替换项可调；只给新grams/quantity且未声明basis时视为本次用户固定量。最终公开只展示选中份量，原份量与原假设留在审计，数量文字按同来源换算同步、做法/组成保留。
+
+calculate_meal支持可选finish_after_tools，默认false，沿用批次持久控制及剥离规则。运行时只接受本会话已展示draft_id的单计算批次；结果必须完整、status=ok、无unfinished/question，且与本消息待展示草案身份一致。此前成功只读结果可作为依据；此前写入及非成功结果保留，不能用纯改稿直接回执丢掉它们。首次规划、旧执行无声明、缺来源或尚需说明/建议继续原生循环。行动说明仍在工具前尝试，菜单直接完成不抑制该说明。
+
+需要模型补充的规划理由使用最终正文的`<plan_note>...</plan_note>`公开说明块；只写定性内容，具体份量和营养由选定草案统一展示。渲染保留定性句，定量句不重复交付并记录调整，业务/知识同条结果沿既有独立回执。该标签不进入实际公开正文，也不产生工具或额外决策。
+
+最近餐引用仍用last_meal和refs，模型对明确“刚才”且其中食物唯一时直接调用revise_intake；工具按原ID读当前事实及版本，原prepared、一次提交与原餐合计不变。未指定哪一份的日期/餐次引用由原生循环先定位和消歧，不增加意图分类器或第九工具。
+
+R9真实反例修复：距来源整数日常单位≤1克的模型建议量可按该单位生成校正候选，仍用来源精确重量计算。完整自由文本assumption留在持久工具事实与原始参数；公开只保留不含数量的组成/做法分句，数量以已解析餐项为准。带assumption的计划项标估算，固定餐带假设时不再称用户给量。模型请求的可信状态增加execution_budget.model_decision/model_decisions_after_this/tool_calls_remaining，来自原持久计数，不新增预算、路由或执行分支；用于规划保留末次正文决策，已达容差不为可选项继续查源。
+
+R10固定量反例：不仅工具自动校正，原adjustment.replacements入口也只允许修改既有suggested项；user_given或assumed_takeout项的备选变更整次拒绝，selection.rejected_adjustment保留原因，原稿继续核算。不能先改basis/source/份数绕过用户固定量；八工具、固定动作与提交协议不变。

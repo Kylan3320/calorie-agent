@@ -1,0 +1,32 @@
+[PASS] MQ01 §6.1 fixed-source 2230/250/150/70 counterexample selects B and binds exactly that draft.
+[PASS] MQ02 Daily ignores today's target/intake; full_day and remaining use dated targets with one intake subtraction.
+[PASS] MQ03 Missing fixed portions keep a partial subtotal and cannot earn calorie tolerance or a complete choice.
+[PASS] MQ04 Native comparisons obey tolerance, macro tradeoff, portion preference, stable ties, and fixed/max limits.
+[PASS] MQ05 Displayed selected drafts survive reconstruction and targeted replacements preserve source/fixed scope without ledger writes.
+[PASS] MQ06 Chicken-to-egg replacement covers every named meal group, retaining servings, fixed sources and the intake ledger.
+[PASS] MQ07 One selected menu replaces duplicated model lists; resolved source offers and comparison audit stay private.
+[PASS] MQ08 A nutrition lookup cannot erase the no-chicken/no-object answer or replace the active draft.
+[PASS] MQ09 Direct partial calculation displays and binds real unresolved choices; next turn uses that exact source.
+[PASS] MQ10 The sole menu keeps committed meal receipts and separately sourced knowledge answers from the same request.
+[PASS] MQ11 Known final calculation survives budget/model termination as one displayed, resumable draft.
+[PASS] MQ12 Brand-bearing candidate profiles expose real per-100g facts; conflicting names stay pending with exact correction facts.
+[PASS] MQ13 One batch retains six source profiles plus ambiguity/missing inputs, supplementary lookup and A/B calculation within the native budget.
+[PASS] MQ14 Batch offers bind the first unresolved query across reconstruction; typed bounds and mode conflicts reject without extra lookups.
+[PASS] MQ15 Batch snapshot choices keep their known amounts; projection and exceptional receipts retain per-query facts once.
+[PASS] MQ16 R7 real sources and original two suggestions reach tolerance in one calculation, never lose to the 158.4 g egg / 160 g chicken Pareto counterexample.
+[PASS] MQ17 R7 all-user-given menu stays 2006.6/223.4; fixed quantities, assumptions, repetitions and max grams constrain correction.
+[PASS] MQ18 A safe one-item correction stops there; an in-tolerance plan and no-tolerance legacy calculation never chase zero error.
+[PASS] MQ19 Editing a delivered draft can calibrate only explicitly suggested replacements; numeric user replacements are fixed and every other item is identical.
+[PASS] MC01 Displayed draft revision finishes in one calculation; reasons/missing identity stay in the model loop.
+[PASS] MC02 Pure revision action note precedes calculation, final edits it; empty note still delivers and ACK loss only re-delivers.
+[PASS] MC03 Two breakfasts: explicit most recent changes one original ID; date-only reference asks which before writing.
+[PASS] MC04 COS traces expose confirmed start/end/range and credential-only reconstruction without credential values.
+[PASS] RR01 run入口普通270→210→105→315均一决策事实回执，部分/跨日/候选/取消不丢原餐。
+[PASS] RR02 完整批次与两批依赖不截断；建议/缺声明/不一致/proposal/error继续模型正文。
+[PASS] TB03 批次控制剥离后原生handler与持久业务参数一致，其他未知参数仍校验错误。
+[PASS] AN08 补发确认后工具前重启，仅恢复原批次，零第二次进度。
+[PASS] AN09 补发ACK丢失重建后跳过重发，独立最终UUID只投递一份终态。
+[PASS] AN11 普通写账漏完成声明仍不因错误携带公开说明增加进度RPC。
+[PASS] PC02 陈旧LIST、提交冲突和缺失检查点均不丢收件、不重复业务。
+
+30 passed, 0 failed (total 30)

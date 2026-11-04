@@ -1,0 +1,5 @@
+[PASS] MQ10 The sole menu keeps committed meal receipts and separately sourced knowledge answers from the same request.
+[PASS] MQ07 One selected menu replaces duplicated model lists; resolved source offers and comparison audit stay private.
+[PASS] MQ08 A nutrition lookup cannot erase the no-chicken/no-object answer or replace the active draft.
+
+3 passed, 0 failed (total 3)

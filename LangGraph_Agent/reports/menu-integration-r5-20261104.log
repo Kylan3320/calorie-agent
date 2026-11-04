@@ -1,0 +1,9 @@
+[FAIL] MQ07 One selected menu replaces duplicated model lists; resolved source offers and comparison audit stay private.
+       - JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+[PASS] MQ08 A nutrition lookup cannot erase the no-chicken/no-object answer or replace the active draft.
+[PASS] MQ09 Direct partial calculation displays and binds real unresolved choices; next turn uses that exact source.
+[PASS] AN11 普通写账漏完成声明仍不因错误携带公开说明增加进度RPC。
+[PASS] TD02 Nutrition candidates retain source refs/order across reconstruction and stay separate from intake pending.
+[PASS] AN08 补发确认后工具前重启，仅恢复原批次，零第二次进度。
+
+5 passed, 1 failed (total 6)

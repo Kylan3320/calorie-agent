@@ -1,0 +1,5 @@
+[FAIL] MQ10 The sole menu keeps committed meal receipts and separately sourced knowledge answers from the same request.
+       - AssertionError: 
+[PASS] TE03 异常回执保留当前答案、历史筛选、计划小计及关闭提醒实际缺项。
+
+1 passed, 1 failed (total 2)

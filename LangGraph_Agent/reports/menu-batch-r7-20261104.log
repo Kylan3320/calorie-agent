@@ -1,0 +1,10 @@
+[PASS] MQ13 One batch retains six source profiles plus ambiguity/missing inputs, supplementary lookup and A/B calculation within the native budget.
+[PASS] MQ14 Batch offers bind the first unresolved query across reconstruction; typed bounds and mode conflicts reject without extra lookups.
+[PASS] MQ12 Brand-bearing candidate profiles expose real per-100g facts; conflicting names stay pending with exact correction facts.
+[PASS] TD02 Nutrition candidates retain source refs/order across reconstruction and stay separate from intake pending.
+[PASS] TB05 同轮营养候选投影仅给可执行source_ref和完整单位，可直接算稿；记餐choice保护保持。
+[PASS] TE03 异常回执保留当前答案、历史筛选、计划小计及关闭提醒实际缺项。
+[PASS] AN07 首批全空在首个计算批次补发，不增加模型决策且终态同消息。
+[PASS] AN09 补发ACK丢失重建后跳过重发，独立最终UUID只投递一份终态。
+
+8 passed, 0 failed (total 8)

@@ -1,0 +1,8 @@
+[PASS] MQ15 Batch snapshot choices keep their known amounts; projection and exceptional receipts retain per-query facts once.
+[PASS] MQ14 Batch offers bind the first unresolved query across reconstruction; typed bounds and mode conflicts reject without extra lookups.
+[PASS] QA01 Archive response loss, coalescing, replay and soft delete preserve one latest row.
+[PASS] QA06 Precise source readback after a lost create ACK only reads; mismatched fields never advance the watermark.
+[PASS] QA07 New archive tokens isolate destination/version while identical preparations and UUIDv4 form remain stable.
+[PASS] QA08 Legacy inflight recovery uses its original fields/token, reads before retry, and never rotates an uncertain request.
+
+6 passed, 0 failed (total 6)

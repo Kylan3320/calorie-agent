@@ -1,0 +1,10 @@
+[FAIL] TB05 同轮营养候选投影仅给可执行source_ref和完整单位，可直接算稿；记餐choice保护保持。
+       - AssertionError: 
+[PASS] TD02 Nutrition candidates retain source refs/order across reconstruction and stay separate from intake pending.
+[PASS] TD07 Historical follow-ups inherit and explicitly clear filters, and each detail preserves its actual scope.
+[PASS] TD08 原话鸭腿饭完整任务：两份无卤蛋组成假设、微波炉菜单、独立1200及跨轮只换鸡胸。
+[PASS] TB04 真实来源单位为数值字符串时，普通展示及模型失败异常回执均可交付。
+[PASS] E02 缺项合并询问、换话题保留信息、跨日候选补全。
+[PASS] AN05 规划首工具仅查目标仍先说明；确认说明后重启，最终展示才提升草案。
+
+6 passed, 1 failed (total 7)

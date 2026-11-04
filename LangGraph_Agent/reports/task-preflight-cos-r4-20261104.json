@@ -1,0 +1,519 @@
+{
+  "trace_enabled": false,
+  "rpc_delay_ms": 1.0,
+  "baseline_commit": "3497e9b8e0f81635e779cb1f1e82ecd986947209",
+  "baseline_source_sha256": "3f1ee497bb9e2cb454845c93dc709cda8b07bbe4b049c67ce24a6a13c71b1a8a",
+  "consumer_sha256": {
+    "agent\\__init__.py": "14462df6818c537b0c36ed868f7ad645502db1da905b7d970bfb8598f64fc27d",
+    "agent\\config.py": "bd0799fa8eceb82c5ec248fe770323aabeeed75670569a6429726b009fadd4aa",
+    "agent\\context.py": "bc4734240f39efbac79af64c33b46c0bf6028a59edac9ccadba6d6e8d3124c3e",
+    "agent\\evidence.py": "1ba03cf9e2915ac735eccc748812d109ab53f10b6a8c1bff46b1c2c437e9aebb",
+    "agent\\graph.py": "6c199ca52967b5cfdb0a80bb3723bba5cd158fce7c67e8f640c4af7dc390f73b",
+    "agent\\model.py": "5396f22dc608e952b83953821a5da754c59038c04807c2c05097611b0cb336f2",
+    "agent\\planning.py": "c7e6e28d056c77c36ee6ec13205b4dc436b8dc7bb9c9dffada409df0c1357ecd",
+    "agent\\policy\\__init__.py": "5de149b973baa3ffca4ffa8be3905dd1bb9b185110060a50e35f74aa90b597c9",
+    "agent\\policy\\presets.py": "35bdad25165ae33dff9b5904a266d868f3958d7b1a56f7b6dec3dc94a058ee02",
+    "agent\\replies.py": "d15e370a6715dd10290a7ad64b30da660caaed0bb105facddae7f069add48bca",
+    "agent\\storage\\__init__.py": "2d916818ba5a3404d08b35146e1e9dd84017ac1e7546358a002727d748312e10",
+    "agent\\storage\\bitable_adapter.py": "7ce72015ad30d845b63e5707d4bf9aa1eac18164190a9363e504e458dccd2dab",
+    "agent\\storage\\boohee_client.py": "9892c7336d514fde1540ab361ff1295a572a3403e1be5c412fb4d7e3656a7e2d",
+    "agent\\storage\\conversation.py": "59548fdd0b342ceeb71120c36ba9ed6577d1858e11d3016779121fff44d4e308",
+    "agent\\storage\\cos_archive.py": "b5ada2f60c5d1de683c8bff4c2c0f69bb49ce577b14836ae18d165e087385b1e",
+    "agent\\storage\\cos_journal.py": "2ab0a90e47ccd4f3ba0a26c1cb9d28ca723f678d13aa95d50915e9185a2bbc4b",
+    "agent\\storage\\cos_store.py": "88e247afa4769f3bd94f113063f53e07f52341cc87aba54d47fbb189633855eb",
+    "agent\\storage\\cos_transport.py": "73b41b7962c049d5f44f84c6087784e1e35bfcb51ecb8c43bc2b4bd2540f0699",
+    "agent\\storage\\execution_pipeline.py": "917e32286f9d99abb45aa18cc90d605f7261fee5fbc465f9e980472c9622cec2",
+    "agent\\storage\\fake_store.py": "d58642ab9590952a967718f51be12729290028df63d93d21729858ca6004d311",
+    "agent\\storage\\feishu_client.py": "5c5e7c638387355d45c8ad8c8e62c88f83bcbf5ff5f5dfba3c851788e304a424",
+    "agent\\storage\\food_match.py": "7797f4ed486db2533be29cb1c510a9325618a4d536d778b78c08c06e8661167c",
+    "agent\\storage\\knowledge_retriever.py": "58eb5bd13426ef4f3cfdda82038e6c8cec2246a186e575b8d089d2edf812ec04",
+    "agent\\storage\\knowledge_seed.py": "13c5a0a7e3c0110a49ad7727e8f03936020739d17f4bae9b917fa099274d2c73",
+    "agent\\storage\\live_client.py": "b289029f7e1dd457580b94c990e88eec4be9ab342e45d1048a808a3a11f6b8e4",
+    "agent\\storage\\migration.py": "d5e81829f765c30084a81b65e946ec179d7d728e6d99fb286a1867ef6ff7c74d",
+    "agent\\storage\\model_transport.py": "79b3d265e1ababfac098d2d9576a16744553000b05ae8d4fae4511131b5f23e6",
+    "agent\\storage\\reminders.py": "bf5909a092e39636c7afd4d72b20a54f7720cc084b253ef3e6d10e0eeba62716",
+    "agent\\storage\\scf_dispatch.py": "d27d281c47507919b9d48a72798dc2da612809c7159a2bad299efc97d491e878",
+    "agent\\storage\\state_store.py": "4d04ef13fcca69bda1695241a1e2ad408ee1516c14bfae39211d8e1e9e3ba4f8",
+    "agent\\storage\\telemetry.py": "c32caf6fd7e8ed4a73ffd19905242fcaaac520dec36d863922b8860c660ac7c3",
+    "agent\\storage\\timeutil.py": "c480885f5131d1b6af9a27283d2622931160c070421c71cbbbbb0d1e8e61f5da",
+    "agent\\tools\\__init__.py": "a37b2937a6cc7314ee2978d7f01a3fb5f8221b4ec3306e2ed94ad41d0b046ddc",
+    "agent\\tools\\base.py": "25f158f6fe347507abca75e8d6bed16631e3d073fb60d32fab26727844c88dfa",
+    "agent\\tools\\meals.py": "4bc964c6fd67a4c76ff20c774ef3724c9db39c3f990c4145c84def4e9dceac90",
+    "agent\\tools\\reads.py": "fb2e9110c06bd7b3cf2f4ed986f26264e1c4f854668a8284dcfe00d4a70a8078",
+    "agent\\tools\\registry.py": "055fd9ef53e5615f596f3e0a1c2253538086ec3dd0001ed9128bf73ae34a2d4b",
+    "agent\\tools\\settings.py": "b36c76c34e85bb17688beed593b9c769f4386d9a35db4c17eb9beb26c4b68aa5"
+  },
+  "pairs": [
+    {
+      "before": {
+        "history": 1024,
+        "tail": 64,
+        "warm": false,
+        "fixture_sha256": "476d0946f3b7fa597ce19be45870e0e98752c76ab9e2668e09f4e44cbedf791f",
+        "rpc_counts": {
+          "list": 12,
+          "commit_get": 262,
+          "document_get": 6,
+          "barrier": 3,
+          "create": 24
+        },
+        "listed_keys": 6539,
+        "cos_union_ms": 440.994,
+        "first_model_ms": 470.958,
+        "receipt": {
+          "intake_date": "2026-11-04",
+          "kind": "message",
+          "message": {
+            "chat_id": "test",
+            "message_id": "preflight-fixed",
+            "text": "今天多少热量？",
+            "user_id": "user"
+          },
+          "receipt_id": "9567648d842122e6fbb8fb738d4e749165eb7ace3858f3c48f3024a3052606c8",
+          "reference": null,
+          "sequence": 1,
+          "source": "feishu"
+        },
+        "ledger": [
+          {
+            "agent_revision": 1,
+            "date": "2026-11-04",
+            "food_id": "",
+            "food_name": "夹具A",
+            "grams": 200,
+            "meal_type": "unknown",
+            "message_id": "prior-meal",
+            "nutrition": {
+              "carbs": 20,
+              "fat": 2,
+              "kcal": 120,
+              "protein": 4
+            },
+            "raw_text": "旧餐",
+            "record_id": "04eb0783-3cf9-4642-afb2-3ce6cadc95c8",
+            "snapshot": {},
+            "status": "valid",
+            "user_id": "user"
+          }
+        ],
+        "session": {
+          "fixture": "原会话",
+          "messages": [],
+          "refs": []
+        }
+      },
+      "after": {
+        "history": 1024,
+        "tail": 64,
+        "warm": false,
+        "fixture_sha256": "476d0946f3b7fa597ce19be45870e0e98752c76ab9e2668e09f4e44cbedf791f",
+        "rpc_counts": {
+          "list": 14,
+          "commit_get": 262,
+          "document_get": 6,
+          "barrier": 3,
+          "create": 24
+        },
+        "listed_keys": 362,
+        "cos_union_ms": 154.849,
+        "first_model_ms": 174.817,
+        "receipt": {
+          "intake_date": "2026-11-04",
+          "kind": "message",
+          "message": {
+            "chat_id": "test",
+            "message_id": "preflight-fixed",
+            "text": "今天多少热量？",
+            "user_id": "user"
+          },
+          "receipt_id": "9567648d842122e6fbb8fb738d4e749165eb7ace3858f3c48f3024a3052606c8",
+          "reference": null,
+          "sequence": 1,
+          "source": "feishu"
+        },
+        "ledger": [
+          {
+            "agent_revision": 1,
+            "date": "2026-11-04",
+            "food_id": "",
+            "food_name": "夹具A",
+            "grams": 200,
+            "meal_type": "unknown",
+            "message_id": "prior-meal",
+            "nutrition": {
+              "carbs": 20,
+              "fat": 2,
+              "kcal": 120,
+              "protein": 4
+            },
+            "raw_text": "旧餐",
+            "record_id": "04eb0783-3cf9-4642-afb2-3ce6cadc95c8",
+            "snapshot": {},
+            "status": "valid",
+            "user_id": "user"
+          }
+        ],
+        "session": {
+          "fixture": "原会话",
+          "messages": [],
+          "refs": []
+        }
+      }
+    },
+    {
+      "before": {
+        "history": 1024,
+        "tail": 64,
+        "warm": true,
+        "fixture_sha256": "476d0946f3b7fa597ce19be45870e0e98752c76ab9e2668e09f4e44cbedf791f",
+        "rpc_counts": {
+          "list": 8,
+          "commit_get": 254,
+          "document_get": 6,
+          "barrier": 2,
+          "create": 24
+        },
+        "listed_keys": 4358,
+        "cos_union_ms": 140.217,
+        "first_model_ms": 157.769,
+        "receipt": {
+          "intake_date": "2026-11-04",
+          "kind": "message",
+          "message": {
+            "chat_id": "test",
+            "message_id": "preflight-fixed",
+            "text": "今天多少热量？",
+            "user_id": "user"
+          },
+          "receipt_id": "9567648d842122e6fbb8fb738d4e749165eb7ace3858f3c48f3024a3052606c8",
+          "reference": null,
+          "sequence": 1,
+          "source": "feishu"
+        },
+        "ledger": [
+          {
+            "agent_revision": 1,
+            "date": "2026-11-04",
+            "food_id": "",
+            "food_name": "夹具A",
+            "grams": 200,
+            "meal_type": "unknown",
+            "message_id": "prior-meal",
+            "nutrition": {
+              "carbs": 20,
+              "fat": 2,
+              "kcal": 120,
+              "protein": 4
+            },
+            "raw_text": "旧餐",
+            "record_id": "04eb0783-3cf9-4642-afb2-3ce6cadc95c8",
+            "snapshot": {},
+            "status": "valid",
+            "user_id": "user"
+          }
+        ],
+        "session": {
+          "fixture": "原会话",
+          "messages": [],
+          "refs": []
+        }
+      },
+      "after": {
+        "history": 1024,
+        "tail": 64,
+        "warm": true,
+        "fixture_sha256": "476d0946f3b7fa597ce19be45870e0e98752c76ab9e2668e09f4e44cbedf791f",
+        "rpc_counts": {
+          "list": 4,
+          "commit_get": 254,
+          "document_get": 6,
+          "barrier": 2,
+          "create": 24
+        },
+        "listed_keys": 189,
+        "cos_union_ms": 134.091,
+        "first_model_ms": 150.25,
+        "receipt": {
+          "intake_date": "2026-11-04",
+          "kind": "message",
+          "message": {
+            "chat_id": "test",
+            "message_id": "preflight-fixed",
+            "text": "今天多少热量？",
+            "user_id": "user"
+          },
+          "receipt_id": "9567648d842122e6fbb8fb738d4e749165eb7ace3858f3c48f3024a3052606c8",
+          "reference": null,
+          "sequence": 1,
+          "source": "feishu"
+        },
+        "ledger": [
+          {
+            "agent_revision": 1,
+            "date": "2026-11-04",
+            "food_id": "",
+            "food_name": "夹具A",
+            "grams": 200,
+            "meal_type": "unknown",
+            "message_id": "prior-meal",
+            "nutrition": {
+              "carbs": 20,
+              "fat": 2,
+              "kcal": 120,
+              "protein": 4
+            },
+            "raw_text": "旧餐",
+            "record_id": "04eb0783-3cf9-4642-afb2-3ce6cadc95c8",
+            "snapshot": {},
+            "status": "valid",
+            "user_id": "user"
+          }
+        ],
+        "session": {
+          "fixture": "原会话",
+          "messages": [],
+          "refs": []
+        }
+      }
+    },
+    {
+      "before": {
+        "history": 10240,
+        "tail": 64,
+        "warm": false,
+        "fixture_sha256": "ba2035329f1ee048aed977f18aeac66875cdff4e0af6e91f3a0f25cd05361ff5",
+        "rpc_counts": {
+          "list": 66,
+          "commit_get": 262,
+          "document_get": 6,
+          "barrier": 3,
+          "create": 24
+        },
+        "listed_keys": 61835,
+        "cos_union_ms": 513.355,
+        "first_model_ms": 553.192,
+        "receipt": {
+          "intake_date": "2026-11-04",
+          "kind": "message",
+          "message": {
+            "chat_id": "test",
+            "message_id": "preflight-fixed",
+            "text": "今天多少热量？",
+            "user_id": "user"
+          },
+          "receipt_id": "9567648d842122e6fbb8fb738d4e749165eb7ace3858f3c48f3024a3052606c8",
+          "reference": null,
+          "sequence": 1,
+          "source": "feishu"
+        },
+        "ledger": [
+          {
+            "agent_revision": 1,
+            "date": "2026-11-04",
+            "food_id": "",
+            "food_name": "夹具A",
+            "grams": 200,
+            "meal_type": "unknown",
+            "message_id": "prior-meal",
+            "nutrition": {
+              "carbs": 20,
+              "fat": 2,
+              "kcal": 120,
+              "protein": 4
+            },
+            "raw_text": "旧餐",
+            "record_id": "04eb0783-3cf9-4642-afb2-3ce6cadc95c8",
+            "snapshot": {},
+            "status": "valid",
+            "user_id": "user"
+          }
+        ],
+        "session": {
+          "fixture": "原会话",
+          "messages": [],
+          "refs": []
+        }
+      },
+      "after": {
+        "history": 10240,
+        "tail": 64,
+        "warm": false,
+        "fixture_sha256": "ba2035329f1ee048aed977f18aeac66875cdff4e0af6e91f3a0f25cd05361ff5",
+        "rpc_counts": {
+          "list": 38,
+          "commit_get": 262,
+          "document_get": 6,
+          "barrier": 3,
+          "create": 24
+        },
+        "listed_keys": 1242,
+        "cos_union_ms": 184.623,
+        "first_model_ms": 230.702,
+        "receipt": {
+          "intake_date": "2026-11-04",
+          "kind": "message",
+          "message": {
+            "chat_id": "test",
+            "message_id": "preflight-fixed",
+            "text": "今天多少热量？",
+            "user_id": "user"
+          },
+          "receipt_id": "9567648d842122e6fbb8fb738d4e749165eb7ace3858f3c48f3024a3052606c8",
+          "reference": null,
+          "sequence": 1,
+          "source": "feishu"
+        },
+        "ledger": [
+          {
+            "agent_revision": 1,
+            "date": "2026-11-04",
+            "food_id": "",
+            "food_name": "夹具A",
+            "grams": 200,
+            "meal_type": "unknown",
+            "message_id": "prior-meal",
+            "nutrition": {
+              "carbs": 20,
+              "fat": 2,
+              "kcal": 120,
+              "protein": 4
+            },
+            "raw_text": "旧餐",
+            "record_id": "04eb0783-3cf9-4642-afb2-3ce6cadc95c8",
+            "snapshot": {},
+            "status": "valid",
+            "user_id": "user"
+          }
+        ],
+        "session": {
+          "fixture": "原会话",
+          "messages": [],
+          "refs": []
+        }
+      }
+    },
+    {
+      "before": {
+        "history": 10240,
+        "tail": 64,
+        "warm": true,
+        "fixture_sha256": "ba2035329f1ee048aed977f18aeac66875cdff4e0af6e91f3a0f25cd05361ff5",
+        "rpc_counts": {
+          "list": 44,
+          "commit_get": 254,
+          "document_get": 6,
+          "barrier": 2,
+          "create": 24
+        },
+        "listed_keys": 41222,
+        "cos_union_ms": 187.938,
+        "first_model_ms": 218.633,
+        "receipt": {
+          "intake_date": "2026-11-04",
+          "kind": "message",
+          "message": {
+            "chat_id": "test",
+            "message_id": "preflight-fixed",
+            "text": "今天多少热量？",
+            "user_id": "user"
+          },
+          "receipt_id": "9567648d842122e6fbb8fb738d4e749165eb7ace3858f3c48f3024a3052606c8",
+          "reference": null,
+          "sequence": 1,
+          "source": "feishu"
+        },
+        "ledger": [
+          {
+            "agent_revision": 1,
+            "date": "2026-11-04",
+            "food_id": "",
+            "food_name": "夹具A",
+            "grams": 200,
+            "meal_type": "unknown",
+            "message_id": "prior-meal",
+            "nutrition": {
+              "carbs": 20,
+              "fat": 2,
+              "kcal": 120,
+              "protein": 4
+            },
+            "raw_text": "旧餐",
+            "record_id": "04eb0783-3cf9-4642-afb2-3ce6cadc95c8",
+            "snapshot": {},
+            "status": "valid",
+            "user_id": "user"
+          }
+        ],
+        "session": {
+          "fixture": "原会话",
+          "messages": [],
+          "refs": []
+        }
+      },
+      "after": {
+        "history": 10240,
+        "tail": 64,
+        "warm": true,
+        "fixture_sha256": "ba2035329f1ee048aed977f18aeac66875cdff4e0af6e91f3a0f25cd05361ff5",
+        "rpc_counts": {
+          "list": 4,
+          "commit_get": 254,
+          "document_get": 6,
+          "barrier": 2,
+          "create": 24
+        },
+        "listed_keys": 189,
+        "cos_union_ms": 133.558,
+        "first_model_ms": 151.068,
+        "receipt": {
+          "intake_date": "2026-11-04",
+          "kind": "message",
+          "message": {
+            "chat_id": "test",
+            "message_id": "preflight-fixed",
+            "text": "今天多少热量？",
+            "user_id": "user"
+          },
+          "receipt_id": "9567648d842122e6fbb8fb738d4e749165eb7ace3858f3c48f3024a3052606c8",
+          "reference": null,
+          "sequence": 1,
+          "source": "feishu"
+        },
+        "ledger": [
+          {
+            "agent_revision": 1,
+            "date": "2026-11-04",
+            "food_id": "",
+            "food_name": "夹具A",
+            "grams": 200,
+            "meal_type": "unknown",
+            "message_id": "prior-meal",
+            "nutrition": {
+              "carbs": 20,
+              "fat": 2,
+              "kcal": 120,
+              "protein": 4
+            },
+            "raw_text": "旧餐",
+            "record_id": "04eb0783-3cf9-4642-afb2-3ce6cadc95c8",
+            "snapshot": {},
+            "status": "valid",
+            "user_id": "user"
+          }
+        ],
+        "session": {
+          "fixture": "原会话",
+          "messages": [],
+          "refs": []
+        }
+      }
+    }
+  ],
+  "measurement": "accept/original received_at to existing Runtime.wrap_model_call entry; no model call or verification reads included",
+  "limitations": [
+    "fixed-delay in-memory COS, not real cloud latency",
+    "local imports preloaded; cold means cold COS journals",
+    "no queue delay; first model function intercepted before step preparation",
+    "received_at varies by sample; normalized original receipt content, ledger and session compared exactly"
+  ]
+}

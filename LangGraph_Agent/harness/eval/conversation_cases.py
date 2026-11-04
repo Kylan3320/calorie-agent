@@ -130,7 +130,8 @@ def E03():
         s=setup();r=send(s,'主食怎么搭配？给个简单解释和依据。',[call('query_knowledge',{'query':'主食搭配'}),answer],'e3a');assert '蔬菜' in r['reply']
         fact=r['tool_results'][0];saved=deepcopy(fact);view=model_view(fact)
         assert fact==saved and fact['data']['evidence']
-        assert 'evidence' not in view['data'] and view['data']['entries'][0]['source_id']=='K101'
+        assert 'evidence' not in view['data'] and view['data']['entries'][0]['legacy_source_id']=='K101'
+        assert view['data']['entries'][0]['source_id'].startswith('K') and view['data']['entries'][0]['evidence_id']
         assert view['data']['entries'][0]['answer']==fact['data']['entries'][0]['answer']
         assert view['data']['entries'][0]['source']==fact['data']['entries'][0]['source']
         assert json.dumps(view,ensure_ascii=False).count(fact['data']['evidence'])==1
@@ -138,12 +139,22 @@ def E03():
         assert json.loads(historical[0].content)==view and model_view(view)==view
         assert not re.search(r'一半|半碗|半盘|一小碗|[一二三四五六七八九十百\d]+分之[一二三四五六七八九十百\d]+|\d+(?:\.\d+)?\s*(?:克|g|%|％)',r['reply']),r['reply']
         r=send(s,'火星饮食法有什么道理？',[call('query_knowledge',{'query':'火星饮食法'}),answer],'e3b');assert r['reply'] and not s.intake
-        r=send(s,'把刚才主食搭配的来源给我看看。',[call('query_knowledge',{'query':'主食搭配'}),lambda m:AIMessage(content='原文是“主食可以与蔬菜搭配，结合整天的饮食安排。”来源：验收资料2022，第2段。[K101]')],'e3c');assert '2022' in r['reply']
+        def source_answer(messages):
+            from agent.evidence import collect_visible_evidence
+            entry=next(e for e in collect_visible_evidence(messages) if e['source']=='验收资料2022，第2段')
+            return AIMessage(content='原文是“主食可以与蔬菜搭配，结合整天的饮食安排。”来源：验收资料2022，第2段。['+entry['source_id']+']')
+        r=send(s,'把刚才主食搭配的来源给我看看。',[call('query_knowledge',{'query':'主食搭配'}),source_answer],'e3c');assert '2022' in r['reply']
         assert not s.load_document('user_settings','user')
         if not REAL:
-            r=send(s,'分别查主食搭配和全谷轮换的依据。',[call('query_knowledge',{'query':'主食搭配'}),call('query_knowledge',{'query':'全谷轮换'},'c2'),AIMessage(content='两条依据分别见[K101]与[K201]。')],'e3multi')
+            def both_sources(messages):
+                from agent.evidence import collect_visible_evidence
+                entries=collect_visible_evidence(messages)
+                first=next(e for e in entries if e['source']=='验收资料2022，第2段')
+                second=next(e for e in entries if e['source']=='轮换资料2024，第7段')
+                return AIMessage(content='两条依据分别见['+first['source_id']+']与['+second['source_id']+']。')
+            r=send(s,'分别查主食搭配和全谷轮换的依据。',[call('query_knowledge',{'query':'主食搭配'}),call('query_knowledge',{'query':'全谷轮换'},'c2'),both_sources],'e3multi')
             ids=[c['data']['entries'][0]['source_id'] for c in r['tool_results']]
-            assert ids==['K101','K201'] and len(r['response_adjustments'])==2
+            assert len(set(ids))==2 and all(value.startswith('K') for value in ids) and len(r['response_adjustments'])==2
             assert '分别见〔验收资料2022，第2段〕与〔轮换资料2024，第7段〕' in r['reply']
 
     finally:reads.build_knowledge_retriever=old
@@ -203,7 +214,9 @@ def _history_projection_checks():
     from agent.tools.registry import History, TOOL_REGISTRY, query_history
     from agent.tools.meals import select_rows
     from harness.eval.personal_cases import A
-    assert History().detail=='summary' and len(TOOL_REGISTRY)==8
+    # Omission stays unset so a follow-up can retain its actual previous scope;
+    # query_history itself supplies summary for a new query.
+    assert History().detail is None and len(TOOL_REGISTRY)==8
     sizes=[]
     for n in (1000,10000):
         seeds=[{'date':'2026-10-01' if i%2==0 else '2026-10-02','food_name':'夹具A' if i%2==0 else '夹具B',
@@ -255,7 +268,9 @@ def _history_projection_checks():
         # The direct-ID store path must not load the historical ledger again.
         indexed={row['record_id']:row for row in s.intake}
         with patch.object(s,'intake_by_ids',lambda user,ids:[deepcopy(indexed[key]) for key in ids],create=True), patch.object(s,'intake_items',side_effect=AssertionError('state_view must use fixed IDs')):
-            assert state_view(rt)==before
+            current_view=state_view(rt)
+            assert current_view.pop('history_scope')=={**params,'detail':'items'}
+            assert current_view==before
         # A rebuilt view immediately reflects completed/cancelled pending state
         # and the new active proposal, without copying complete target snapshots.
         session['unfinished'].pop('pending-old')

@@ -12,6 +12,7 @@ import threading
 import time
 import urllib.parse
 from typing import Any
+from contextvars import ContextVar
 from .timeutil import remaining_timeout
 from .model_transport import create_client, deadline_scope
 import httpx
@@ -20,6 +21,7 @@ _CLIENT = create_client()
 DEFAULT_FEISHU_API_BASE = "https://open.feishu.cn/open-apis"
 _HTTP_TIMEOUT_SECONDS = 10
 _RETRY_SLEEP_SECONDS = 0.6
+_HTTP_ATTEMPTS = ContextVar("feishu_http_attempts", default=2)
 
 _TOKEN_LOCK = threading.Lock()
 _TENANT_ACCESS_TOKEN = ""
@@ -45,7 +47,7 @@ def _http_request(url: str, payload: dict[str, Any] | None, headers: dict[str, s
     deadline = time.monotonic() + remaining_timeout(_HTTP_TIMEOUT_SECONDS)
     with deadline_scope(deadline):
         wire = _json_bytes(payload) if payload is not None else None
-        for attempt in (1, 2):
+        for attempt in range(1, _HTTP_ATTEMPTS.get() + 1):
             rpc_timeout = remaining_timeout(_HTTP_TIMEOUT_SECONDS)
             try:
                 with span("feishu_http", method=method, attempt=attempt,
@@ -61,7 +63,7 @@ def _http_request(url: str, payload: dict[str, Any] | None, headers: dict[str, s
             except (httpx.HTTPStatusError, httpx.RequestError) as exc:
                 last_error = exc
                 retry = isinstance(exc,httpx.RequestError) or exc.response.status_code == 429 or exc.response.status_code >= 500
-                if attempt == 1 and retry:
+                if attempt < _HTTP_ATTEMPTS.get() and retry:
                     if _RETRY_SLEEP_SECONDS >= remaining_timeout(_HTTP_TIMEOUT_SECONDS):
                         raise TimeoutError("Feishu retry wait would exhaust its fixed RPC deadline") from exc
                     time.sleep(_RETRY_SLEEP_SECONDS)
@@ -144,3 +146,12 @@ def update_text(message_id: str, text: str) -> dict[str, Any]:
     if data.get("code") != 0:
         raise RuntimeError(f"Failed to update Feishu message: {data}")
     return data
+
+
+def send_action_note(chat_id: str, text: str, uuid_key: str = "") -> dict[str, Any]:
+    """One best-effort send; the caller supplies its one-second deadline."""
+    token = _HTTP_ATTEMPTS.set(1)
+    try:
+        return send_text(chat_id, text, uuid_key)
+    finally:
+        _HTTP_ATTEMPTS.reset(token)

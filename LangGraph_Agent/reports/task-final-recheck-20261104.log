@@ -1,0 +1,7 @@
+[PASS] TD02 Nutrition candidates retain source refs/order across reconstruction and stay separate from intake pending.
+[PASS] U01 来源热量、可食单位、整餐、实际快照和独立预期。
+[PASS] AN05 规划首工具仅查目标仍先说明；确认说明后重启，最终展示才提升草案。
+[PASS] TE04 普通模型JSON不能升级为知识工具原文，无工具两轮均不产生虚构出处。
+[PASS] E05 分级历史统计一致、完整定位、万行投影有界、动态待办与来源不丢失。
+
+5 passed, 0 failed (total 5)

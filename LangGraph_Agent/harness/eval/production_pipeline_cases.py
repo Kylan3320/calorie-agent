@@ -22,8 +22,9 @@ class Objects:
             return False
         self.data[key] = body
         return True
-    def list(self, prefix):
-        return [key for key in self.data if key.startswith(prefix)]
+    def list(self, prefix, marker='', limit=None):
+        keys = sorted(key for key in self.data if key.startswith(prefix) and key > marker)
+        return keys if limit is None else keys[:limit]
 
 
 def fixture():

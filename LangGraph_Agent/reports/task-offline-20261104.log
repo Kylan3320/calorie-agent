@@ -1,0 +1,48 @@
+[PASS] TD01 Explicit multi-ID favorites/reuse are atomic, ordered, recoverable, and use saved snapshots.
+[PASS] TD02 Nutrition candidates retain source refs/order across reconstruction and stay separate from intake pending.
+[PASS] TD03 Daily/full-day/remaining scopes use distinct targets and count repeated servings and consumed intake once.
+[PASS] TD04 Only delivered drafts become editable, and replacements preserve other groups, servings and constraints.
+[PASS] TD05 Partial plans label source/portion assumptions, preserve intake pending, and cannot claim tolerance success.
+[PASS] TD06 Missing-time reminder intent survives another topic/reconstruction and completes the original rule exactly once.
+[PASS] TD07 Historical follow-ups inherit and explicitly clear filters, and each detail preserves its actual scope.
+[PASS] AN01 首轮知识说明在检索前确认，最终编辑同message；普通账本无额外发送。
+[PASS] AN02 说明发送回包丢失后重建不重发，独立最终UUID只交付一次终态。
+[PASS] AN03 最终编辑回包丢失仅重投同消息同正文，业务与说明均不重复。
+[PASS] AN04 首轮缺说明或非文本字段均继续正常任务，无额外模型补调用。
+[PASS] AN05 规划首工具仅查目标仍先说明；确认说明后重启，最终展示才提升草案。
+[PASS] TE01 两轮旧同号检索可同时引用；第三轮仅凭实际可见首份原文追问出处。
+[PASS] TE02 旧局部号只按所属结果重绑；碰撞或已裁剪时连无据数字一起收缩。
+[PASS] TE03 异常回执保留当前答案、历史筛选、计划小计及关闭提醒实际缺项。
+[PASS] TE04 普通模型JSON不能升级为知识工具原文，无工具两轮均不产生虚构出处。
+[PASS] PC01 相同旧状态+64尾段的冷暖首轮前计时、收件/账本/会话读回。
+[PASS] PC02 陈旧LIST、提交冲突和缺失检查点均不丢收件、不重复业务。
+[PASS] U01 来源热量、可食单位、整餐、实际快照和独立预期。
+[PASS] U03 快照常用餐、半份复用、指定项修改和撤销。
+[PASS] U04 跨轮知识与待办、Store恢复、工具schema及结果回传、会话隔离和完全只读。
+[PASS] U05 直接设置、逐字段目标覆盖、邻接提案确认和计划/食用区分。
+[PASS] U06 假时钟提醒开关、唯一发送、已有餐食与缺失信息；无模型调用。
+[PASS] U07 写成功/结果未保存时崩溃，恢复连续两动作、原日期及原回复，重放不覆盖新会话。
+[PASS] E01 整餐、改量常用餐、半份复用、只问今日热量；独立数值与必要调用。
+[PASS] E02 缺项合并询问、换话题保留信息、跨日候选补全。
+[PASS] E03 知识综合、无直接证据的一般解释、按需来源；无业务写入。
+[PASS] E04 两种自然提案解释、交付绑定、重建确认、取消及明确请求。
+[FAIL] E05 分级历史统计一致、完整定位、万行投影有界、动态待办与来源不丢失。
+       - AssertionError: 
+[PASS] E06 写后中断、固定两动作跨日恢复、异常事实口径及CLI/DSH提案展示。
+[PASS] CX01 迁移/清理后的旧账本、回执、reasoning与旧摘要不进入新轮；引用与普通对话保留。
+[PASS] CX03 原任务恢复核对当前授权/待办；提交待办进度保留新会话，提案绑定目标版本。
+[PASS] CX05 最终HTTP全字段计量、真实max_tokens、截断拒绝及硬超限终结后继续。
+[PASS] CX06 连续前缀、迟到/重复候选、追加后缀、旧执行及应用中断不回滚会话。
+[PASS] CX08 阻塞后台不占消息执行位；裁剪不丢来源，控制事件不新增收件/用户轮次。
+[PASS] P01 生产受理序号、原日期、迟到重试、持久尝试和交付丢状态恢复。
+[PASS] P03 CLI/DSH live经真实HTTP客户端统一提交，展示回报后提案才可确认。
+[PASS] PS02 生产提交：写前中断、响应丢失、陈旧列表、已知提交不可见和旧实例重接。
+[PASS] PS04 四路传输保留上下文；读失败不应用增量，写失败收束且不发布manifest。
+[PASS] PS05 125份发布来源一次GET；旧数组不覆盖单项修改/新增，损坏内容拒绝读取。
+[PASS] FN02 最终正文发布后进程死亡，迟到的旧展示不能确认新正文；仅恢复同UUID最终交付。
+[PASS] CB04 COS提交前中断，过期恢复只核对原action，prepared和第二动作均不得复活。
+[PASS] CB05 提交成功回包丢失后过期：完整事实可直接交付，部分提交保留且后续动作终止。
+[PASS] CB06 已存事实回执发送ACK丢失，过期重投原正文/UUID；零工具模型且只一次账本。
+[PASS] CB07 旧收件无时间仅首次接管保存legacy起点，重试不续期且T_service为空。
+
+44 passed, 1 failed (total 45)

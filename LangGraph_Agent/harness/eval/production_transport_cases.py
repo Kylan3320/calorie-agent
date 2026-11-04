@@ -112,9 +112,11 @@ class FileObjects:
         path = self.directory / key
         return path.read_bytes() if path.exists() else None
 
-    def list(self, prefix):
-        return [p.relative_to(self.directory).as_posix() for p in self.directory.rglob("*.json")
-                if p.relative_to(self.directory).as_posix().startswith(prefix)]
+    def list(self, prefix, marker='', limit=None):
+        keys = sorted(p.relative_to(self.directory).as_posix() for p in self.directory.rglob("*.json")
+                      if p.relative_to(self.directory).as_posix().startswith(prefix)
+                      and p.relative_to(self.directory).as_posix() > marker)
+        return keys if limit is None else keys[:limit]
 
     def create(self, key, body):
         path = self.directory / key

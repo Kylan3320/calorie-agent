@@ -1,0 +1,17 @@
+[PASS] MQ01 §6.1 fixed-source 2230/250/150/70 counterexample selects B and binds exactly that draft.
+[PASS] MQ03 Missing fixed portions keep a partial subtotal and cannot earn calorie tolerance or a complete choice.
+[PASS] MQ04 Native comparisons obey tolerance, macro tradeoff, portion preference, stable ties, and fixed/max limits.
+[PASS] MQ05 Displayed selected drafts survive reconstruction and targeted replacements preserve source/fixed scope without ledger writes.
+[PASS] MQ16 R7 real sources and original two suggestions reach tolerance in one calculation, never lose to the 158.4 g egg / 160 g chicken Pareto counterexample.
+[PASS] MQ17 R7 all-user-given menu stays 2006.6/223.4; fixed quantities, assumptions, repetitions and max grams constrain correction.
+[PASS] MQ18 A safe one-item correction stops there; an in-tolerance plan and no-tolerance legacy calculation never chase zero error.
+[PASS] MQ19 Editing a delivered draft can calibrate only explicitly suggested replacements; numeric user replacements are fixed and every other item is identical.
+[PASS] MQ20 Rounded 105 g eggs still calibrate in real 52.8 g units; raw quantity assumptions cannot contradict the public menu.
+[PASS] MC01 Displayed draft revision finishes in one calculation; reasons/missing identity stay in the model loop.
+[PASS] MC02 Pure revision action note precedes calculation, final edits it; empty note still delivers and ACK loss only re-delivers.
+[PASS] MC03 Two breakfasts: explicit most recent changes one original ID; date-only reference asks which before writing.
+[PASS] MC04 COS traces expose confirmed start/end/range and credential-only reconstruction without credential values.
+[PASS] MC05 Known chicken-to-egg sources: all corresponding meal items change in one decision/calculation; a reason uses the native final step.
+[PASS] MC06 Native decisions see the durable remaining budget, including the final slot reserved for prose.
+
+15 passed, 0 failed (total 15)

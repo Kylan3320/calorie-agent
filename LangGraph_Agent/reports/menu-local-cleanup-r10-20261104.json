@@ -1,0 +1,192 @@
+{
+  "schema": "conversation-local-cleanup.r10.v1",
+  "date": "2026-11-04",
+  "authorization": "Updated AGENTS.md validation/delivery instruction requires preserving evidence and release/rollback packages, then cleaning current and historical test artifacts.",
+  "attempt": {
+    "shell": "native PowerShell",
+    "absolute_targets_checked_within_workspace_or_user_temp": true,
+    "result": "automatic_approval_rejected_before_process_start",
+    "reason": "blocked by policy",
+    "retry_or_alternate_deletion_tool": false,
+    "deleted_files": 0
+  },
+  "blocked_targets": [
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\deploy\\build",
+      "files": 2004,
+      "bytes": 81160363,
+      "exists_after_rejection": true
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-task-20261104",
+      "files": 55,
+      "bytes": 10153947,
+      "exists_after_rejection": true
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-menu-r5-20261104-143904",
+      "files": 58,
+      "bytes": 26303420,
+      "exists_after_rejection": true
+    }
+  ],
+  "other_retained": [
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-facts-candidate-20261103",
+      "files": 12,
+      "bytes": 806275,
+      "reason": "Active driver helper until cloud cleanup; prior rejection retained; no alternate deletion attempted."
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-menu-r8-20261104-prepared",
+      "reason": "Cloud cleanup completed; retained after automatic filesystem-deletion rejection, with no bypass.",
+      "files": 79,
+      "bytes": 31066273
+    }
+  ],
+  "preserved_release_and_rollback": [
+    "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-v4.zip",
+    "D:\\项目\\LangGraph_Agent\\reports\\production-candidate\\knowledge-source-fix\\rag-layer-sourcefix-20261102-69ca0bd3e30f6317.zip",
+    "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\facts-20261103-214110"
+  ],
+  "retained_temp_inventory": [
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-agent-compare-a4b7c7b489254d9abd0be6b852122927",
+      "files": 282,
+      "bytes": 16406366.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-agent-sync-0976b1044c294407b6d84565be2445c0",
+      "files": 479,
+      "bytes": 16787834.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-audit-implementation-147c56c5fe8d4de4b540f5fe3df5a576",
+      "files": 13854,
+      "bytes": 462733475.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-facts-candidate-20261103",
+      "files": 12,
+      "bytes": 806275.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-fix-baseline-pmcivfya",
+      "files": 48,
+      "bytes": 300397.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-menu-r5-20261104-143904",
+      "files": 58,
+      "bytes": 26303420.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-menu-r8-20261104-prepared",
+      "files": 79,
+      "bytes": 31066273,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-release-fix-ap8xr4_u",
+      "files": 12,
+      "bytes": 219344.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-review-9g3r01nl",
+      "files": 65,
+      "bytes": 335919.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-review-fix-92bp2p28",
+      "files": 58,
+      "bytes": 568300.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-review-test-deps",
+      "files": 1008,
+      "bytes": 19139883.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-runtime-rootfix-g9bme2j7",
+      "files": 10,
+      "bytes": 143948.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-task-20261104",
+      "files": 55,
+      "bytes": 10153947.0,
+      "status": "retained_no_alternate_deletion_after_policy_rejection"
+    }
+  ],
+  "retained_python_cache_inventory": [
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\__pycache__",
+      "files": 1,
+      "bytes": 4931.0
+    },
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\agent\\__pycache__",
+      "files": 8,
+      "bytes": 255482.0
+    },
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\agent\\policy\\__pycache__",
+      "files": 2,
+      "bytes": 2068.0
+    },
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\agent\\storage\\__pycache__",
+      "files": 22,
+      "bytes": 374074.0
+    },
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\agent\\tools\\__pycache__",
+      "files": 6,
+      "bytes": 71921.0
+    },
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\console\\__pycache__",
+      "files": 2,
+      "bytes": 34610.0
+    },
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\deploy\\__pycache__",
+      "files": 10,
+      "bytes": 173968.0
+    },
+    {
+      "path": "D:\\项目\\LangGraph_Agent\\harness\\eval\\__pycache__",
+      "files": 28,
+      "bytes": 808779.0
+    }
+  ],
+  "cloud_cleanup": {
+    "completed": true,
+    "functions_remaining": 0,
+    "cos_objects_remaining": 0,
+    "test_rows_remaining": 0,
+    "new_tables_remaining": 0,
+    "original_rows_preserved": 8
+  },
+  "final_package": {
+    "build_id": "cos-production-6168137783460961",
+    "sha256": "63e1ac885237aebb8029ea8db583a4b2718cb1b9b49cdbee88af693e5b3ddaf3",
+    "bytes": 22285680
+  },
+  "evidence": {
+    "file": "menu-candidate-evidence-r10-20261104.json",
+    "sha256": "68d9a271be02df0e9c7ed096f5d2c1dfd559bd16b82aabc36ae89defd449b3b7",
+    "bytes": 9692708
+  }
+}

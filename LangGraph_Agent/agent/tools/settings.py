@@ -1,7 +1,7 @@
 """Explicit user settings and fixed, session-bound proposals."""
 from copy import deepcopy
 import re
-from .meals import from_row, select_rows, resolve_date
+from .meals import from_row, select_rows, resolve_date, explicit_selection
 from .base import positive_grams
 from ..storage.bitable_adapter import stable_uuid
 
@@ -40,14 +40,35 @@ def update_user_settings(rt, p):
             if values.get("remove"):
                 favorites.pop(name, None)
             else:
-                rows = select_rows(rt, values.get("record_ids", []), latest=not values.get("record_ids"))
+                if values.get("record_ids"):
+                    rows, invalid = explicit_selection(rt, values["record_ids"], kind="favorite", name=name)
+                    if invalid:
+                        return invalid
+                else:
+                    rows = select_rows(rt, [], latest=True)
                 if not rows:
                     return {"status": "pending", "data": {"question": "请明确要保存的餐食"}}
                 favorites[name] = [from_row(r) for r in rows]
         elif kind == "reminder":
-            rule_id = str(values.get("rule_id") or stable_uuid(f"reminder:{rt.user_id}:{values.get('meal_type', '')}"))
             rules = settings.setdefault("reminders", {})
+            pending = rt.session.get("reminder_pending", {})
+            prior_id = pending.get("rule_id")
+            missing_fields = {field for label, field in (("提醒时间 HH:MM", "time"), ("餐次", "meal_type"))
+                              if label in pending.get("missing", [])}
+            continuation = (pending.get("enable_requested") and prior_id in rules
+                and rules[prior_id] == pending.get("rule_snapshot")
+                and values.get("rule_id", prior_id) == prior_id
+                and all(key in {"rule_id", "enabled", *missing_fields} or value == rules[prior_id].get(key)
+                        for key, value in values.items())
+                and values.get("enabled") is not False)
+            if pending.get("enable_requested") and not continuation and not any(key in values for key in ("rule_id", "meal_type", "enabled")):
+                rt.session.pop("reminder_pending", None)
+                return {"status": "pending", "data": {"kind": "reminder", "question": "原提醒规则已变化，请明确要补充或启用哪条提醒"}}
+            rule_id = str(values.get("rule_id") or (prior_id if continuation else "") or
+                          stable_uuid(f"reminder:{rt.user_id}:{values.get('meal_type', '')}"))
             rule = {**rules.get(rule_id, {}), **values, "rule_id": rule_id}
+            if continuation:
+                rule["enabled"] = True
             rule.setdefault("enabled", False)
             rule.setdefault("weekdays", list(range(7)))
             missing = []
@@ -63,9 +84,12 @@ def update_user_settings(rt, p):
             if missing:
                 rule["enabled"] = False
                 rules[rule_id] = rule
-                rt.prepare({"settings": settings, "original_settings": deepcopy(rt.settings), "kind": kind, "values": rule, "missing": missing})
+                rt.prepare({"settings": settings, "original_settings": deepcopy(rt.settings), "kind": kind, "values": rule, "missing": missing,
+                    "reminder_pending": {"rule_id": rule_id, "missing": missing, "enable_requested": True,
+                                         "rule_snapshot": deepcopy(rule)}})
             else:
                 rules[rule_id] = rule
+                values = rule
         else:
             raise ValueError("unsupported settings kind")
         if rt.prepared is None:
@@ -79,6 +103,16 @@ def update_user_settings(rt, p):
     if "feishu_chat_id" in current:
         rt.settings["feishu_chat_id"] = current["feishu_chat_id"]
     rt.store.save_document("user_settings", rt.user_id, "", rt.settings)
-    return {"status": "pending" if rt.prepared["missing"] else "ok", "data": {
+    if rt.prepared["kind"] == "reminder":
+        if rt.prepared.get("reminder_pending"):
+            rt.session["reminder_pending"] = deepcopy(rt.prepared["reminder_pending"])
+        else:
+            rt.session.pop("reminder_pending", None)
+    data = {
         "kind": rt.prepared["kind"], "values": rt.prepared["values"], "missing": rt.prepared["missing"],
-        "effective_targets": rt.store.get_standard(rt.user_id)}}
+        "effective_targets": rt.store.get_standard(rt.user_id)}
+    if rt.prepared["kind"] == "reminder":
+        data.update(rule_id=rt.prepared["values"]["rule_id"], enabled=rt.prepared["values"]["enabled"])
+        if rt.prepared["missing"]:
+            data["question"] = "提醒规则已保存，尚未启用；请补充：" + "、".join(rt.prepared["missing"])
+    return {"status": "pending" if rt.prepared["missing"] else "ok", "data": data}
