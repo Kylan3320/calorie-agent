@@ -1,0 +1,8 @@
+[PASS] MC07 Old-meal checks get per-meal totals from the same query snapshot, without a second ledger read.
+[PASS] MC03 Two breakfasts: explicit most recent changes one original ID; date-only reference asks which before writing.
+[PASS] MC01 Displayed draft revision finishes in one calculation; reasons/missing identity stay in the model loop.
+[PASS] RR01 run入口普通270→210→105→315均一决策事实回执，部分/跨日/候选/取消不丢原餐。
+[PASS] RR02 完整批次与两批依赖不截断；建议/缺声明/不一致/proposal/error继续模型正文。
+[PASS] E01 整餐、改量常用餐、半份复用、只问今日热量；独立数值与必要调用。
+
+6 passed, 0 failed (total 6)

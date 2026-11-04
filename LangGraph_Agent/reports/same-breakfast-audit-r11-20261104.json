@@ -1,0 +1,138 @@
+{
+  "schema": "same-breakfast-audit.r11.v1",
+  "runtime_source_sha256": {
+    "agent/graph.py": "a0155ac777e256190e5cdb76a78f497083ec02652aede3a516ab21c45a10dd0f",
+    "agent/tools/meals.py": "67d6ed39729a6c29244e695d4f5d7e5a5fc77789b408e81bba7d741d2cfce87b",
+    "agent/tools/registry.py": "2935fca071d2becf60802d7eafe4b84dd32da6a3fa2f7a795a5268bfcb28f96a",
+    "harness/eval/meal_completion_cases.py": "94357754c54d7c13cead2120052ac87181137d359d89a2a36e1a2fc71db0f184",
+    "harness/eval/same_breakfast_acceptance.py": "d2330fa96e874ee97deeb39fffc097bca76f7c26449482152194e0ec498d63b7"
+  },
+  "python_3_10_grammar_passed": [
+    "agent/graph.py",
+    "agent/tools/meals.py",
+    "agent/tools/registry.py",
+    "harness/eval/meal_completion_cases.py",
+    "harness/eval/same_breakfast_acceptance.py"
+  ],
+  "evidence": {
+    "reports/same-breakfast-real-r11-20261104.json": {
+      "sha256": "ef5d26bb744f53d2c34fb94349e1a836a6ef64158685a12c4787185d00f2375e",
+      "bytes": 1832560
+    },
+    "reports/same-breakfast-real-r11b-20261104.json": {
+      "sha256": "7b30f37120b40bd58c278f626590215d4dbecb47a5170097b91324468bd519a3",
+      "bytes": 1815812
+    },
+    "reports/same-breakfast-offline-r11-20261104.log": {
+      "sha256": "a48b4dc1226f344a6a9e8415301728b1e8c17064b96460e7f1dc935a0b56c771",
+      "bytes": 719
+    }
+  },
+  "requests": [
+    {
+      "user": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+      "message_id": "r11-20261104-b:1",
+      "actual_reply": "已记录：2026-11-04早餐 米饭（100克）、2026-11-04早餐 鸡蛋（100克）。\n2026-11-04早餐这餐当前合计255千卡。",
+      "added_ids": [
+        "55124453-529c-455e-adaf-46dbba103d49",
+        "58330962-17f0-42a5-823b-98c6844e6291"
+      ],
+      "changed_ids": [],
+      "removed_ids": [],
+      "valid_rows": 4,
+      "independent_total_kcal": 510.0,
+      "model_calls": 1,
+      "tools": [
+        "record_meal"
+      ],
+      "reply_source": "tool_facts",
+      "local_received_to_display_ms": 10355.489,
+      "passed": true
+    },
+    {
+      "user": "把刚才早餐的米饭改为50克。",
+      "message_id": "r11-20261104-b:2",
+      "actual_reply": "已修改：2026-11-04早餐 米饭（50克）。\n2026-11-04早餐这餐当前合计197千卡。",
+      "added_ids": [],
+      "changed_ids": [
+        "58330962-17f0-42a5-823b-98c6844e6291"
+      ],
+      "removed_ids": [],
+      "valid_rows": 4,
+      "independent_total_kcal": 452.0,
+      "model_calls": 1,
+      "tools": [
+        "revise_intake"
+      ],
+      "reply_source": "tool_facts",
+      "local_received_to_display_ms": 7132.395,
+      "passed": true
+    },
+    {
+      "user": "我今天一共吃了多少千卡？",
+      "message_id": "r11-20261104-b:3",
+      "actual_reply": "2026-11-04已记录4项，合计热量452千卡。",
+      "added_ids": [],
+      "changed_ids": [],
+      "removed_ids": [],
+      "valid_rows": 4,
+      "independent_total_kcal": 452.0,
+      "model_calls": 1,
+      "tools": [
+        "query_today"
+      ],
+      "reply_source": "tool_facts",
+      "local_received_to_display_ms": 5462.515,
+      "passed": true
+    },
+    {
+      "user": "刚才那份早餐记上了吗？",
+      "message_id": "r11-20261104-b:4",
+      "actual_reply": "已经记上了。你问的这份早餐当前是：米饭 50 克（已按你的要求从 100 克改成 50 克）、鸡蛋 100 克，这餐合计 **197 千卡**（碳水 15.4 克、蛋白 14.4 克、脂肪 8.8 克）。\n\n顺带说明一下：今天早餐现在有两条内容相同的记录——先前那条是米饭 100 克加鸡蛋 100 克，合计 255 千卡；你问的这条是后来的这份。两条加起来你今天共摄入 452 千卡。如果先前那条是误记，请告诉我，我会帮你删掉。",
+      "added_ids": [],
+      "changed_ids": [],
+      "removed_ids": [],
+      "valid_rows": 4,
+      "independent_total_kcal": 452.0,
+      "model_calls": 2,
+      "tools": [
+        "query_today"
+      ],
+      "reply_source": "agent",
+      "local_received_to_display_ms": 9787.381,
+      "passed": true
+    }
+  ],
+  "trial_decision": "defer; final-package cloud evidence is missing; no deployment authorized",
+  "deployment_performed": false,
+  "existing_r10_zip_sha256": "63e1ac885237aebb8029ea8db583a4b2718cb1b9b49cdbee88af693e5b3ddaf3",
+  "same_message_replay": "unchanged identity/recovery path; prior evidence reused under section 6.2",
+  "mainline_and_old_ledger_check_passed": true,
+  "stronger_saved_evidence_checks": {
+    "mainline_committed_fact_receipts": true,
+    "only_new_rice_grams_nutrition_revision_changed": true,
+    "runtime_unchanged_after_final_real_model_run": true,
+    "acceptance_harness_only_assertions_strengthened_after_run": true
+  },
+  "sensitive_value_scan": {
+    "files": 13,
+    "deploy_credentials_exact_matches": 0,
+    "model_key_pattern_matches": 0
+  },
+  "raw_evidence_archives": [
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\same-breakfast-r11-20261104\\evidence\\same-breakfast-real-r11-20261104.json",
+      "sha256": "ef5d26bb744f53d2c34fb94349e1a836a6ef64158685a12c4787185d00f2375e"
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\same-breakfast-r11-20261104\\evidence\\same-breakfast-real-r11b-20261104.json",
+      "sha256": "7b30f37120b40bd58c278f626590215d4dbecb47a5170097b91324468bd519a3"
+    }
+  ],
+  "ledger_readback_evidence": {
+    "path": "reports/same-breakfast-ledger-r11-20261104.json",
+    "sha256": "c5a46c1c82589987090f17b38c87951e88a8d54a282964341dc07b2454092cb3",
+    "bytes": 243674
+  },
+  "evidence_projection_checked": true
+}

@@ -18,6 +18,8 @@ record_meal的每项食物事实与record_id取自同一条实际写入后读回
 
 query_today参数detail默认为calories，读取当前日期的有效餐项并返回日期、有效项数、总热量及最小行依据，不读取目标；summary提供宏量/目标/剩余，items提供完整逐项明细。完整持久结果保存本次实际读取事实，未读字段不伪造；摄入写入快照保持完整。非成功结果保留实际错误。
 
+query_today.items另从同一批已读有效行按meal_id提供meal_totals（形状同记餐/改量），不额外读取账本；total仍为全天合计。核对特定餐时按last_meal及行的meal_id定位，再用对应合计回答；整日查询的直接回执不能代替特定餐的确认。新消息明确记录相同餐食仍新增，平台重投依原消息ID/动作键防重，不按餐食内容去重。
+
 query_food_nutrition 显式 record_id 优先返回该摄入快照；一般食物查询给了 grams 或 quantity 时按本次数量计算，不被同名摄入覆盖。未指定份量时只在原消息完整当日范围查同名摄入。
 
 record_meal、revise_intake、query_today、query_history 接受可选 finish_after_tools=false，控制标记独立保存于 calls，不进入业务 args、action_id 或 prepared 身份。满足 [完成条件](../CONVERSATION_EXPERIENCE_SPEC.md#22-直接回执的完成条件) 时从完整 calls.result 返回事实回执：reply_source=tool_facts、model_reply为空；其余继续原生循环。
