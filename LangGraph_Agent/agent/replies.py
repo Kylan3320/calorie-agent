@@ -202,6 +202,9 @@ def history_messages(messages):
     return result
 
 def render(text, facts, visible_evidence=None):
+    # Models also emit full-width citation brackets in Chinese prose. Route
+    # those through the same evidence lookup and missing-reference handling.
+    text = re.sub(r"［(K\d+)］", r"[\1]", text)
     entries = (visible_evidence if visible_evidence is not None else
                [entry for fact in facts if fact.get("tool") == "query_knowledge" for entry in fact.get("data", {}).get("entries", [])])
     known = {}
