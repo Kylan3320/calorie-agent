@@ -1,0 +1,50 @@
+{
+  "schema": "knowledge-scope-local-cleanup.v1",
+  "archives": [
+    {
+      "source": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-feishu-20261104",
+      "archive": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\knowledge-scope-20261104\\r15-feishu-20261104-operator.zip",
+      "sha256": "a9e18d31adf9eb03f545a3fb32691c23b54c68cc4c4a4920f9f0b142cf6f65b9",
+      "files": 23
+    }
+  ],
+  "exact_directories": [
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-feishu-20261104"
+  ],
+  "exact_files": [
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a2-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a3-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a4-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a5-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a6-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-b-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-b2-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-b3-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\r15-cloud-evidence-20261104.json"
+  ],
+  "final_package_retained": "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r15-4f6b408.zip",
+  "historical_residuals_reused": [
+    "reports/history-boundary-cleanup-20261104.json",
+    "reports/same-breakfast-cleanup-r11-20261104.json",
+    "reports/r11-cloud-cleanup-20261104.json"
+  ],
+  "local_delete_attempted": true,
+  "local_delete_executed": false,
+  "automatic_approval_rejection": "blocked by policy",
+  "local_directories_remaining": [
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-feishu-20261104"
+  ],
+  "local_files_remaining": [
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a2-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a3-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a4-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a5-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-a6-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-b-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-b2-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\knowledge-scope-real-b3-r15-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\r15-cloud-evidence-20261104.json"
+  ]
+}

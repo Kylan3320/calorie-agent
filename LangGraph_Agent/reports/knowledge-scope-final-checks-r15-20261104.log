@@ -1,0 +1,7 @@
+[PASS] TE01 两轮旧同号检索可同时引用；第三轮仅凭实际可见首份原文追问出处。
+[PASS] TE02 旧局部号只按所属结果重绑；碰撞或已裁剪时连无据数字一起收缩。
+[PASS] CX10 Historical requests are grouped with real delivery state; current mixed exchanges and knowledge evidence stay intact.
+[PASS] RR02 完整批次与两批依赖不截断；建议/缺声明/不一致/proposal/error继续模型正文。
+[PASS] MC01 Displayed draft revision finishes in one calculation; reasons/missing identity stay in the model loop.
+
+5 passed, 0 failed (total 5)
