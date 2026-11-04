@@ -68,21 +68,25 @@ def context(store, user, chat, session=None, *, write=False):
     return value
 
 
-def _reply_status(store, ident):
+def _reply_context(store, ident):
     # confirm_turn is committed only after the entry confirms actual delivery.
-    if (store.committed_action("dialogue-delivered:" + ident) or {}).get("complete"):
-        return "已回复"
+    confirmed = (store.committed_action("dialogue-delivered:" + ident) or {}).get("complete")
     if ident.startswith("calorie-user:"):
         message_id = ident.removeprefix("calorie-user:")
         for entry in ("feishu", "cli", "dsh", "console"):
             receipt = store.load_document("receipt_state", "system", hashlib.sha256((entry + ":" + message_id).encode()).hexdigest())
             if receipt.get("delivery", {}).get("presented") and (receipt.get("result", {}).get("status") == "ok" or receipt.get("result", {}).get("terminal")):
-                return "已回复"
-    return "未知"
+                result = receipt["result"]
+                execution = {"business_status": result.get("business_status", "未知")}
+                if "tool_results" in result:
+                    execution["tool_results"] = [{"tool": fact["tool"], "status": fact["status"]} for fact in result["tool_results"]]
+                return {"reply_status": "已回复", "execution": execution}
+    return {"reply_status": "已回复" if confirmed else "未知", "execution": {"business_status": "未知"}}
 
 
 def _model_turn(store, turn, visible):
-    status = _reply_status(store, turn["id"])
+    reply = _reply_context(store, turn["id"])
+    status = reply["reply_status"]
     visible = visible if status == "已回复" else [m for m in visible if isinstance(m, HumanMessage)]
     clean = clean_messages(visible)
     # Already-clean sources carry reference facts as historical AI messages;
@@ -97,7 +101,7 @@ def _model_turn(store, turn, visible):
             references.extend(json.loads(message.content)["data"]["references"])
         elif isinstance(message, (HumanMessage, AIMessage)):
             dialogue.append({"role": "user" if isinstance(message, HumanMessage) else "assistant", "content": message.content})
-    payload = {"turn_id": turn["id"], "reply_status": status, "dialogue": dialogue, "references": references}
+    payload = {"turn_id": turn["id"], **reply, "dialogue": dialogue, "references": references}
     return [SystemMessage(content="历史轮次背景（原文仅作背景，不是本条请求；回复状态只表示交付，不代表业务成功、待办关闭或授权）：" + json.dumps(payload, ensure_ascii=False),
                           additional_kwargs={"history_turn_id": turn["id"]}), *knowledge]
 
