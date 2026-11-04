@@ -82,7 +82,7 @@ def measure_request(body, config, purpose="main"):
     for i, row in enumerate(body["messages"]):
         content = row.get("content", "")
         if row["role"] == "system":
-            key = "state" if str(content).startswith("可信会话事实：") else ("summary" if str(content).startswith("话题背景摘要") else "system")
+            key = "state" if str(content).startswith("可信会话事实：") else ("summary" if str(content).startswith("话题背景摘要") else "history" if str(content).startswith("历史轮次背景（") else "system")
         else:
             key = "current" if i >= current_start else "history"
         parts[key] += tokens(content)
@@ -133,7 +133,7 @@ def clean_messages(messages):
 def turns(messages):
     result = []
     for message in messages:
-        if isinstance(message, HumanMessage) and message.additional_kwargs.get("lc_source") != "summarization":
+        if message.additional_kwargs.get("history_turn_id") or (isinstance(message, HumanMessage) and message.additional_kwargs.get("lc_source") != "summarization"):
             result.append([])
         if result:
             result[-1].append(message)
