@@ -1,0 +1,75 @@
+{
+  "schema": "history-boundary-local-cleanup.v1",
+  "archives": [
+    {
+      "source": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r12-feishu-20261104",
+      "archive": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\history-boundary-20261104\\r12-feishu-20261104-operator.zip",
+      "sha256": "2df7c229cd7f435982bef6dda76b924038e2f47d801527519ba0109c22299e56",
+      "files": 19
+    },
+    {
+      "source": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r13-feishu-20261104",
+      "archive": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\history-boundary-20261104\\r13-feishu-20261104-operator.zip",
+      "sha256": "f0fb710face5c0634a3ad0d72b429c38359ba19a276f8f0a7740763bdf9cf433",
+      "files": 19
+    },
+    {
+      "source": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r14-feishu-20261104",
+      "archive": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\history-boundary-20261104\\r14-feishu-20261104-operator.zip",
+      "sha256": "264fe52c1e9e1e850aea873e18adae745b7f1af6a2b983ffeeede1947283c74c",
+      "files": 23
+    }
+  ],
+  "exact_directories": [
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r12-feishu-20261104",
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r13-feishu-20261104",
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r14-feishu-20261104"
+  ],
+  "exact_files": [
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-a-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-a2-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-a3-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-a4-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-b-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-b2-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-b4-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\r12-cloud-evidence-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\r13-cloud-evidence-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\r14-cloud-evidence-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r12-fa7eb98.zip",
+    "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r13-4377e86.zip"
+  ],
+  "final_package_retained": "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r14-e2433a7.zip",
+  "historical_residuals_reused": [
+    "reports/same-breakfast-cleanup-r11-20261104.json",
+    "reports/r11-cloud-cleanup-20261104.json"
+  ],
+  "local_delete_attempted": true,
+  "local_delete_executed": false,
+  "automatic_approval_rejection": "blocked by policy",
+  "local_files_remaining": [
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-a-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-a2-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-a3-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-a4-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-b-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-b2-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\history-boundary-real-b4-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\r12-cloud-evidence-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\r13-cloud-evidence-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\reports\\r14-cloud-evidence-20261104.json",
+    "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r12-fa7eb98.zip",
+    "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r13-4377e86.zip"
+  ],
+  "local_directories_remaining": [
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r12-feishu-20261104",
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r13-feishu-20261104",
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r14-feishu-20261104"
+  ],
+  "rejected_action_directory_arguments": [
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\r12-feishu-20261104",
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\r13-feishu-20261104",
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\r14-feishu-20261104"
+  ],
+  "archive_correction": "Initial archive helper omitted calorie- in source directory names and produced empty ZIPs; corrected archives overwrite those empty outputs with actual file content. No deletion was executed or retried."
+}

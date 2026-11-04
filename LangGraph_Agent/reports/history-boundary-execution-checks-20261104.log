@@ -1,0 +1,6 @@
+[PASS] CX10 Historical requests are grouped with real delivery state; current mixed exchanges and knowledge evidence stay intact.
+[PASS] CX06 连续前缀、迟到/重复候选、追加后缀、旧执行及应用中断不回滚会话。
+[PASS] TE01 两轮旧同号检索可同时引用；第三轮仅凭实际可见首份原文追问出处。
+[PASS] RR02 完整批次与两批依赖不截断；建议/缺声明/不一致/proposal/error继续模型正文。
+
+4 passed, 0 failed (total 4)
