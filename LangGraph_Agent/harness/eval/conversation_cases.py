@@ -269,7 +269,7 @@ def _history_projection_checks():
     assert sizes[1][0]-sizes[0][0]<32 and sizes[1][1]-sizes[0][1]<64,sizes
 
 def E06():
-    """写后中断、固定两动作恢复、压缩和只读、发送防重。"""
+    """写后中断、固定两动作跨日恢复、异常事实口径及CLI/DSH提案展示。"""
     from agent.replies import progress_reply
     progress=progress_reply([{'tool':'revise_intake','status':'ok','data':{'meal_totals':[{'meal_id':'same-meal','total':{'kcal':270},'estimated':True}]}},
                              {'tool':'query_today','status':'ok','data':{'total':{'kcal':633.8}}},

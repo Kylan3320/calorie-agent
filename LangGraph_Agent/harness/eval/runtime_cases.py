@@ -164,7 +164,7 @@ def CX02():
 
 
 def RG01():
-    """评测默认仅列出、精确选择/去重、错误ID整批拒绝、真实模式与控制台范围一致。"""
+    """评测精确选择、错误整批拒绝、真实证据独立保存且不覆盖、控制台范围一致。"""
     from harness.eval import runner
     from console import server
     executed = []
@@ -179,12 +179,47 @@ def RG01():
         assert executed == ["E05", "P01"]
         executed.clear()
         for args in (["--case", "E05,TYPO"], ["--case", ""], ["--case", "E05,"], ["--smoke"],
-                     ["--real-model", "--all"], ["--real-model", "--case", "P01"]):
+                     ["--real-model", "--all"], ["--real-model", "--case", "P01"],
+                     ["--output", "unused.json"]):
             try: invoke(args)
             except SystemExit as exc: assert exc.code == 2
             else: raise AssertionError(f"invalid selection accepted: {args}")
         assert not executed
         assert invoke(["--all"]) == 0 and executed == ["E05", "P01"]
+    import tempfile
+    from pathlib import Path
+    from harness.eval import conversation_cases
+    previous_mode = conversation_cases.REAL
+    def real_case():
+        assert conversation_cases.REAL
+        executed.append("real")
+        conversation_cases.TRANSCRIPT.append({"case": "E05"})
+    with tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory)), \
+            patch.object(runner, "load_checks", return_value={"E05": real_case}):
+        legacy = Path(directory) / "reports/conversation-real.json"
+        legacy.parent.mkdir()
+        legacy.write_text("original evidence", encoding="utf-8")
+        for _ in range(2):
+            assert invoke(["--real-model", "--case", "E05"]) == 0
+        outputs = list(legacy.parent.glob("conversation-real-*.json"))
+        assert len(outputs) == 2 and legacy.read_text(encoding="utf-8") == "original evidence"
+        assert all(json.loads(path.read_text(encoding="utf-8")) == [{"case": "E05"}] for path in outputs)
+        explicit = Path(directory) / "chosen.json"
+        assert invoke(["--real-model", "--case", "E05", "--output", str(explicit)]) == 0
+        before = list(executed)
+        for path in (explicit, legacy):
+            try: invoke(["--real-model", "--case", "E05", "--output", str(path)])
+            except SystemExit as exc: assert exc.code == 2
+            else: raise AssertionError("existing evidence was overwritten")
+        assert executed == before and legacy.read_text(encoding="utf-8") == "original evidence"
+        def failed_case():
+            real_case()
+            raise AssertionError("record this failure")
+        failed = Path(directory) / "failed.json"
+        with patch.object(runner, "load_checks", return_value={"E05": failed_case}):
+            assert invoke(["--real-model", "--case", "E05", "--output", str(failed)]) == 1
+        assert json.loads(failed.read_text(encoding="utf-8")) == [{"case": "E05"}]
+        assert conversation_cases.REAL == previous_mode
     calls = []
     def process(args, **kwargs):
         calls.append(args)

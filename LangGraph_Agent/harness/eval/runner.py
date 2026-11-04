@@ -7,6 +7,7 @@ import importlib
 import io
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,8 +38,11 @@ def main(argv=None):
     selection.add_argument("--all", action="store_true", help="run all offline cases")
     selection.add_argument("--production-live-plan", type=Path)
     parser.add_argument("--real-model", action="store_true", help="use DeepSeek for explicitly selected E cases")
+    parser.add_argument("--output", type=Path, help="new real-model transcript path; existing files are refused")
     parser.add_argument("--production-live-stage", choices=["business", "archive", "cleanup", "report"])
     args = parser.parse_args(argv)
+    if args.output is not None and not args.real_model:
+        parser.error("--output requires --real-model")
     if args.production_live_plan:
         if args.real_model or not args.production_live_stage:
             parser.error("--production-live-plan requires --production-live-stage and cannot use --real-model")
@@ -65,6 +69,15 @@ def main(argv=None):
     from harness.eval import conversation_cases
     if args.real_model and any(key not in conversation_cases.CHECKS for key in selected):
         parser.error("--real-model only supports E01-E06")
+    transcript = None
+    if args.real_model:
+        path = args.output if args.output is not None else ROOT / "reports" / (
+            "conversation-real-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + ".json")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            transcript = path.open("x", encoding="utf-8")
+        except OSError as exc:
+            parser.error(f"cannot create transcript {path}: {exc}")
     previous_mode = conversation_cases.REAL
     conversation_cases.REAL = args.real_model
     conversation_cases.TRANSCRIPT.clear()
@@ -80,12 +93,12 @@ def main(argv=None):
                 print(f"[FAIL] {key} {check.__doc__ or check.__name__}\n       - {type(exc).__name__}: {exc}")
             else:
                 print(f"[PASS] {key} {check.__doc__ or check.__name__}")
-        if args.real_model:
-            path = ROOT / "reports" / "conversation-real.json"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(conversation_cases.TRANSCRIPT, ensure_ascii=False, indent=2), encoding="utf-8")
     finally:
         conversation_cases.REAL = previous_mode
+        if transcript is not None:
+            with transcript:
+                json.dump(conversation_cases.TRANSCRIPT, transcript, ensure_ascii=False, indent=2)
+            print(f"transcript: {path.resolve()}")
     print(f"\n{len(selected)-failed} passed, {failed} failed (total {len(selected)})")
     return int(bool(failed))
 

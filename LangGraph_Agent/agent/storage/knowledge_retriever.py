@@ -8,14 +8,15 @@ Unknown kinds raise — a config error must surface, never silently degrade.
 """
 
 from __future__ import annotations
-import httpx
 from .telemetry import span
 from .timeutil import remaining_timeout
-_HTTP_CLIENT = httpx.Client()
+from .model_transport import create_client, deadline_scope, remaining
+_HTTP_CLIENT = create_client()
 
 import os
 import re
 import threading
+import time
 import unicodedata
 from collections.abc import Callable
 from typing import Any
@@ -162,12 +163,7 @@ def retrieve_lightrag(query: str, entries: list[dict[str, Any]] | None = None) -
     global _LIGHTRAG_INSTANCE
     import asyncio
 
-    rag = _LIGHTRAG_INSTANCE
-    if rag is None:
-        rag = _build_lightrag()
-        _LIGHTRAG_INSTANCE = rag
-
-    async def _run() -> dict[str, Any]:
+    async def _query(rag) -> dict[str, Any]:
         global _LIGHTRAG_READY
         from lightrag import QueryParam
 
@@ -175,14 +171,23 @@ def retrieve_lightrag(query: str, entries: list[dict[str, Any]] | None = None) -
             await rag.initialize_storages()
             _LIGHTRAG_READY = True
         # singleton 常驻：不再 finalize（进程退出由运行时回收）
-        from .timeutil import remaining_timeout
-        data = await asyncio.wait_for(rag.aquery_data(query, param=QueryParam(mode="mix", top_k=3)), timeout=remaining_timeout(85))
+        data = await rag.aquery_data(query, param=QueryParam(mode="mix", top_k=3))
         # aquery_data wraps the payload: {status, message, data: {chunks, entities, ...}}
         if isinstance(data, dict) and isinstance(data.get("data"), dict):
             return data["data"]
         return data if isinstance(data, dict) else {}
 
-    with span("rag_retrieval", initialized=_LIGHTRAG_READY):
+    with deadline_scope(time.monotonic() + remaining_timeout(85)), span("rag_retrieval", initialized=_LIGHTRAG_READY):
+        rag = _LIGHTRAG_INSTANCE
+        if rag is None:
+            rag = _build_lightrag()
+            _LIGHTRAG_INSTANCE = rag
+
+        async def _run():
+            # Initialization, callbacks and their copied thread contexts all
+            # share this deadline; cancelling wait_for alone cannot stop I/O.
+            return await asyncio.wait_for(_query(rag), timeout=remaining())
+
         data = asyncio.run(_run())
     chunks = data.get("chunks") if isinstance(data, dict) else None
     hits: list[dict[str, Any]] = []
@@ -225,14 +230,11 @@ def _build_lightrag() -> Any:
             "temperature": 0,
             "stream": False,
         }
-        import httpx
-
-        # 抽取提示词长、DeepSeek 生成慢：120s（LightRAG 自带 240s 任务级超时）
         import asyncio
         def request():
-            with span("rag_keyword_model"):
+            with deadline_scope(time.monotonic() + remaining_timeout(120)), span("rag_keyword_model"):
                 resp = _HTTP_CLIENT.post(f"{base}/chat/completions",json=body,
-                    headers={"Authorization":f"Bearer {api_key}"},timeout=remaining_timeout(120))
+                    headers={"Authorization":f"Bearer {api_key}"},timeout=remaining())
                 resp.raise_for_status()
                 return resp.json()
         payload = await asyncio.to_thread(request)
@@ -254,14 +256,12 @@ def _build_lightrag() -> Any:
         api_key = os.getenv("SILICONFLOW_API_KEY", "")
         if not api_key:
             raise RuntimeError("SILICONFLOW_API_KEY is not configured (RAG M3 embedding).")
-        import httpx
-
         import asyncio
         def request():
-            with span("embedding", count=len(texts)):
+            with deadline_scope(time.monotonic() + remaining_timeout(60)), span("embedding", count=len(texts)):
                 resp = _HTTP_CLIENT.post("https://api.siliconflow.cn/v1/embeddings",
                     json={"model":os.getenv("SILICONFLOW_EMBEDDING_MODEL","BAAI/bge-m3"),"input":texts},
-                    headers={"Authorization":f"Bearer {api_key}"},timeout=remaining_timeout(60))
+                    headers={"Authorization":f"Bearer {api_key}"},timeout=remaining())
                 resp.raise_for_status()
                 return resp.json()
         payload = await asyncio.to_thread(request)

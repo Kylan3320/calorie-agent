@@ -20,7 +20,7 @@ query_today参数detail默认为calories，读取当前日期的有效餐项并�
 
 query_food_nutrition 显式 record_id 优先返回该摄入快照；一般食物查询给了 grams 或 quantity 时按本次数量计算，不被同名摄入覆盖。未指定份量时只在原消息完整当日范围查同名摄入。
 
-record_meal、revise_intake、query_today、query_history 可选 finish_after_tools=false；模型仅在本批足以回应完整请求（含缺项问询）时显式置true。控制标记独立保存在calls中，不进入业务参数、action_id或prepared身份。全批均明确true、只含四工具、所有结果已持久保存且结构完备，才从完整calls.result合成正常事实回执（reply_source=tool_facts、model_reply为空、非fallback）；pending/部分完成须区分已完成和缺项，候选与日期绑定保持。其他情况继续create_agent原生循环，不新增分类调用。多批保留此前写入事实，以最新meal_totals为准；写后过期的查询不能回答。知识、解释及建议继续由模型表达。来源引用与提案确认提示仍沿用原实现。
+record_meal、revise_intake、query_today、query_history 接受可选 finish_after_tools=false，控制标记独立保存于 calls，不进入业务 args、action_id 或 prepared 身份。满足 [完成条件](../CONVERSATION_EXPERIENCE_SPEC.md#22-直接回执的完成条件) 时从完整 calls.result 返回事实回执：reply_source=tool_facts、model_reply为空；其余继续原生循环。
 
 提案固定proposal_id、动作/参数、目标摘要及response_id，交付成功后由入口标记presented。紧邻确认仅执行该提案的固定参数；已完成消息重放不覆盖更新会话。飞书发送成功、CLI输出和DSH响应交付使用同一mark_reply_presented语义，并归一用户别名。
 
@@ -50,11 +50,11 @@ CLI／控制台／DSH 的 live 使用 `agent/storage/live_client.py` 经服务�
 
 live 使用 COS 当前事实；shadow_fakewrite 使用 FakeStore；shadow_readonly 仅读取可见已发布 COS 提交并返回版本，不创建重建确认点、不写COS／Bitable／缓存／会话／usage、不投递。
 
-自然语言消息deadline固定为原received_at+90秒，含排队、保存与交付；最后5秒不开始新模型或业务动作。旧收件缺时间时首次接管保存一次legacy起点，T_service为空。语义模型步骤从首次投影/准备起最多40秒，首次预留、固定deadline及全部传输尝试可靠保存，恢复不续期。HTTP连接/超时/429/5xx仅在模型适配器额外尝试1次，同一wire及截止；其他拒绝/截断不盲重试。累计4主决策/8工具不变，传输重试不增加语义决策。
+等待、重试及到期恢复遵循 [交流体验规格第2节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。执行日志保存固定 deadline_at、legacy_budget、model_steps 及累计调用预算；步骤 request_body 和 response 用于恢复同一模型请求，不进入公共 trace。
 
-模型耗尽或业务截止后，只核对原action并交付已有正文/事实；确定未提交的动作终结，不因模型失败进入needs_attention。未知提交仍阻塞，不能当成回滚。每次必要核对/交付最多90秒且受平台剩余限制，最多3次自动尝试；已存正文只恢复同UUID交付。旧进度正文改为最终正文时，同次保存新结果及result_digest，Feishu覆盖原message_id，CLI/DSH按正文摘要确认；拒绝旧展示事件本身终结，不阻塞后续业务。提升后的最终交付单独记录delivery.recovery_attempts，不能获得新模型/业务预算。终止说明进入清洁对话，业务数字仍不成为历史事实。旧任务不得覆盖较新会话。
+进度正文提升为最终正文时，同次保存新结果及 result_digest。Feishu 更新原 message_id；CLI／DSH 按正文摘要确认，旧展示事件记录 presentation_rejected 后结束，不阻塞后续业务。最终交付独立保存 delivery.recovery_attempts；终止说明进入清洁对话。
 
-Feishu及COS复用绝对截止HTTP传输，实际连接、响应头、保活及完整body共用RPC墙钟；COS保留SDK签名/MD5/禁止覆盖及retry=0，失败仍须按原提交键恢复。每5分钟维护先唤醒未完收件再归档。提醒独立预算及原计划/逐规则进度保持；三次投递失败终结自动阶段、推进队列，关闭规则后人工恢复结束检查。
+运行时外部HTTP共用 `model_transport` 的绝对截止传输，覆盖连接、头、保活和完整 body；薄荷两次尝试与退避共享10秒逻辑RPC预算，SCF派发单次2秒，均不超过当前任务剩余时间。LightRAG整体85秒（含构建／初始化）且不超过当前业务剩余时间，关键词模型与embedding线程继承该截止。LiveClient每次请求最多10秒，submit的受理、轮询与等待共用从受理前开始的总预算，超时以原消息键恢复。COS 保留 SDK 签名、MD5、禁止覆盖及 retry=0。维护先唤醒未完收件再归档；提醒按原计划及逐规则进度恢复。
 
 ### COS 提交与归档
 
@@ -72,22 +72,22 @@ COS 文档保留原散列身份，document_index:<kind> 保存按类型的键列
 
 仅摄入、食物、个人设置业务值变化创建 `archive:<kind>:<id>` 最新结果并推进该对象业务版本。会话、收件、模型审计、交付等元数据不推进账本版本；feishu_chat_id为运行路由。同步函数只写 `sync/`，先保存inflight绝对字段与固定client_token，响应丢失先核对原稳定ID，读回字段及版本后确认水位；尚未发出的同项改量合并。COS当前事实不因归档成功删除。迁移按 `migration.export_cos_baseline`／`import_cos_baseline`，独立核对含软删除ID、日合计和幂等任务；已交付旧收件转换为completed receipt_state，重投不重发旧回执。
 
-## 当前实现的限制和压缩
+## 上下文文档与查询投影
 
-上下文预算在每次最终模型 HTTP body 组装后检查；本地 DeepSeek tokenizer 对 wire JSON 的输入分项计量与供应商 usage 分开保存。主请求目标16000，max_tokens=8192；摘要输入目标12000、max_tokens=4096，正文上限1024；硬输入上限=context_window-output_reserve-2048，当前官方端点绑定窗口1048576。当前整轮原生调用、固定call_id、原用户消息及协议必需reasoning完整保留，历史清洁表示不携带原生工具调用。动态状态每次调用重建；裁剪仅用于本次投影，不替换来源或执行审计。无前台同步摘要或旧summary_trigger_tokens/summary_keep_tokens策略。
+请求预算与历史选择遵循 [交流体验规格第3节](../CONVERSATION_EXPERIENCE_SPEC.md#3-完整请求预算)。计量最终 HTTP body，本地 wire 计量与供应商 usage 分开保存；动态状态每次重建，投影不覆盖来源或恢复审计。编码身份见 agent/encoding/version.json，工程默认值见 config.yaml。
 
 query_history.detail默认为summary，只向模型提供范围/count/total；daily额外提供[start_date,end_date)内每个日期的count/total/status，unrecorded仅表示未记录；items完整提供可操作明细。三者来自同一筛选集合，持久完整结果保留实际items；历史定位/复用一次调用items。知识完整结果保留原文，模型只接收entries的一份原文及对应source_id/source，不重复evidence。
 
 conversation_context(user,chat)保存摘要身份、fact_scope=dialogue、覆盖游标及未覆盖轮次ID/交付状态/token数；dialogue_turn(user,turn_id)按固定用户消息ID保存清洁轮次。agent_session.messages仅保存近期清洁兼容视图，原生恢复仍读执行日志。旧有效dialogue摘要及现存清洁轮次首次升级为基准和后缀，错误占位与无来源标记摘要不成为基准。来源初始化不重放业务。
 
-消息写入者在实际交付/展示确认后标记轮次complete，按最近2轮之外未覆盖前缀达到4000登记summary_request及summary_active索引；每会话仅一活动需求，合并保留最早登记顺序。后台复用sync Journal，输入快照保持连续前缀且有界，最多2次计算；成功未应用只重送已存候选，终止失败移除额外input引用，消息端结束活动需求，无新完成轮次不重建同一失败。
+消息端确认交付／展示后将 dialogue_turn 标记 complete，在 summary_request(user,chat) 保存任务，summary_active(system) 保存活动索引。计算进度、连续前缀输入快照和候选位于 sync Journal；候选携带 task_id/user_id/chat_id/base_id/turn_ids/source_hash。调度及失败次数按 [后台摘要规则](../CONVERSATION_EXPERIENCE_SPEC.md#5-后台话题摘要)。
 
-五分钟维护先恢复收件/维护/归档，无待处理错误且至少剩25秒时至多计算一会话；摘要最多20秒、留5秒保存退出，Linux Event入口使用整次及嵌套墙钟截止时间。后台不写session。calorie_summary控制事件携带已存候选及task_id/user/chat/base_id/turn_ids/source_hash，消息写入者核对基准与完整前缀后原子应用，不经accept、不增加收件/业务序号/用户轮次/模型预算，不改变last_message_id或提案presented。新追加消息保留；独立context文档不会被旧session保存覆盖。应用action key保证幂等。
+后台通过 calorie_summary 控制事件交付已存候选，由消息写入者核对基准与完整前缀后原子应用。该事件不经 accept，不增加业务序号、用户轮次或调用预算，不改变 last_message_id／presented；应用 action key 保证幂等。
 
-硬预算超限不发HTTP，标记terminal并保存原回执与已提交事实，未执行动作终止；Pipeline完成交付、推进游标、work_status=terminated，无自动重试或needs_attention阻塞。重投返回原结果；后续清洁历史仅携带超限终态说明，原文仍在收件/执行审计。未知写入先走既有恢复核对，不能因预算超限断言失败。
+硬预算超限保存 terminal 结果及未执行动作终止原因，Pipeline 交付后设置 work_status=terminated 并推进游标；重投取原回执。完整原输入留在收件／执行审计，后续清洁历史使用终止说明。
 
-ModelCallLimitMiddleware/ToolCallLimitMiddleware继续限制每消息4次主决策/8次工具，处理预算90秒；先存整批调用，再按序执行，恢复复用prepared原参数、日期与目标。shadow_readonly只读有效摘要及可见状态，零需求/候选/事件写入；FakeStore通过同一文档接口及注入后台执行器验证语义。
+ModelCallLimitMiddleware／ToolCallLimitMiddleware 使用消息累计预算；整批调用先保存、再按序执行，恢复复用 prepared 的原参数、日期及目标。FakeStore 通过相同文档接口和注入后台执行器验证摘要语义。
 
 生产消息链路不访问 Bitable；来源资料通过迁移／维护发布 COS 快照，薄荷详情先提交 COS 后归档。LightRAG继续读取已发布索引。模型及工具前预算、整批原生调用、prepared和完整动作结果均保留原持久化边界。Bitable适配器的请求预取仅用于维护与旧实现检验，不属于生产入口链路。
 
-执行日志的 messages 保存实际模型视图；session 和 prepared.session 保存业务状态，result 保存回复等元数据，重放从 calls 复原完整工具结果。新执行保存 previous_session_message_id；会话的 last_message_id/last_execution_complete 用于拒绝旧任务覆盖更新会话。未完项的 offered_message_id 绑定已展示候选，同一消息不能自动选择本轮新候选。
+执行日志 messages 保存原生恢复交换，实际 HTTP 请求另存于 model_steps[].request_body；session 和 prepared.session 保存业务状态，result 保存回复等元数据，重放从 calls 复原完整工具结果。新执行的 previous_session_message_id 与会话 last_message_id/last_execution_complete 用于拒绝旧任务覆盖较新会话；offered_message_id 绑定实际展示候选。
