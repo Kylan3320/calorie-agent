@@ -1,6 +1,6 @@
 # Calorie Agent 交流体验与上下文治理规格
 
-本轮修复 R11 的串话：记餐已正确提交，飞书回执却重答上轮改稿。从含 R11 实现和失败证据的 `685d3a0` 接续，修复历史业务轮次进入模型输入的方式，再用新包完成隔离验收。[R11 失败现场](reports/CONVERSATION_DELIVERY.md#r11-同包隔离飞书验收2026-11-04) · [正式版本](reports/LATENCY_DELIVERY.md)
+R11 串话修复已完成历史输入对照及 R14 同包隔离实测：记餐、改量、查询和菜单接续正确；知识回执追加了检索不支持的个体营养判断，故暂缓试用，未切换正式环境。修复从 `685d3a0` 接续，冻结运行时提交 `e2433a7`。[本轮证据与未解决项](reports/CONVERSATION_DELIVERY.md#r12r14-历史轮次边界修复2026-11-04) · [正式版本](reports/LATENCY_DELIVERY.md)
 
 个人业务见 [个人功能规格](PERSONAL_CALORIE_SPEC.md)，需求见 [REQUIREMENTS.md](REQUIREMENTS.md)，实际接口见 [contracts/](contracts/)。本规格管理回复、请求完成与等待预算、模型上下文及话题记忆；[COS 规格](LATENCY_OPTIMIZATION_SPEC.md) 管理持久化、物理保留和回收。上下文投影不能删除账本、待办、执行事实或防重凭据。
 
