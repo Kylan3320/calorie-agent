@@ -338,12 +338,22 @@ def CX10():
         AIMessage(content="旧营养999千卡", additional_kwargs={"fact_scope": "business"}),
         HumanMessage(content="OLD_DELIVERED", id="calorie-user:old-delivered")]), "last_message_id": "old-delivered"})
     legacy.save_document("receipt_state", "system", receipt_id("feishu", "old-delivered"), {
-        "delivery": {"presented": True}, "result": {"status": "ok", "business_status": "none", "tool_results": []}})
+        "delivery": {"presented": True}, "result": {"status": "ok", "business_status": "none", "tool_results": [], "native_calls": []}})
     recovered, _ = cx.history(legacy, "user", "legacy-boundary", for_model=True)
     assert [json.loads(m.content.split("：", 1)[1])["reply_status"] for m in recovered] == ["未知", "已回复"]
-    assert json.loads(recovered[1].content.split("：", 1)[1])["execution"] == {"business_status": "none", "tool_results": []}
+    execution = json.loads(recovered[1].content.split("：", 1)[1])["execution"]
+    assert execution["business_status"] == "none" and execution["tool_results"] == execution["tool_calls"] == []
+    assert "仅答复" in execution["effect"] and "未提交" in execution["effect"]
     assert json.loads(recovered[0].content.split("：", 1)[1])["execution"]["business_status"] == "未知"
     assert "999" not in json.dumps(wire_messages(recovered), ensure_ascii=False)
+    legacy.save_document("receipt_state", "system", receipt_id("feishu", "old-delivered"), {
+        "delivery": {"presented": True}, "result": {"status": "ok", "business_status": "none",
+        "native_calls": [{"tool": "calculate_meal"}], "presented_candidates": {"meal_draft_candidate": "old-draft"}, "tool_results": [{"tool": "calculate_meal", "status": "ok", "data": {
+            "draft_id": "old-draft", "items": [{"item_id": "potato", "matched_name": "土豆泥", "group": "加餐", "grams": 9999, "nutrition": {"kcal": 9999}}]}}]}})
+    draft_history, _ = cx.history(legacy, "user", "legacy-boundary", for_model=True)
+    execution = json.loads(draft_history[1].content.split("：", 1)[1])["execution"]
+    assert execution["draft_references"] == [{"draft_id": "old-draft", "items": [{"item_id": "potato", "matched_name": "土豆泥", "group": "加餐"}]}]
+    assert "effect" not in execution and "9999" not in json.dumps(wire_messages(draft_history), ensure_ascii=False)
     # Knowledge JSON stays separately visible and travels with its complete historical group.
     ident = "knowledge-boundary"
     evidence = {"tool": "query_knowledge", "status": "ok", "data": {"entries": [{

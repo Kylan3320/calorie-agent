@@ -80,6 +80,17 @@ def _reply_context(store, ident):
                 execution = {"business_status": result.get("business_status", "未知")}
                 if "tool_results" in result:
                     execution["tool_results"] = [{"tool": fact["tool"], "status": fact["status"]} for fact in result["tool_results"]]
+                    drafts = [{"draft_id": fact["data"]["draft_id"], "items": [
+                        {k: item[k] for k in ("item_id", "matched_name", "group") if k in item}
+                        for item in fact["data"].get("items", [])]}
+                        for fact in result["tool_results"] if fact.get("data", {}).get("draft_id")
+                        and fact["data"]["draft_id"] == result.get("presented_candidates", {}).get("meal_draft_candidate")]
+                    if drafts:
+                        execution["draft_references"] = drafts
+                if "native_calls" in result:
+                    execution["tool_calls"] = [call["tool"] for call in result["native_calls"]]
+                    if not result["native_calls"] and result.get("business_status") == "none":
+                        execution["effect"] = "该轮仅答复，没有调用工具，也未提交业务或草案修改"
                 return {"reply_status": "已回复", "execution": execution}
     return {"reply_status": "已回复" if confirmed else "未知", "execution": {"business_status": "未知"}}
 
