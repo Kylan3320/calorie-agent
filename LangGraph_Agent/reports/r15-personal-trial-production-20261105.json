@@ -1,0 +1,598 @@
+{
+  "schema": "r15-production-personal-trial.v1",
+  "started_at": 1793821875.8861399,
+  "authorization": "User explicitly accepted R15 wording and speed exceptions and authorized switching the accepted unchanged package to formal Feishu for personal trial.",
+  "package": {
+    "path": "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r15-4f6b408.zip",
+    "build_id": "cos-production-303ddad6d78b8b0a",
+    "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+    "bytes": 22287667,
+    "source_commit": "4f6b408554cb0a3ddd2dd0b2222e2f6e952e3bdb"
+  },
+  "accepted_evidence": "reports/r15-warm-supplement-20261105.json",
+  "backup_directory": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922",
+  "before": {
+    "calorie-agent-api-v3-test": {
+      "build_id": "cos-production-8794be0e62e0015b",
+      "sha256": "f232614eeda7a0cab9bc8aa98abfff10f03f1fa4216b0c99fcc42a3e0054c12f",
+      "bytes": 22257905,
+      "guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "",
+          "Type": "HTTP",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-ingress-role",
+          "VpcConfig": {
+            "VpcId": "vpc-rq0kzhba",
+            "SubnetId": "subnet-3se0ra3f"
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "a6f96bd5e28ce30ab17d4c5b4b8f0ac51e4438e921359aa0c9798cec8355867a",
+        "triggers_sha256": "ac485566791317cf25a102fa9317d5c6f17912b63e215591bec0137b7c53513a",
+        "reserved_memory": 512
+      },
+      "backup": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922\\calorie-agent-api-v3-test-before.zip",
+      "address_request_id": "4344bfed-0727-44c3-9bd3-ea4e0fcaa4f3"
+    },
+    "calorie-agent-reminder": {
+      "build_id": "cos-production-8794be0e62e0015b",
+      "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c",
+      "bytes": 22257853,
+      "guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "app.message_handler",
+          "Type": "Event",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-message-role",
+          "VpcConfig": {
+            "VpcId": "",
+            "SubnetId": ""
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "73da75fd27ddb9e7404e026a8c757b31032cfa2664b623aa97f3eaf174a76b2c",
+        "triggers_sha256": "ece6d57f51b0d46ab671841c0419768acae6e54688d3da15560a1d9e28b54219",
+        "reserved_memory": 512
+      },
+      "backup": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922\\calorie-agent-reminder-before.zip",
+      "address_request_id": "f4221cf0-efbc-498a-a054-07ca1831b9ac"
+    },
+    "calorie-agent-archive": {
+      "build_id": "cos-production-8794be0e62e0015b",
+      "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c",
+      "bytes": 22257853,
+      "guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "app.maintenance_handler",
+          "Type": "Event",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-archive-role",
+          "VpcConfig": {
+            "VpcId": "",
+            "SubnetId": ""
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "73da75fd27ddb9e7404e026a8c757b31032cfa2664b623aa97f3eaf174a76b2c",
+        "triggers_sha256": "1e9922d1f1ac0262e68049cfe73955572f72292732d3bbaee7d82f85e5a08fa0",
+        "reserved_memory": 512
+      },
+      "backup": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922\\calorie-agent-archive-before.zip",
+      "address_request_id": "38ff7a21-b540-4654-9b82-33078d3d3579"
+    }
+  },
+  "after": {
+    "calorie-agent-reminder": {
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+      "different_members": [],
+      "member_count": 2004,
+      "layers": [
+        [
+          "calorie-rag",
+          7
+        ]
+      ],
+      "guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "app.message_handler",
+          "Type": "Event",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-message-role",
+          "VpcConfig": {
+            "VpcId": "",
+            "SubnetId": ""
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "73da75fd27ddb9e7404e026a8c757b31032cfa2664b623aa97f3eaf174a76b2c",
+        "triggers_sha256": "ece6d57f51b0d46ab671841c0419768acae6e54688d3da15560a1d9e28b54219",
+        "reserved_memory": 512
+      },
+      "reserved_memory": 512,
+      "readback_zip": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922\\calorie-agent-reminder-cos-production-303ddad6d78b8b0a-readback.zip",
+      "address_request_id": "905a2f8b-523e-4b2b-997c-a3e3350083a5",
+      "final_guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "app.message_handler",
+          "Type": "Event",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-message-role",
+          "VpcConfig": {
+            "VpcId": "",
+            "SubnetId": ""
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "73da75fd27ddb9e7404e026a8c757b31032cfa2664b623aa97f3eaf174a76b2c",
+        "triggers_sha256": "ece6d57f51b0d46ab671841c0419768acae6e54688d3da15560a1d9e28b54219",
+        "reserved_memory": 512
+      }
+    },
+    "calorie-agent-archive": {
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+      "different_members": [],
+      "member_count": 2004,
+      "layers": [
+        [
+          "calorie-rag",
+          7
+        ]
+      ],
+      "guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "app.maintenance_handler",
+          "Type": "Event",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-archive-role",
+          "VpcConfig": {
+            "VpcId": "",
+            "SubnetId": ""
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "73da75fd27ddb9e7404e026a8c757b31032cfa2664b623aa97f3eaf174a76b2c",
+        "triggers_sha256": "1e9922d1f1ac0262e68049cfe73955572f72292732d3bbaee7d82f85e5a08fa0",
+        "reserved_memory": 512
+      },
+      "reserved_memory": 512,
+      "readback_zip": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922\\calorie-agent-archive-cos-production-303ddad6d78b8b0a-readback.zip",
+      "address_request_id": "13d2f456-89fa-44d4-85a7-4e7dd3188cec",
+      "final_guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "app.maintenance_handler",
+          "Type": "Event",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-archive-role",
+          "VpcConfig": {
+            "VpcId": "",
+            "SubnetId": ""
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "73da75fd27ddb9e7404e026a8c757b31032cfa2664b623aa97f3eaf174a76b2c",
+        "triggers_sha256": "1e9922d1f1ac0262e68049cfe73955572f72292732d3bbaee7d82f85e5a08fa0",
+        "reserved_memory": 512
+      }
+    },
+    "calorie-agent-api-v3-test": {
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "sha256": "b091a6ee08af27f5587e2d27c1701800eefbe56ca8cc74f970730c1d6de116e8",
+      "different_members": [],
+      "member_count": 2004,
+      "layers": [
+        [
+          "calorie-rag",
+          7
+        ]
+      ],
+      "guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "",
+          "Type": "HTTP",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-ingress-role",
+          "VpcConfig": {
+            "VpcId": "vpc-rq0kzhba",
+            "SubnetId": "subnet-3se0ra3f"
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "5cdd5cd2cbda4cec718a939132922229064e53e607cf1c180bf5e43491c0e319",
+        "triggers_sha256": "ac485566791317cf25a102fa9317d5c6f17912b63e215591bec0137b7c53513a",
+        "reserved_memory": 512
+      },
+      "reserved_memory": 512,
+      "readback_zip": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922\\calorie-agent-api-v3-test-cos-production-303ddad6d78b8b0a-readback.zip",
+      "address_request_id": "16df0129-83a0-45bb-aaa4-956ab8578d7b",
+      "final_guard": {
+        "configuration": {
+          "Runtime": "Python3.10",
+          "Handler": "",
+          "Type": "HTTP",
+          "MemorySize": 512,
+          "Timeout": 120,
+          "Role": "calorie-agent-cos-ingress-role",
+          "VpcConfig": {
+            "VpcId": "vpc-rq0kzhba",
+            "SubnetId": "subnet-3se0ra3f"
+          },
+          "PublicNetConfig": {
+            "PublicNetStatus": "ENABLE",
+            "EipConfig": {
+              "EipStatus": "DISABLE",
+              "EipAddress": []
+            }
+          }
+        },
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "environment_sha256": "a6f96bd5e28ce30ab17d4c5b4b8f0ac51e4438e921359aa0c9798cec8355867a",
+        "triggers_sha256": "ac485566791317cf25a102fa9317d5c6f17912b63e215591bec0137b7c53513a",
+        "reserved_memory": 512
+      }
+    }
+  },
+  "business_test_messages_sent": 0,
+  "operations": [
+    {
+      "stage": "backup_verified",
+      "at": 1793821878.9748306,
+      "function": "calorie-agent-api-v3-test",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "sha256": "f232614eeda7a0cab9bc8aa98abfff10f03f1fa4216b0c99fcc42a3e0054c12f"
+    },
+    {
+      "stage": "backup_verified",
+      "at": 1793821881.7711127,
+      "function": "calorie-agent-reminder",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c"
+    },
+    {
+      "stage": "backup_verified",
+      "at": 1793821884.7508328,
+      "function": "calorie-agent-archive",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c"
+    },
+    {
+      "stage": "prepared",
+      "at": 1793821891.3905704,
+      "queue": {
+        "pending": 0,
+        "blocked": 0,
+        "blocked_ids": []
+      },
+      "package_sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b"
+    },
+    {
+      "stage": "maintenance_enabled",
+      "at": 1793822002.268194
+    },
+    {
+      "stage": "code_update_started",
+      "at": 1793822010.1787412,
+      "function": "calorie-agent-reminder"
+    },
+    {
+      "stage": "code_update_accepted",
+      "at": 1793822022.4871378,
+      "function": "calorie-agent-reminder",
+      "request_id": "8ff749cd-fe23-4f71-bdba-ab95e0af0729"
+    },
+    {
+      "stage": "code_verified",
+      "at": 1793822036.5094473,
+      "function": "calorie-agent-reminder",
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+      "different_members": []
+    },
+    {
+      "stage": "code_update_started",
+      "at": 1793822036.5216022,
+      "function": "calorie-agent-archive"
+    },
+    {
+      "stage": "code_update_accepted",
+      "at": 1793822049.3499284,
+      "function": "calorie-agent-archive",
+      "request_id": "e4af69cb-a690-4d13-9738-c6ca6d77c0ed"
+    },
+    {
+      "stage": "code_verified",
+      "at": 1793822063.3598018,
+      "function": "calorie-agent-archive",
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+      "different_members": []
+    },
+    {
+      "stage": "code_update_started",
+      "at": 1793822063.3731816,
+      "function": "calorie-agent-api-v3-test"
+    },
+    {
+      "stage": "code_update_accepted",
+      "at": 1793822075.324287,
+      "function": "calorie-agent-api-v3-test",
+      "request_id": "c4277c10-3e37-456a-ad36-47aba298c554"
+    },
+    {
+      "stage": "code_verified",
+      "at": 1793822091.6234815,
+      "function": "calorie-agent-api-v3-test",
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "sha256": "b091a6ee08af27f5587e2d27c1701800eefbe56ca8cc74f970730c1d6de116e8",
+      "different_members": []
+    },
+    {
+      "stage": "health_callback_and_feishu_auth_verified",
+      "at": 1793822092.856383
+    },
+    {
+      "stage": "maintenance_disabled",
+      "at": 1793822106.2024922
+    },
+    {
+      "stage": "personal_trial_active",
+      "at": 1793822107.8657932,
+      "build_id": "cos-production-303ddad6d78b8b0a"
+    }
+  ],
+  "queue_before_pause": {
+    "pending": 0,
+    "blocked": 0,
+    "blocked_ids": []
+  },
+  "personal_trial_active": true,
+  "operator_preflight_errors": [
+    {
+      "original": {
+        "type": "AssertionError",
+        "message": "Preflight configuration drift"
+      },
+      "cause": "Tuple layer pairs became JSON lists in saved guard; all production config values exactly match after JSON canonicalization. No maintenance or code update was attempted."
+    }
+  ],
+  "queue_after_pause": {
+    "pending": 0,
+    "blocked": 0,
+    "blocked_ids": []
+  },
+  "queue_drained": {
+    "pending": 0,
+    "blocked": 0,
+    "blocked_ids": []
+  },
+  "source_before_code_update": {
+    "count": 125,
+    "sha256": "457c1ff3da5a9c14447a6a553dae1ac1b54e8b26ecc837359268a929c8f77f19"
+  },
+  "health_attempts": [
+    {
+      "at": 1793822092.3271568,
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "status": "ok"
+    }
+  ],
+  "verification": {
+    "health": {
+      "status": "ok",
+      "service": "calorie-agent-v4",
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "model": "deepseek-v4-flash",
+      "retriever": "lightrag",
+      "version": "v4.0.1",
+      "env": "production",
+      "env_check": {
+        "FEISHU_APP_ID": true,
+        "FEISHU_APP_SECRET": true,
+        "FEISHU_VERIFICATION_TOKEN": true,
+        "DEEPSEEK_API_KEY": true,
+        "BITABLE_APP_TOKEN": true,
+        "BITABLE_FOOD_TABLE_ID": true,
+        "BITABLE_INTAKE_TABLE_ID": true,
+        "BITABLE_STANDARD_TABLE_ID": true,
+        "BITABLE_PENDING_TABLE_ID": true,
+        "BITABLE_USAGE_TABLE_ID": true,
+        "COS_BUCKET": true,
+        "COS_PREFIX": true
+      }
+    },
+    "webhook_valid_token_challenge": true,
+    "webhook_invalid_token_403": true,
+    "feishu_tenant_authentication": true,
+    "business_test_messages_sent": 0,
+    "final_health_after_resume": {
+      "status": "ok",
+      "service": "calorie-agent-v4",
+      "build_id": "cos-production-303ddad6d78b8b0a",
+      "model": "deepseek-v4-flash",
+      "retriever": "lightrag",
+      "version": "v4.0.1",
+      "env": "production",
+      "env_check": {
+        "FEISHU_APP_ID": true,
+        "FEISHU_APP_SECRET": true,
+        "FEISHU_VERIFICATION_TOKEN": true,
+        "DEEPSEEK_API_KEY": true,
+        "BITABLE_APP_TOKEN": true,
+        "BITABLE_FOOD_TABLE_ID": true,
+        "BITABLE_INTAKE_TABLE_ID": true,
+        "BITABLE_STANDARD_TABLE_ID": true,
+        "BITABLE_PENDING_TABLE_ID": true,
+        "BITABLE_USAGE_TABLE_ID": true,
+        "COS_BUCKET": true,
+        "COS_PREFIX": true
+      }
+    },
+    "ingress_maintenance": "0",
+    "all_three_active": true,
+    "configuration_roles_layers_triggers_reserved_preserved": true,
+    "production_prefix_preserved": true
+  },
+  "completed_at": 1793822107.8627024,
+  "formal_switched": true,
+  "original_configuration_preserved": true,
+  "rollback_performed": false,
+  "accepted_wording_exception": "至于你个人的摄入情况或目标设置，这条资料没有给出适用性判断方法，我不做评价；如需要，可以另查你今天实际吃了多少。",
+  "accepted_speed_exceptions": [
+    {
+      "category": "warm_record",
+      "t_service_ms": 7743.893,
+      "target_ms": 5000,
+      "over_ms": 2743.893,
+      "ack_ms": 2428.891,
+      "model_calls": 1
+    },
+    {
+      "category": "warm_revise",
+      "t_service_ms": 5434.809,
+      "target_ms": 5000,
+      "over_ms": 434.809,
+      "ack_ms": 1700.873,
+      "model_calls": 1
+    },
+    {
+      "category": "warm_today",
+      "t_service_ms": 5010.449,
+      "target_ms": 5000,
+      "over_ms": 10.449,
+      "ack_ms": 1813.703,
+      "model_calls": 1
+    },
+    {
+      "category": "knowledge",
+      "t_service_ms": 23717.412,
+      "target_ms": 10000,
+      "over_ms": 13717.412,
+      "ack_ms": 1541.355,
+      "model_calls": 2
+    }
+  ],
+  "user_acceptance_exact": "接受 R15 的措辞和速度例外，授权把已验收的原包切换到正式飞书，开始个人试用。",
+  "trial_started_beijing": "2026-11-05T03:55:07.862702+08:00",
+  "maintenance_confirmed_window_seconds": 103.934,
+  "http_zip_container_note": "HTTP download ZIP is cloud-repacked: its outer SHA differs, BUILD_ID and every non-directory member byte match the original R15 upload; both Event ZIPs match the original SHA directly.",
+  "verified_at": 1793822391.4572074
+}

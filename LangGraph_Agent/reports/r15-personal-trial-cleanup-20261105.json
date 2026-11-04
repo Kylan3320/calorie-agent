@@ -1,0 +1,17 @@
+{
+  "schema": "r15-production-local-cleanup.v1",
+  "valid_release_and_rollback_directory": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922",
+  "operator_archive": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\r15-20261105-034922\\operator-source.zip",
+  "operator_archive_sha256": "2ebb4d7d99d6e71ed9aee81a696b092f0ef73569a2d98b39d2142ccbe5b5c0a9",
+  "operator_files": 2,
+  "exact_directory": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-production-20261105",
+  "local_delete_attempted": true,
+  "production_resources_retained": "three intended formal functions; no isolated resources or test business rows created",
+  "historical_residuals_reused": [
+    "reports/r15-warm-cleanup-20261105.json",
+    "reports/knowledge-scope-cleanup-r15-20261104.json"
+  ],
+  "local_delete_executed": false,
+  "automatic_approval_rejection": "blocked by policy",
+  "remaining_directory": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-production-20261105"
+}
