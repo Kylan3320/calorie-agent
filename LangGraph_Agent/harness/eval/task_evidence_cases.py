@@ -104,6 +104,10 @@ def TE02():
         assert adjustments[0]["reason"] in {"unknown_source_reference", "ambiguous_source_reference"}
     reply, _ = render('原文是“每份40克。”[K999]。', [], [])
     assert "40克" not in reply and "无法唯一定位" in reply
+    reply, _ = render("甲为40克［" + visible[0]["source_id"] + "］。", [], visible)
+    assert reply == "甲为40克〔甲来源〕。"
+    reply, _ = render("无依据的40克［K999］。", [], visible)
+    assert "40克" not in reply and "无法唯一定位" in reply
     missing_history = clean_messages([HumanMessage(content="旧追问", id="missing"),
                                      AIMessage(content="每份40克[K101]。", additional_kwargs={"fact_scope": "knowledge"})])
     assert "40克" not in missing_history[-1].content and "需重新检索" in missing_history[-1].content
