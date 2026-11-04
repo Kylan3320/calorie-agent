@@ -18,7 +18,7 @@ standards原有user_id/standard_type/date/kstandard/cstandard/pstandard/fstandar
 
 每项后台同步进度独立保存在 COS 的 sync 范围，包含 ack_revision、inflight（发送前保存的原请求、原版本和固定client_token）、record_id、status、last_error、confirmed_at。每5分钟选择各项尚未发送的最新版本；若已有不确定请求，先按该请求的稳定键查询并解决，再推进新版本。仅独立读回全部目标字段与版本后推进水位；已确认版本跳过；暂时失败保留原请求，权限、配置或身份重复错误标记 blocked 待处理。
 
-导入摄入以原飞书 record_id 为业务 ID，另保存 feishu_record_id 映射；按已知飞书行 ID 更新。新摄入 ID 按固定 action_id 和首次项序号派生，归档按 agent_item_id 查找并保存实际飞书行 ID，不能按批量响应顺序绑定。创建token为 `stable_uuid("calorie-agent:archive:{kind}:{id}")`，恢复不生成新token。改量及软删除发送绝对值；读到更高 agent_revision 不覆盖为旧版本。
+导入摄入以原飞书 record_id 为业务 ID，另保存 feishu_record_id 映射；按已知飞书行 ID 更新。新摄入 ID 按固定 action_id 和首次项序号派生，归档按 agent_item_id 查找并保存实际飞书行 ID，不能按批量响应顺序绑定。新归档准备的创建token为 `stable_uuid(json_compact(["calorie-agent:archive:v2", app_token, table, kind, id, revision]))`，按目的地及版本区分操作；相同准备稳定。已有inflight继续使用已保存的原请求和原token，不因升级自动重新prepare或换键。改量及软删除发送绝对值；读到更高 agent_revision 不覆盖为旧版本。
 
 食物按 food_id 稳定键归档，个人设置按既有 user_settings 文档 pending_id 稳定键归档，保留来源表与字段。后台归档只保存用户设置，不把收件、执行日志、会话、usage、投递进度重新写回 pending_tasks。
 
@@ -57,7 +57,7 @@ message_key=message_id，空则chat_id:text。stable_uuid为sha256前16bytes置U
 
 每个原生调用按首次持久化返回顺序分配N，动作消息键为message_key:agent:N，不按重试模型重新排序。同一整餐批量写入用该动作键；COS原子提交绑定动作键、业务变更及完整工具结果。改量/软删除固定record_id及准备时版本、日期、营养依据和绝对结果，重试不再缩放一次；旧失败任务不能覆盖后续已修改的版本。
 
-动作防重与待办生命周期分别核对：prepared.pending_before 绑定补全／取消的原待办，提交前检查其当前状态，业务提交同时保存待办进度，防止不同消息重复完成同一 pending_id。提案 target_version 绑定展示时的修改目标；相对改量冻结为绝对结果。旧未提交补全准备或修改提案缺少这些依据时，保留已提交事实并要求重新发起相关操作；不修改幂等键公式或新增Bitable字段。
+动作防重与待办生命周期分别核对：prepared.pending_before 绑定补全／取消的原待办，提交前检查其当前状态，业务提交同时保存待办进度，防止不同消息重复完成同一 pending_id。提案 target_version 绑定展示时的修改目标；相对改量冻结为绝对结果。旧未提交补全准备或修改提案缺少这些依据时，保留已提交事实并要求重新发起相关操作；这些待办/提案规则不改变其既有业务幂等键或表字段；归档创建请求单独遵循上文目的地与版本作用域。
 
 文档状态保留上表稳定身份：message_key为`{kind}:{user_id}:{scope}`，intent=kind，food_name为空。提醒scope为`reminder:{rule_id}:{local_date}`，发送message_key同该scope。COS导入保留原pending_id及已有完成状态。
 

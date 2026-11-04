@@ -6,6 +6,7 @@ model/tool routing; no AgentPlan, custom checkpoint backend or rule planner.
 from __future__ import annotations
 import json
 import os
+import re
 import threading
 import time
 import uuid
@@ -14,7 +15,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from langchain.agents import create_agent
-from langchain.agents.middleware import AgentMiddleware, ModelCallLimitMiddleware, ToolCallLimitMiddleware
+from langchain.agents.middleware import AgentMiddleware, ModelCallLimitMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage, messages_to_dict, messages_from_dict
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic import ValidationError
@@ -28,27 +29,46 @@ from .storage.bitable_adapter import message_key
 from .model import DeepSeekModel
 from .tools.registry import TOOL_REGISTRY, CURRENT_RUNTIME
 from .tools.settings import BARE_CONFIRM, BARE_CANCEL
-from .replies import model_view, project_messages, history_messages, state_view, render, progress_reply, proposal_prompt, tool_facts_reply
+from .replies import model_view, project_messages, history_messages, state_view, render, progress_reply, proposal_prompt, tool_facts_reply, plan_companion_reply
 from .context import select_messages, REQUEST_BUDGET, InputBudgetExceeded, ModelRequestFailed, TruncatedGeneration, StateCheckpointFailed
 from .storage import conversation
+from .evidence import collect_visible_evidence
 
 _LOCKS = {}
 _LOCKS_GUARD = threading.Lock()
+
+def _valid_action_note(value):
+    if not isinstance(value, str) or not value.strip():
+        return False
+    # This validates the public progress field, never the business intent.
+    # References such as “已记录的早餐” remain valid future-work descriptions.
+    return not re.search(r"(?:^|[，。；！!])[^，。；！!]{0,12}(?:已(?:经)?(?:完成|算好|记好|记录|保存|启用|写入|确认)(?!的)|(?:记录|写入|保存)成功)", value.strip())
 
 def session_lock(user_id, chat_id):
     with _LOCKS_GUARD:
         return _LOCKS.setdefault((user_id, chat_id), threading.RLock())
 
 SYSTEM = """你是本人的饮食助手。结合当前消息和已有上下文，把用户要做的事情办妥，用自然、简洁的中文交流。
-按明确的食用、记录、修改和设置意图调用工具。食物、份量、日期和指代优先沿用已知信息；数量和原文单位一并传入，由工具换算。候选供用户选择后接续原餐，本轮新返回的候选合并询问用户。
+按明确的食用、记录、修改和设置意图调用工具。食物、份量、日期和指代优先沿用已知信息；数量和原文单位一并传入，由工具换算。记餐候选供用户选择后接续原餐，本轮新返回的记餐候选合并询问用户。
 营养、账本和执行状态取自本次工具事实；历史操作引用用于定位，摄入和目标重新查询。记餐和改量已有meal_totals即可直接回复原餐合计。
+“刚才/上一餐”明确指向last_meal；其中同名食物唯一且有效时直接用引用ID调用revise_intake，不要为重取数量/营养先query_history，工具会核对当前原行和重算原餐。“今天早餐”等未指定哪一份且存在多餐时先定位消歧，不能擅自取最近餐。
 记餐、改量简短确认并给本餐热量；原餐estimated为true时说明估算。明细按需展开，常用餐名称按用户原文保存。
 只问热量合计时，用一句话给合计作为完整答复。完成事项以结果收尾；多个必要缺项合并问，其他交流贴合用户当前的话题。
 知识回答贴合用户问题，检索词扩展只用于找资料。食物份量、比例和营养数字须有本轮证据；不足时给可支持的定性解释，简短指出影响结论的缺口。来源请求给实际出处和相关原文。
-面向用户使用食物名称、自然指代和资料标题；记录ID、工具参数和source_id供内部操作。知识引用用本轮[K101]等标记，系统会替换成实际来源。
+面向用户使用食物名称、自然指代和资料标题；记录ID、工具参数和source_id供内部操作。知识引用使用实际可见原文的[source_id]，不要自行编造或复用局部编号；缺原文或对应不唯一时重新检索。
 主动写入建议先propose，用户确认后执行。提案正文只写一句陈述解释建议，具体参数及唯一确认问题由系统交付。
 record_meal、revise_intake、query_today、query_history 的本批结果若足以回应整条请求（包括必要缺项问询），每个调用显式给出finish_after_tools=true，系统直接用完整工具事实回执。
 完整请求尚有后续工具、解释、建议或知识回答未覆盖时不声明完成。先查历史再改量，查历史批次不是完成；记餐后还问今日剩余，须取得所需查询后才完成。
+finish_after_tools也可用于只改最近已展示草案的一次calculate_meal：替代来源已知时直接用draft_id/replacements计算并设true，完整计算后直接交付，不再复述。仍需来源可先查，最后计算足以回应整条请求才设true；初次规划、还问理由/建议或有其他未完成任务不能据此结束。其余工具不要携带此字段，false也不要传。每条消息最多8次工具调用、4次主决策；先合并已知条件，依据可用来源核算，避免反复搜索同一食物。规划可从本轮营养候选选择实际返回的source_ref直接进入calculate_meal，按用户要求和候选差异作明确的组成假设，无需逐个再次查营养。choice只接续用户回复的上一轮已展示营养选项，不能选择本轮刚返回的候选或借用记餐编号。
+使用source_ref时food_query应省略或保持该来源原名；不要把“去卤蛋/熟制/微波炉”等条件追加到来源名称。固定外卖配方未核实时，优先查米饭、鸭肉等组成的实际来源，用assumption明确每顿组成及可食克重，用constraints保留不加卤蛋等要求，不能宣称整体资料已核实排除配料。拟稿尚未展示时修改计算须重交完整修订items，只有已展示meal_draft才能用draft_id改稿。
+饮食规划、修改草案或知识检索长任务，在首批任一调用的action_note给一句具体中文行动说明，只说尚待做的事，不声称已完成。首工具只是查目标也可携带。若首批均遗漏，只在后续首个含calculate_meal或query_knowledge的批次再给一次机会，不另调模型补说明；普通账本、直接结束、已经尝试说明后均省略。
+已展示的meal_draft、food_offer及reminder_pending供下一轮接续；按来源引用和item_id修改，不把草案当已摄入。“每天”用scope=daily长期目标，不取当日覆盖、不扣已吃早餐；今日完整/剩余须按原意选择scope。
+规划需要多种来源时优先用query_food_nutrition的queries一次批量查1至8项，action_note写工具顶层，不写queries元素。不要把每种食物拆成单独工具调用，给calculate_meal及必要纠错保留预算。可选食材不是必须全查或全部入菜单，查询未找到的可选项不应反复换词耗尽预算；先用已有有据来源完成计算，再明确仍缺的条件。
+规划先将用户指定固定餐的每份来源、份数、排除项与组成假设传给calculate_meal并标fixed=true。根据四项缺口选择补充食材，模型建议量标portion_basis=suggested，外卖组成假设标assumed_takeout（包括固定米饭/鸭腿），只有用户明确给量才标user_given。工具在同次计算内校正已有建议量，保留固定项/份数/上限；可用adjustment给另一初稿，不能只算热量后把改善写成未重算建议。单项不宜过多时传portion_preference=smaller_portions。按营养选项per_100g的实际数值拟定份量，不猜每100克营养；有source_ref时省略food_query，不反复查询候选编号。assumption只写该项的组成或做法，克重与几只/几份由工具来源换算，不在自由文本重复估算单位数量。
+初次规划须在前三次主决策内完成必要工具，给第四次保留最终说明。已有完整菜单满足容差且宏量取舍可说明时交付这一版，不为补齐可选食材或追热量零误差再检索/重算；检索已提示额度不足时使用现有有据来源或问必要缺项，不反复搜可选替代。不能在最后一次决策调用还需要模型正文才能结束的规划工具。
+execution_budget给出本次决策序号、此后剩余决策及工具余量。此后无决策时应给最终正文或必要缺项问询；只有本批能按上述finish_after_tools直接完成的账本或纯改稿才可继续调用工具。
+菜单明细由系统按最终草案统一展示，不在终稿重复清单。用户还问替换理由、建议或关键取舍时继续回答，把这部分定性说明写在<plan_note>与</plan_note>之间；系统保留说明并附唯一菜单。份量和营养数值由菜单统一展示，不在说明块另写定量结论。
+最终菜单、每项份量及汇总由选中草案唯一渲染；最终正文不再重写清单或另一份菜单。关键前提写入assumption、固定限制写入constraints，由同一草案交付。修改仅传原draft_id与用户指定全部对应餐次的replacements，其他项不动；没有该项时明确无对象并保留原稿。
 """
 
 class DeadlineExceeded(RuntimeError):
@@ -176,6 +196,7 @@ class Runtime(AgentMiddleware):
             self.journal["confirmation"] = deepcopy(proposal) if proposal and proposal.get("presented") and text in BARE_CONFIRM else None
             if text in BARE_CANCEL:
                 self.session.pop("proposal", None)
+                self.session.pop("reminder_pending", None)
             elif text not in BARE_CONFIRM:
                 self.session.pop("proposal", None)
         else:
@@ -190,7 +211,7 @@ class Runtime(AgentMiddleware):
             self._persisted = json.dumps([self.journal,False],sort_keys=True,ensure_ascii=False)
         self.persist()
 
-    def persist(self, completed=False):
+    def persist(self, completed=False, *, phase=None):
         # Native messages are persisted in journal.messages during execution and
         # session.messages at completion. Session/prepared facts need no second copy.
         self.journal["session"] = {k:deepcopy(v) for k,v in self.session.items() if k != "messages"}
@@ -201,7 +222,7 @@ class Runtime(AgentMiddleware):
             state = json.dumps([self.journal, completed], sort_keys=True, ensure_ascii=False)
             if state != self._persisted:
                 from .storage.telemetry import span
-                with span("execution_save", completed=completed, bytes=len(state.encode())):
+                with span("execution_save", completed=completed, bytes=len(state.encode()), phase=phase):
                     self.store.save_execution(self.task, self.journal, completed=completed)
                 self._persisted = state
 
@@ -216,8 +237,11 @@ class Runtime(AgentMiddleware):
         if not calls or not calls[-1].get("batch_id"):
             return False
         batch = [entry for entry in calls if entry.get("batch_id") == calls[-1]["batch_id"]]
-        complete = all(entry.get("finish_after_tools") is True and "result" in entry and
-                       entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"} for entry in batch)
+        ledger = all(entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"} for entry in batch)
+        revision = (len(batch) == 1 and batch[0]["tool"] == "calculate_meal"
+                    and bool(batch[0]["args"].get("draft_id"))
+                    and batch[0]["args"]["draft_id"] == self.session.get("meal_draft", {}).get("draft_id"))
+        complete = (ledger or revision) and all(entry.get("finish_after_tools") is True and "result" in entry for entry in batch)
         self.journal["completion"] = {"batch_id": calls[-1]["batch_id"], "declared": [entry.get("finish_after_tools", False) for entry in batch], "adopted": False}
         if not complete:
             return False
@@ -232,7 +256,21 @@ class Runtime(AgentMiddleware):
                     and tool is not None and tool.metadata["risk"] == "read_only"):
                 continue
             selected.append(entry["result"])
-        text = tool_facts_reply(selected)
+        if revision:
+            # The model declares the whole request finished. Runtime checks
+            # only durable identity/results; it does not infer user intent.
+            result = batch[0]["result"]
+            data = result.get("data", {})
+            candidate = self.session.get("meal_draft_candidate", {})
+            if (len(selected) != 1 or result.get("status") != "ok" or not data.get("complete")
+                    or data.get("unfinished") or data.get("question")
+                    or candidate.get("message_id") != self.message["message_id"]
+                    or candidate.get("draft_id") != data.get("draft_id")):
+                return False
+            from .planning import candidate_presentations
+            text = candidate_presentations(self.session, self.message["message_id"], facts=selected)["text"]
+        else:
+            text = tool_facts_reply(selected)
         if text is None:
             return False
         self.journal["completion"]["adopted"] = True
@@ -257,7 +295,7 @@ class Runtime(AgentMiddleware):
             if self.try_tool_facts():
                 return self.finish()
             self.journal["termination"] = {"reason": reason, "at": time.time(),
-                "unexecuted_action_ids": [entry["action_id"] for entry in self.journal["calls"] if "result" not in entry]}
+                "unexecuted_action_ids": [entry["action_id"] for entry in self.journal["calls"] if "result" not in entry or entry.get("terminated")]}
             return self.finish(reason, terminal=True)
         finally:
             BUSINESS_IO.reset(token)
@@ -305,9 +343,13 @@ class Runtime(AgentMiddleware):
         self.journal["messages"] = messages_to_dict(native)
         history, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True, config=self.config, before=self.human_id)
         state = state_view(self)
+        state["execution_budget"] = {"model_decision": self.journal["model_calls"],
+                                     "model_decisions_after_this": self.config.max_model_calls - self.journal["model_calls"],
+                                     "tool_calls_remaining": max(0, self.config.max_tool_calls - len(self.journal["calls"]))}
         projected, measurement = select_messages(history, summary, native, SYSTEM, state,
             [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)
         request = request.override(messages=[SystemMessage(content="可信会话事实：" + json.dumps(state, ensure_ascii=False)), *projected], system_message=SystemMessage(content=SYSTEM + "\n"))
+        self.journal["visible_evidence"] = collect_visible_evidence(request.messages)
         saved_request = next((item for item in self.journal["model_requests"] if item.get("step_id") == step["id"]), None)
         if saved_request is None:
             current_start = next((i for i, item in reversed(list(enumerate(request.messages))) if isinstance(item, HumanMessage) and item.id == self.human_id), 0)
@@ -352,12 +394,66 @@ class Runtime(AgentMiddleware):
             index = len(self.journal["calls"]) + 1
             args = deepcopy(call["args"])
             finish = args.pop("finish_after_tools", False)
+            action_note = args.pop("action_note", None)
             self.journal["calls"].append({"call_id": call["id"], "tool": call["name"], "args": args,
+                "action_note": action_note,
                 "finish_after_tools": finish is True, "batch_id": step["id"], "index": index,
                 "action_id": f"{message_key(self.message)}:agent:{index}"})
         step["status"] = "response_saved"
-        self.persist()
+        self.capture_note_opportunity(step["id"])
+        self.persist(phase="response_batch_saved")
+        self.maybe_action_note()
         return response
+
+    def capture_note_opportunity(self, batch_id):
+        """Freeze each permitted opportunity with the complete native batch."""
+        if getattr(self, "action_note_callback", None) is None or self.preset.name != "live" or self.journal.get("action_notice"):
+            return
+        calls = self.journal["calls"]
+        batch = [entry for entry in calls if entry.get("batch_id") == batch_id]
+        if not batch:
+            return
+        opportunities = self.journal.setdefault("action_note_opportunities", {})
+        if batch_id == calls[0].get("batch_id"):
+            kind = "first"
+        elif (opportunities.get("first", {}).get("status") == "empty" and "supplement" not in opportunities
+              and any(entry["tool"] in {"calculate_meal", "query_knowledge"} and entry["index"] <= self.config.max_tool_calls for entry in batch)):
+            kind = "supplement"
+        else:
+            return
+        if kind in opportunities:
+            return
+        direct = all(entry.get("finish_after_tools") and entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"} for entry in batch)
+        selected = None if direct else next((entry for entry in batch if entry["index"] <= self.config.max_tool_calls
+            and entry["tool"] in TOOL_REGISTRY and TOOL_REGISTRY[entry["tool"]].metadata["risk"] == "read_only"
+            and _valid_action_note(entry.get("action_note"))), None)
+        opportunities[kind] = {"batch_id": batch_id, "status": "direct" if direct else "ready" if selected else "empty",
+                               "call_id": selected["call_id"] if selected else None,
+                               "text": selected["action_note"].strip() if selected else None}
+
+    def maybe_action_note(self):
+        callback = getattr(self, "action_note_callback", None)
+        if callback is None or self.preset.name != "live" or self.journal.get("action_notice"):
+            return
+        ready = next(((kind, value) for kind, value in self.journal.get("action_note_opportunities", {}).items()
+                      if value.get("status") == "ready"), None)
+        if ready is None:
+            return
+        kind, opportunity = ready
+        batch = [entry for entry in self.journal["calls"] if entry.get("batch_id") == opportunity["batch_id"]]
+        if not batch or any("result" in entry or "prepared" in entry or entry.get("terminated") for entry in batch):
+            return
+        self.check_deadline()
+        if self.deadline - time.monotonic() < 1:
+            opportunity["status"] = "budget_skipped"
+            return
+        # Reserve before the RPC: recovery never resends an uncertain note.
+        context = {"batch_id": opportunity["batch_id"], "call_id": opportunity["call_id"], "opportunity": kind}
+        opportunity["status"] = "attempted"
+        self.journal["action_notice"] = {"text": opportunity["text"], "status": "attempted", "attempted_at": time.time(), **context}
+        self.persist()
+        self.journal["action_notice"].update(callback(opportunity["text"], **context) or {})
+        self.persist()
 
     @business_scope
     def execute(self, entry, handler=None):
@@ -483,6 +579,8 @@ class Runtime(AgentMiddleware):
             return {"status": "proposal", "data": {"proposal_id": self.action_id, "action": tool.name, "parameters": args}}
         if (mode == "cancel" or text in BARE_CANCEL) and not (tool.name == "record_meal" and args.get("cancel_pending")):
             self.session.pop("proposal", None)
+            if tool.name == "update_user_settings" and args.get("kind") == "reminder":
+                self.session.pop("reminder_pending", None)
             return {"status": "cancelled", "data": {}}
         return self._invoke_tool(tool, args, handler)
 
@@ -499,6 +597,7 @@ class Runtime(AgentMiddleware):
             result = {"status": "error", "data": {}, "error": "tool_not_allowed"}
         elif entry["index"] > self.config.max_tool_calls:
             result = {"status": "limit", "data": {"question": "已保留进度，本轮达到工具调用上限"}}
+            entry["terminated"] = "tool_call_limit"
         else:
             try:
                 args = tool.args_schema.model_validate(args).model_dump(exclude_none=True, exclude_unset=True)
@@ -516,7 +615,10 @@ class Runtime(AgentMiddleware):
 
     def wrap_tool_call(self, request, handler):
         entry = next(e for e in self.journal["calls"] if e["call_id"] == request.tool_call["id"])
-        return self.execute(entry, lambda: handler(request))
+        # The native handler must validate the same business arguments as the
+        # durable action, after batch controls have been extracted once.
+        business_request = request.override(tool_call={**request.tool_call, "args": deepcopy(entry["args"])})
+        return self.execute(entry, lambda: handler(business_request))
 
     def finish(self, error="", *, terminal=False):
         if terminal:
@@ -531,7 +633,8 @@ class Runtime(AgentMiddleware):
         messages = messages_from_dict(self.journal["messages"])
         direct = self.journal.get("direct_reply") if not error else None
         text = "" if direct else messages[-1].content if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls else ""
-        reply, adjustments = (direct, []) if direct else render(str(text), facts)
+        reply, adjustments = (direct, []) if direct else render(str(text), facts, visible_evidence=self.journal.get("visible_evidence", []))
+        terminal_notice = ""
         if (not text and not direct) or error:
             reply = progress_reply(facts)
             if error:
@@ -541,11 +644,30 @@ class Runtime(AgentMiddleware):
                         data = histories[-1]
                         reply = f"{data['start_date']}至{data['end_date']}（不含尾日）共{data['count']}项，合计{data['total']['kcal']:g}千卡。完整明细超过输入范围。"
                 if terminal:
-                    suffix = "本次输入超过模型可处理范围，请缩小范围后重新发送。" if error == "input_budget_exceeded" else "本次等待已到期，请重新发送。" if error == "deadline_reached" else "本次模型处理未能完成，请重新发送。"
-                    reply += "\n" + suffix + "未执行的动作已终止，已完成的部分保留。"
+                    suffix = "本次输入超过模型可处理范围，请缩小范围后重新发送。" if error == "input_budget_exceeded" else "本次等待已到期，请重新发送。" if error == "deadline_reached" else "本轮工具调用已达上限，请缩小范围后继续。" if error == "tool_call_limit" else "本次模型处理未能完成，请重新发送。"
+                    terminal_notice = suffix + "未执行的动作已终止，已完成的部分保留。"
+                    reply += "\n" + terminal_notice
                 else:
                     reply += "\n本轮未完成，已保留执行进度；结果仍需核对。"
         proposal = self.session.get("proposal")
+        presentation = {"text": "", "presented_candidates": {}}
+        saved_draft = self.session.get("meal_draft_candidate", {})
+        if not error or (terminal and saved_draft.get("message_id") == self.message["message_id"]):
+            from .planning import candidate_presentations
+            presentation = candidate_presentations(self.session, self.message["message_id"], facts=facts)
+            if presentation["text"]:
+                # The selected draft (including model-supplied assumptions) is
+                # the sole public menu. Keep the raw model text in audit only.
+                if "meal_draft_candidate" in presentation["presented_candidates"]:
+                    companion = plan_companion_reply(facts, str(text), self.journal.get("visible_evidence", []), adjustments=adjustments)
+                    reply = (companion + "\n\n" if companion else "") + presentation["text"]
+                    if terminal_notice:
+                        reply += "\n" + terminal_notice
+                    reason = "canonical_presentation"
+                else:
+                    reply += "\n\n" + presentation["text"]
+                    reason = "candidate_presentation_added"
+                adjustments.append({"reason": reason, "candidate_ids": presentation["presented_candidates"]})
         if proposal:
             adjustments.append({"reason":"proposal_confirmation_added","proposal_id":proposal["proposal_id"]})
             confirmation = proposal_prompt(proposal)
@@ -560,15 +682,25 @@ class Runtime(AgentMiddleware):
         self.journal["messages"] = messages_to_dict(messages)
         self.session["last_message_id"] = self.message["message_id"]
         self.session["last_execution_complete"] = not bool(error) or terminal
+        needs_user = any(fact.get("status") == "pending" or fact.get("data", {}).get("unfinished") for fact in facts)
+        if "meal_draft_candidate" in presentation["presented_candidates"]:
+            # Earlier nutrition ambiguities and intermediate plans are audit;
+            # the displayed selected draft owns the current planning gap.
+            needs_user = (not self.session["meal_draft_candidate"]["calculation"]["complete"] or
+                          any((fact.get("status") == "pending" or fact.get("data", {}).get("unfinished"))
+                              for fact in facts if fact["tool"] not in {"query_food_nutrition", "calculate_meal"}))
         result = {"status": "error" if error else "ok", "reply": reply, "reply_source": "tool_facts" if direct else "fallback" if error or not text else ("agent_adjusted" if adjustments else "agent"),
             "storage_revision": self.store.journal.revision if hasattr(self.store, "journal") else None,
             "tool_results": facts, "native_calls": [{k:v for k,v in e.items() if k not in {"prepared", "result"}} for e in self.journal["calls"]],
             "model_requests": self.journal["model_requests"], "model_calls": self.journal["model_calls"],
             "model_reply": str(text), "response_adjustments": adjustments,
+            "presented_candidates": presentation["presented_candidates"],
+            "action_notice": self.journal.get("action_notice"),
+            "action_note_opportunities": deepcopy(self.journal.get("action_note_opportunities", {})),
             "model_steps": [{key:value for key,value in step.items() if key not in {"request_body", "response"}} for step in self.journal["model_steps"]],
             "completion": self.journal.get("completion"), "deadline_at": self.journal["deadline_at"], "legacy_budget": self.journal["legacy_budget"],
             "termination_reason": error if terminal else None,
-            "completion_status": "terminated" if terminal else "needs_reconciliation" if error else "awaiting_user" if any(fact.get("status") == "pending" or fact.get("data", {}).get("unfinished") for fact in facts) else "completed",
+            "completion_status": "terminated" if terminal else "needs_reconciliation" if error else "awaiting_user" if needs_user else "completed",
             "business_status": "committed" if any(fact.get("tool") in {"record_meal", "revise_intake", "update_user_settings"} and fact.get("status") == "ok" for fact in facts) else "none",
             "proposal_id": proposal.get("proposal_id") if proposal else None,
             "dialogue_turn_id": self.human_id, "terminal": terminal,
@@ -598,7 +730,7 @@ class Runtime(AgentMiddleware):
 @request_scope
 @message_scope
 @task_date_scope
-def run(message, *, store=None, config=None, intake_date=None, model=None):
+def run(message, *, store=None, config=None, intake_date=None, model=None, action_note_callback=None):
     config = config or load_config()
     preset = resolve_preset(config.preset, config.allowed_tools)
     store = store or create_store(config, preset)
@@ -623,6 +755,7 @@ def run(message, *, store=None, config=None, intake_date=None, model=None):
             return _saved_result(journal)
         model = model or DeepSeekModel(model_name=config.model)
         rt = Runtime(message, store, config, preset, model, intake_date, execution)
+        rt.action_note_callback = action_note_callback
         token = CURRENT_RUNTIME.set(rt)
         from .storage.timeutil import PROCESSING_DEADLINE
         deadline_token = PROCESSING_DEADLINE.set(rt.recovery_deadline)
@@ -633,12 +766,15 @@ def run(message, *, store=None, config=None, intake_date=None, model=None):
             # a fresh planning window or replay an uncommitted prepared action.
             if time.monotonic() >= rt.deadline:
                 return rt.terminate("deadline_reached")
+            rt.maybe_action_note()
             for entry in rt.journal["calls"]:
                 if "result" not in entry and not entry.get("terminated"):
                     rt.execute(entry)
             while True:
                 if rt.try_tool_facts():
                     break
+                if any(entry.get("terminated") == "tool_call_limit" for entry in rt.journal["calls"]):
+                    return rt.terminate("tool_call_limit")
                 messages = project_messages(messages_from_dict(rt.journal["messages"]))
                 if isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls and messages[-1].content:
                     break
@@ -648,8 +784,10 @@ def run(message, *, store=None, config=None, intake_date=None, model=None):
                     return rt.terminate("model_call_limit")
                 agent = create_agent(model=model, tools=[t for n,t in TOOL_REGISTRY.items() if n in preset.allowed_tools],
                     system_prompt=SYSTEM,
-                    middleware=[ModelCallLimitMiddleware(run_limit=remaining, exit_behavior="end"),
-                        ToolCallLimitMiddleware(run_limit=max(1, config.max_tool_calls-len(rt.journal["calls"])), exit_behavior="end"), rt],
+                    # Runtime._execute is the durable eight-action authority.
+                    # A second, per-invoke tool counter injects unjournaled text
+                    # messages and can suppress the allowed part of a batch.
+                    middleware=[ModelCallLimitMiddleware(run_limit=remaining, exit_behavior="end"), rt],
                     interrupt_after=["tools"])
                 final = agent.invoke({"messages": messages}, config={"max_concurrency": 1, "recursion_limit": 40})
                 rt.journal["messages"] = messages_to_dict(final["messages"])
@@ -709,10 +847,20 @@ def mark_reply_presented(store, user_id, chat_id, result):
         return
     user_id = store.load_user_aliases().get(user_id, user_id)
     conversation.confirm_turn(store, user_id, chat_id, result.get("dialogue_turn_id"))
-    if not result.get("proposal_id"):
-        return
     session = store.load_session(user_id, chat_id)
+    source_id = (result.get("dialogue_turn_id") or "").removeprefix("calorie-user:")
+    changed = False
+    if session.get("last_message_id") == source_id and (result.get("status") == "ok" or result.get("terminal")):
+        for candidate_key, active_key in (("food_offer_candidate", "food_offer"), ("meal_draft_candidate", "meal_draft")):
+            candidate = session.get(candidate_key)
+            candidate_id = candidate.get("offer_id", candidate.get("draft_id")) if candidate else None
+            if (candidate and candidate.get("message_id") == source_id
+                    and result.get("presented_candidates", {}).get(candidate_key) == candidate_id):
+                session[active_key] = session.pop(candidate_key)
+                changed = True
     proposal = session.get("proposal")
-    if proposal and proposal.get("proposal_id") == result["proposal_id"]:
+    if proposal and proposal.get("proposal_id") == result.get("proposal_id"):
         proposal["presented"] = True
+        changed = True
+    if changed:
         store.save_session(user_id, chat_id, session)

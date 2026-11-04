@@ -118,7 +118,10 @@ def clean_messages(messages):
         if message.additional_kwargs.get("lc_source") == "summarization":
             continue
         if isinstance(message, ToolMessage):
-            clean.append(AIMessage(content=message.content, additional_kwargs={"fact_scope": "historical" if message.name != "query_knowledge" else "knowledge"}))
+            extra = {"fact_scope": "historical" if message.name != "query_knowledge" else "knowledge"}
+            if message.name == "query_knowledge":
+                extra["tool_evidence_origin"] = "query_knowledge"
+            clean.append(AIMessage(content=message.content, additional_kwargs=extra))
         elif isinstance(message, AIMessage) and message.tool_calls:
             continue
         else:

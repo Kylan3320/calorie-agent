@@ -131,7 +131,9 @@ def CUT04():
     from agent.storage.migration import baseline_manifest, import_cos_baseline
     class Objects:
         def __init__(self): self.data, self.hidden = {}, set()
-        def list(self, prefix): return [key for key in self.data if key.startswith(prefix)]
+        def list(self, prefix, marker='', limit=None):
+            keys = sorted(key for key in self.data if key.startswith(prefix) and key > marker)
+            return keys if limit is None else keys[:limit]
         def get(self, key): return None if key in self.hidden else self.data.get(key)
         def create(self, key, body):
             if key in self.data: return False

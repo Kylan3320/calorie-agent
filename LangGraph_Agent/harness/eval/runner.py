@@ -20,7 +20,7 @@ def load_checks():
         "personal_cases", "conversation_cases", "latency_checks",
         "production_store_cases", "production_archive_cases", "production_pipeline_cases",
         "production_role_cases", "production_cutover_cases", "production_transport_cases",
-        "release_cases", "runtime_cases", "context_cases", "receipt_cases", "receipt_runtime_cases", "model_transport_cases", "rpc_deadline_cases", "delivery_binding_cases", "finalization_cases", "completion_budget_cases",
+        "release_cases", "runtime_cases", "context_cases", "receipt_cases", "receipt_runtime_cases", "model_transport_cases", "rpc_deadline_cases", "delivery_binding_cases", "finalization_cases", "completion_budget_cases", "action_note_cases", "task_evidence_cases", "task_domain_cases", "task_budget_cases", "menu_quality_cases", "preflight_cos_cases", "meal_completion_cases",
     ):
         group = importlib.import_module("harness.eval." + module).CHECKS
         duplicates = checks.keys() & group.keys()

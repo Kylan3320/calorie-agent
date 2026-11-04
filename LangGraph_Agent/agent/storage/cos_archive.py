@@ -5,6 +5,7 @@ resolved by its stable business key before replaying the same client token.
 Only independently read-back fields advance the per-item archive watermark.
 """
 from copy import deepcopy
+from decimal import Decimal, InvalidOperation
 import json
 import os
 import re
@@ -16,7 +17,7 @@ from .bitable_adapter import (
     BitableStore, _encode_pending_payload, _food_candidate_names, _intake_field,
     _list_records, _pending_field, _record_url, stable_uuid,
 )
-from .timeutil import extract_number, extract_text
+from .timeutil import extract_text
 
 
 class ArchiveBlocked(RuntimeError):
@@ -45,11 +46,41 @@ def _blocked_error(error):
     return False
 
 
+def _archive_number(value):
+    """Decode a Bitable numeric cell without applying business-value rounding.
+
+    Accept finite numeric scalars/numeric text and singleton list or
+    value/text/number wrappers. Wrapper keys use that order; an invalid selected
+    value or a multi-value list is not evidence of a matching archive field.
+    Decimal(str(float)) preserves the decimal value submitted in our JSON.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, list):
+        return _archive_number(value[0]) if len(value) == 1 else None
+    if isinstance(value, dict):
+        for key in ("value", "text", "number"):
+            if key in value:
+                return _archive_number(value[key])
+        return None
+    if not isinstance(value, (int, float, str, Decimal)):
+        return None
+    text = str(value).strip()
+    if not re.fullmatch(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", text):
+        return None
+    try:
+        number = Decimal(text)
+    except InvalidOperation:
+        return None
+    return number if number.is_finite() else None
+
+
 def _same_fields(actual, expected):
     for key, value in expected.items():
         observed = actual.get(key)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
-            if extract_number(observed) != value:
+            expected_number = _archive_number(value)
+            if expected_number is None or _archive_number(observed) != expected_number:
                 return False
         elif extract_text(observed) != str(value):
             return False
@@ -102,9 +133,13 @@ class BitableArchive:
             raise ArchiveBlocked("unknown archive kind: " + kind)
         if not store.app_token or not table:
             raise ArchiveBlocked("Bitable app/table is not configured for " + kind)
+        # New preparations identify the destination and exact committed version.
+        # Persisted inflight requests retain their original token on recovery.
+        token_identity = json.dumps(["calorie-agent:archive:v2", store.app_token, table, kind, identity, revision],
+                                    ensure_ascii=False, separators=(",", ":"))
         return {"kind": kind, "id": identity, "revision": revision, "table": table,
                 "stable_field": stable_field, "stable_value": stable_value, "known_record_id": known,
-                "fields": fields, "client_token": stable_uuid(f"calorie-agent:archive:{kind}:{identity}")}
+                "fields": fields, "client_token": stable_uuid(token_identity)}
 
     def _find(self, request):
         if request["known_record_id"]:
@@ -127,9 +162,11 @@ class BitableArchive:
     def apply_and_readback(self, request):
         existing = self._find(request)
         if existing and request["kind"] == "intake":
-            version = extract_number(existing[1].get("agent_revision")) or 0
-            if version > request["revision"]:
-                return {"record_id": existing[0], "superseded_by": version}
+            version = _archive_number(existing[1].get("agent_revision"))
+            # Revisions are integers; malformed/fractional cells cannot prove
+            # that a newer committed version superseded this request.
+            if version is not None and version == version.to_integral_value() and version > request["revision"]:
+                return {"record_id": existing[0], "superseded_by": int(version)}
         if not existing:
             # The request and token are already saved by archive_pending.
             self.store._batch_create(request["table"], [{"fields": request["fields"]}], client_token=request["client_token"])

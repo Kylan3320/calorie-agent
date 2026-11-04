@@ -4,6 +4,7 @@ import re
 import math
 from copy import deepcopy
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from .evidence import bind_legacy_messages
 
 LABELS = {"carbs":"碳水", "protein":"蛋白质", "fat":"脂肪", "kcal":"热量"}
 
@@ -18,22 +19,23 @@ def settings_view(settings):
 
 
 def _food_choice_view(food):
-    """Preserve candidate identity and distinguishing traits, not nutrition caches."""
-    result = {k:deepcopy(food[k]) for k in ("food_id", "boohee_id", "name", "aliases", "brand", "category", "type", "source") if k in food}
+    """Keep source identity, small per-100g profiles and distinguishing traits."""
+    result = {k:deepcopy(food[k]) for k in ("food_id", "boohee_id", "name", "aliases", "brand", "category", "type", "source", "source_ref", "features") if k in food}
     if food.get("units"):
         result["units"] = [{"unit_name":unit.get("unit_name", unit.get("unit", unit.get("name", ""))),
                             **({"eat_weight":unit["eat_weight"]} if "eat_weight" in unit else {})} for unit in food["units"]]
     return result
 
 
-def _unfinished_view(item, pending_id=None):
-    result = {k:deepcopy(item[k]) for k in ("pending_id", "food_query", "date", "meal_type", "reason", "grams", "quantity", "unit", "quantity_text", "choice", "offered_message_id") if k in item}
+def _unfinished_view(item, pending_id=None, *, include_choices=True):
+    result = {k:deepcopy(item[k]) for k in ("pending_id", "food_query", "date", "meal_type", "reason", "grams", "quantity", "unit", "quantity_text", "choice", "offered_message_id", "source_ref", "item_id", "group", "servings", "portion_basis", "assumption", "fixed", "max_grams") if k in item}
     if pending_id is not None:
         result["pending_id"] = pending_id
     if item.get("food"):
         result["food"] = _food_choice_view(item["food"])
     if item.get("candidates"):
-        result["candidates"] = [{**_food_choice_view(candidate), "choice": n} for n,candidate in enumerate(item["candidates"], 1)]
+        result["candidates"] = [{**_food_choice_view(candidate), **({"choice": n} if include_choices else {})}
+                                for n,candidate in enumerate(item["candidates"], 1)]
     return result
 
 
@@ -67,8 +69,16 @@ def state_view(rt):
     relevant_targets = {day:deepcopy(target) for day,target in rt.settings.get("daily_targets", {}).items() if day in dates}
     if relevant_targets:
         settings["daily_targets"] = relevant_targets
-    return {"received_date": rt.day, "user_settings": settings, "unfinished": unfinished, "refs": refs,
-            "last_meal": [record_id for record_id in last_ids if record_id in by_id], "proposal": proposal}
+    result = {"received_date": rt.day, "user_settings": settings, "unfinished": unfinished, "refs": refs,
+              "last_meal": [record_id for record_id in last_ids if record_id in by_id], "proposal": proposal}
+    for key in ("food_offer", "meal_draft", "reminder_pending", "failed_selection", "history_scope"):
+        if session.get(key):
+            result[key] = deepcopy(session[key])
+            if key == "meal_draft" and "calculation" in result[key]:
+                data = result[key]["calculation"]
+                result[key]["calculation"] = {k: deepcopy(data[k]) for k in
+                    ("targets", "consumed", "fixed_subtotal", "supplement_gap", "total", "budget_difference", "complete", "within_tolerance") if k in data}
+    return result
 
 def model_view(fact):
     def compact(value):
@@ -81,15 +91,31 @@ def model_view(fact):
             result["source"]=snap.get("food",{}).get("source",snap.get("basis",""))
             if snap.get("meal_id"):
                 result["meal_id"] = snap["meal_id"]
-        if "units" in result: result["units"]=[{k:u[k] for k in ("unit_name","eat_weight") if k in u} for u in value["units"]]
+        if "units" in result:
+            result["units"] = [{"unit_name": u.get("unit_name", u.get("unit", u.get("name", ""))),
+                                **({"eat_weight": u["eat_weight"]} if "eat_weight" in u else {})} for u in value["units"]]
         return result
     source = fact
+    if fact.get("tool") == "query_food_nutrition" and "queries" in fact.get("data", {}):
+        queries = []
+        for query in fact["data"]["queries"]:
+            projected = model_view({"tool": "query_food_nutrition", **query})
+            data = projected.get("data", {})
+            option_refs = {o.get("source_ref") for o in data.get("options", [])}
+            for missing in data.get("unfinished", []):
+                candidates = missing.get("candidates", [])
+                if candidates and all(c.get("source_ref") in option_refs for c in candidates):
+                    missing.pop("candidates")  # Same profiles already present in options.
+            queries.append({k: v for k, v in projected.items() if k != "tool"})
+        source = {**fact, "data": {"queries": queries}}
     if "unfinished" in fact.get("data", {}):
-        source = {**fact, "data": {**fact["data"], "unfinished": [_unfinished_view(item) for item in fact["data"]["unfinished"]]}}
+        source = {**fact, "data": {**fact["data"], "unfinished": [
+            _unfinished_view(item, include_choices=fact.get("tool") not in {"query_food_nutrition", "calculate_meal"})
+            for item in fact["data"]["unfinished"]]}}
     if fact.get("tool") == "query_history" and fact.get("status") == "ok":
         data = fact["data"]
         detail = data.get("detail", "summary")
-        fields = ("start_date", "end_date", "count", "total", "detail") + (("daily",) if detail=="daily" else ("items",) if detail=="items" else ())
+        fields = ("start_date", "end_date", "meal_type", "food_query", "count", "total", "detail") + (("daily",) if detail=="daily" else ("items",) if detail=="items" else ())
         source = {**fact, "data": {**{key:data[key] for key in fields if key in data}, "detail": detail}}
     result=compact(source)
     if fact.get("tool")=="query_today" and fact.get("status")=="ok":
@@ -100,6 +126,11 @@ def model_view(fact):
         data = result.get("data", {})
         if any(entry.get("answer") for entry in data.get("entries", [])):
             data.pop("evidence", None)
+    if fact.get("tool") == "calculate_meal" and "selection" in result.get("data", {}):
+        selection = result["data"]["selection"]
+        selection["candidates"] = [{k: deepcopy(candidate[k]) for k in
+            ("variant", "total", "budget_difference", "complete", "within_tolerance", "macro_relative_deviation", "worst_macro_relative_deviation", "portion_preference") if k in candidate}
+            for candidate in selection.get("candidates", [])]
     if fact.get("tool") in {"record_meal","revise_intake"}:
         def calories(value):
             if isinstance(value,list):return [calories(v) for v in value]
@@ -110,9 +141,10 @@ def model_view(fact):
 
 def project_messages(messages):
     result=[]
-    for message in messages:
+    for message in bind_legacy_messages(messages):
         if isinstance(message,ToolMessage):
-            value=json.loads(message.content)
+            value = ({"tool": message.name, "status": "error", "data": {}, "error": str(message.content)}
+                     if message.status == "error" else json.loads(message.content))
             message=message.model_copy(update={"content":json.dumps(model_view(value),ensure_ascii=False)})
         result.append(message)
     return result
@@ -123,7 +155,7 @@ def history_messages(messages):
     result = []
     business_turn = False
     knowledge_turn = False
-    for message in messages:
+    for message in bind_legacy_messages(messages):
         if message.additional_kwargs.get("lc_source") == "summarization":
             # Older summaries can contain ledger values from before migration or
             # cleanup. Unfinished items, references and settings live separately.
@@ -140,7 +172,8 @@ def history_messages(messages):
             if business_turn:
                 message = message.model_copy(update={"content": ""})
         elif isinstance(message, ToolMessage):
-            value = json.loads(message.content)
+            value = ({"tool": message.name, "status": "error", "data": {}, "error": str(message.content)}
+                     if message.status == "error" else json.loads(message.content))
             if value.get("tool", message.name) != "query_knowledge":
                 business_turn = True
                 references = []
@@ -168,16 +201,38 @@ def history_messages(messages):
         result.append(message)
     return result
 
-def render(text,facts):
-    known={e.get("source_id"):e.get("source", "现有知识资料") for f in facts if f["tool"]=="query_knowledge" for e in f.get("data",{}).get("entries",[])}
-    adjustments=[]
-    def cite(m):
-        if m[1] in known:
-            adjustments.append({"reason":"source_reference_resolved","reference":m[1]})
-            return "〔"+known[m[1]]+"〕"
-        adjustments.append({"reason":"unknown_source_reference","reference":m[1]})
-        return ""
-    return re.sub(r"\[(K\d+)\]",cite,text),adjustments
+def render(text, facts, visible_evidence=None):
+    entries = (visible_evidence if visible_evidence is not None else
+               [entry for fact in facts if fact.get("tool") == "query_knowledge" for entry in fact.get("data", {}).get("entries", [])])
+    known = {}
+    for entry in entries:
+        if not all(isinstance(entry.get(key), str) and entry[key].strip() for key in ("source_id", "source", "answer")):
+            continue
+        for key in (entry["source_id"], entry.get("legacy_source_id")):
+            if key:
+                known.setdefault(key, {})[(entry["answer"], entry["source"])] = entry
+    adjustments, gaps = [], []
+    def clause(match):
+        value = match[0]
+        references = re.findall(r"\[(K\d+)\]", value)
+        missing = [reference for reference in references if len(known.get(reference, {})) != 1]
+        if missing:
+            for reference in missing:
+                adjustments.append({"reason": "ambiguous_source_reference" if known.get(reference) else "unknown_source_reference", "reference": reference})
+                gaps.append(reference)
+            # A dangling citation cannot leave its numeric or evidentiary claim
+            # behind. Keep independent sentences; ask for the missing evidence.
+            return ""
+        def cite(citation):
+            entry = next(iter(known[citation[1]].values()))
+            adjustments.append({"reason": "source_reference_resolved", "reference": citation[1],
+                                "source_id": entry["source_id"], "source": entry["source"]})
+            return "〔" + entry["source"] + "〕"
+        return re.sub(r"\[(K\d+)\]", cite, value)
+    reply = re.sub(r"(?:[^。！？!?\n]|[。！？!?](?=[”’」』\"']*\[K\d+\]))+[。！？!?\n]?", clause, text).strip()
+    if gaps:
+        reply += ("\n" if reply else "") + "引用" + "、".join(dict.fromkeys(gaps)) + "对应的原文与出处在本次上下文中无法唯一定位；需重新检索后确认这部分结论。"
+    return reply, adjustments
 
 def proposal_prompt(proposal):
     args=proposal["args"];tool=proposal["tool"]
@@ -205,24 +260,122 @@ def proposal_prompt(proposal):
             reuse=args["reuse"];action="记录"+str(reuse.get("ratio",1))+"份"+("常用餐“"+reuse["favorite"]+"”" if reuse.get("favorite") else "所选历史餐")
     return "要"+action+"吗？回复确认即可。"
 
+def plan_companion_reply(facts, model_text, visible_evidence, *, adjustments=None):
+    """Retain other requested results beside the sole canonical menu."""
+    parts = []
+    notes = re.findall(r"<plan_note>(.*?)</plan_note>", model_text, re.S)
+    model_text = re.sub(r"<plan_note>.*?</plan_note>", "", model_text, flags=re.S)
+    if notes:
+        clauses = re.findall(r"[^。！？!?\n]+[。！？!?\n]?", "\n".join(notes))
+        # This channel carries qualitative rationale only. All quantitative
+        # menu content comes from the selected calculation's renderer.
+        quantitative = re.compile(r"\d|[零〇一二两三四五六七八九十百千万半]+\s*(?:千卡|卡路里|克|毫克|公斤|斤|个|只|份|成|倍|%|％)|百分之")
+        kept = [clause for clause in clauses if not quantitative.search(clause)]
+        if len(kept) != len(clauses):
+            kept.append("定量说明未单独核对，份量和营养请见下方实算菜单。")
+            if adjustments is not None:
+                adjustments.append({"reason": "quantitative_plan_note_removed"})
+        parts.append(render("".join(kept).strip(), facts, visible_evidence=visible_evidence)[0])
+    business = [f for f in facts if f["tool"] in {"record_meal", "revise_intake", "update_user_settings", "query_history"}]
+    business += [f for f in facts if f["tool"] == "query_today" and f.get("data", {}).get("detail") in {"calories", "items"}]
+    if business:
+        parts.append(tool_facts_reply(business) or progress_reply(business))
+    knowledge = [f for f in facts if f["tool"] == "query_knowledge"]
+    if knowledge:
+        ids = {e["source_id"] for f in knowledge for e in f.get("data", {}).get("entries", []) if e.get("source_id")}
+        clauses = re.findall(r"(?:[^。！？!?\n]|[。！？!?](?=[”’」』\"']*\[K\d+\]))+[。！？!?\n]?", model_text)
+        cited = list(dict.fromkeys(c for c in clauses if ids.intersection(re.findall(r"\[(K\d+)\]", c))))
+        if cited:
+            parts.append(render("".join(cited), knowledge, visible_evidence=visible_evidence)[0])
+        else:
+            visible = {e.get("source_id") for e in visible_evidence}
+            selected = [{**f, "data": {**f.get("data", {}), "entries": [e for e in f.get("data", {}).get("entries", []) if e.get("source_id") in visible]}} for f in knowledge]
+            parts.append(progress_reply(selected))
+    return "\n".join(part for part in parts if part)
+
+
 def progress_reply(facts):
-    parts=[]
-    latest_meals={}
-    latest_today=None
+    """Keep usable committed answers when the native loop cannot finish."""
+    facts = [part for fact in facts for part in (
+        [{"tool": "query_food_nutrition", **query} for query in fact["data"]["queries"]]
+        if fact.get("tool") == "query_food_nutrition" and "queries" in fact.get("data", {}) else [fact])]
+    parts, latest_meals, histories = [], {}, []
+    latest_today = None
+    planning = any(f.get("tool") in {"calculate_meal", "query_food_nutrition"} for f in facts)
     for f in facts:
         data=f.get("data",{});status=f.get("status")
         if status=="ok" and f["tool"] in {"record_meal","revise_intake"}:
             latest_today=None
             parts.append("已撤销。" if data.get("operation")=="deleted" else ("已修改。" if f["tool"]=="revise_intake" else "已记好。"))
             for meal in data.get("meal_totals",[]):latest_meals[meal['meal_id']]=meal
-        elif status=="ok" and f["tool"]=="update_user_settings":parts.append("设置已保存。")
+            dates = {meal.get("date") for meal in data.get("meal_totals", [])}
+            histories = [history for history in histories if dates and None not in dates and
+                         not any(history.get("start_date", "") <= day < history.get("end_date", "") for day in dates)]
+        elif f["tool"] == "update_user_settings":
+            if data.get("kind") == "reminder" and status in {"ok", "pending"} and "enabled" in data.get("values", {}):
+                rule = data["values"]
+                name = _MEAL_NAMES.get(rule.get("meal_type"), "") + "提醒"
+                parts.append(name + "规则已保存，" + ("已启用。" if rule["enabled"] else "目前关闭、尚未启用。" if data.get("missing") else "已关闭。"))
+                if data.get("missing") and not data.get("question"):
+                    parts.append("请补充" + "、".join(data["missing"]) + "。")
+            elif status == "ok":
+                parts.append("设置已保存。")
         elif f["tool"]=="query_today" and status=="ok":latest_today=data['total']['kcal']
-        for item in data.get("unfinished",[]):parts.append(item.get("food_query","")+"："+item.get("reason","请补充份量"))
-        if data.get("question"):parts.append(data["question"])
+        elif f["tool"] == "query_history":
+            if status == "ok":
+                histories.append(data)
+            else:
+                parts.append(_history_scope(data) + "查询未完成，尚未取得该范围的统计结果。")
+        elif f["tool"] in {"query_food_nutrition", "calculate_meal"}:
+            for item in data.get("items", []):
+                if item.get("nutrition") and item.get("grams") is not None:
+                    parts.append(str(item.get("matched_name", item.get("food_name", "该食物"))) +
+                                 f"{item['grams']:g}克：" + _receipt_nutrition(item["nutrition"]) +
+                                 ("（份量为估算）" if item.get("snapshot", {}).get("estimated") else "") + "。")
+            if f["tool"] == "calculate_meal" and isinstance(data.get("total", {}).get("kcal"), (int, float)):
+                parts.append(("方案合计" if data.get("complete", not data.get("unfinished")) else "已知项目小计") +
+                             f"{data['total']['kcal']:g}千卡。")
+            if status in {"error", "not_found"} and not data.get("question"):
+                parts.append("食物资料查询暂未取得可用结果，请提供可核实的食物名称或营养标签。")
+        elif f["tool"] == "query_knowledge":
+            for entry in data.get("entries", []):
+                if entry.get("answer") and entry.get("source"):
+                    parts.append(entry["answer"] + "〔" + entry["source"] + "〕")
+            if not data.get("entries"):
+                parts.append("这次知识检索未取得可核实原文，相关结论仍需补充依据。")
+        for item in data.get("unfinished",[]):
+            parts.append(item.get("food_query","")+"："+item.get("reason","请补充份量"))
+            for n, candidate in enumerate(item.get("candidates", []), 1):
+                features = candidate.get("features", [])
+                if isinstance(features, dict):
+                    traits = [str(features[key]) for key in ("brand", "category", "type", "source") if features.get(key)]
+                    traits += [str(unit.get("unit", unit.get("unit_name", ""))) +
+                               (f"可食{float(unit['eat_weight']):g}克" if unit.get("eat_weight") is not None else "") for unit in features.get("units", [])]
+                else:
+                    traits = list(map(str, features if isinstance(features, list) else [features]))
+                traits += [str(candidate[key]) for key in ("brand", "category", "type", "source") if candidate.get(key)]
+                parts.append(f"{n}. {candidate.get('name', '候选食物')}" + ("（" + "；".join(traits) + "）" if traits else ""))
+        if data.get("question"):
+            parts.append(data["question"])
     for meal in latest_meals.values():
         parts.append(f"这餐合计{meal['total']['kcal']:g}千卡。"+("份量为估算。" if meal.get('estimated') else ""))
-    if latest_today is not None:parts.append(f"今天合计{latest_today:g}千卡。")
+    for history in histories:
+        try:
+            parts.extend(_receipt_query("query_history", history))
+        except _IncompleteReceipt:
+            if isinstance(history.get("total", {}).get("kcal"), (int, float)) and isinstance(history.get("count"), int):
+                parts.append(_history_scope(history) + f"已记录{history['count']}项，合计{history['total']['kcal']:g}千卡。")
+    if latest_today is not None and not planning:parts.append(f"今天合计{latest_today:g}千卡。")
     return "\n".join(dict.fromkeys(parts)) or "这次处理遇到了问题，请稍后重试。"
+
+
+def _history_scope(data):
+    scope = (data["start_date"] + " 至 " + data["end_date"] + "（不含尾日）") if data.get("start_date") and data.get("end_date") else "所选历史范围"
+    if data.get("meal_type"):
+        scope += " " + (_MEAL_NAMES.get(data["meal_type"]) or "未指定餐次")
+    if data.get("food_query"):
+        scope += "，食物名称包含“" + data["food_query"] + "”"
+    return scope
 
 
 _LEDGER_TOOLS = {"record_meal", "revise_intake", "query_today", "query_history"}

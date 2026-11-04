@@ -23,7 +23,9 @@ class Objects:
         self.fault_action_prefix = 'action:'
 
     def get(self, key): return None if key in self.hidden else self.data.get(key)
-    def list(self, prefix): return [] if self.stale else [k for k in self.data if k.startswith(prefix)]
+    def list(self, prefix, marker='', limit=None):
+        keys = [] if self.stale else sorted(k for k in self.data if k.startswith(prefix) and k > marker)
+        return keys if limit is None else keys[:limit]
     def create(self, key, body):
         self.creates += 1
         if key in self.data: return False

@@ -4,7 +4,7 @@ from datetime import date, timedelta
 import re
 from ..storage import boohee_client
 from ..storage.food_match import normalize_food_name, match_food_candidates
-from ..storage.bitable_adapter import stable_uuid, normalize_food_key
+from ..storage.bitable_adapter import stable_uuid, normalize_food_key, _is_valid_intake_status
 from ..storage.timeutil import round_number
 from .base import calculate_food_intake, positive_grams
 
@@ -152,6 +152,33 @@ def select_rows(rt, refs, *, day="", meal_type="", latest=False):
         rows = [r for r in rows if r["meal_type"] == meal_type]
     return rows
 
+
+def explicit_selection(rt, refs, *, kind, name="", day="", meal_type=""):
+    """A named selection is atomic and ordered, unlike ordinary meal resolution."""
+    known = set(rt.session.get("refs", []))
+    rows = (rt.store.intake_by_ids(rt.user_id, refs, include_deleted=True) if hasattr(rt.store, "intake_by_ids")
+            else rt.store.intake_items(rt.user_id, include_deleted=True))
+    available = {r["record_id"]: r for r in rows}
+    missing = []
+    for ref in refs:
+        row = available.get(ref)
+        reason = ("不是本会话已返回的记录" if ref not in known else
+                  "记录已删除或不可用" if row is None or not _is_valid_intake_status(row.get("status")) else
+                  "记录不在指定日期或餐次" if (day and row["date"] != day) or
+                  (meal_type and row["meal_type"] != meal_type) else "")
+        if reason:
+            missing.append({"record_id": ref, "reason": reason,
+                            **({k: row[k] for k in ("food_name", "date", "meal_type") if k in row} if row else {})})
+    if missing:
+        selection = {"kind": kind, "record_ids": list(refs), "missing": missing}
+        if name:
+            selection["name"] = name
+        rt.session["failed_selection"] = selection
+        return [], {"status": "pending", "data": {
+            "question": "所选记录有不可用项，本次未生效；请修订选择范围", "selection": selection}}
+    rt.session.pop("failed_selection", None)
+    return [available[ref] for ref in refs], None
+
 def meal_totals(rt, items):
     keys = {i.get("snapshot", {}).get("meal_id", i.get("message_id", "")) for i in items}
     dates = sorted({i.get("date", rt.day) for i in items})
@@ -188,8 +215,15 @@ def record_meal(rt, p):
                 source_day = ""
                 if reuse.get("date") or not (reuse.get("latest") or reuse.get("record_ids")):
                     source_day = resolve_date(reuse.get("date"), rt.day)
-                rows = select_rows(rt, reuse.get("record_ids", []), day=source_day,
-                                   meal_type=reuse.get("meal_type", ""), latest=reuse.get("latest", False))
+                if reuse.get("record_ids"):
+                    rows, invalid = explicit_selection(rt, reuse["record_ids"], kind="reuse", day=source_day,
+                                                       meal_type=reuse.get("meal_type", ""))
+                    if invalid:
+                        return invalid
+                    session.pop("failed_selection", None)
+                else:
+                    rows = select_rows(rt, [], day=source_day,
+                                       meal_type=reuse.get("meal_type", ""), latest=reuse.get("latest", False))
                 batches = {r.get("snapshot", {}).get("meal_id", r["message_id"]) for r in rows}
                 if len(batches) > 1 and not reuse.get("record_ids"):
                     return {"status": "pending", "data": {"question": "该餐有多个批次，请选择", "items": rows}}
@@ -296,16 +330,5 @@ def revise_intake(rt, p):
     return {"status": "ok", "data": {"operation": "deleted" if plan["item"] is None else "revised", "item": result, "meal_totals": meal_totals(rt, [plan["original"]])}}
 
 def calculate_meal(rt, p):
-    items, unfinished = [], []
-    for item in p["items"]:
-        resolved, missing = resolve_item(rt, item)
-        if resolved:
-            items.append(resolved)
-        if missing:
-            unfinished.append(missing)
-    total = totals(items)
-    standard = rt.store.get_standard(rt.user_id)
-    consumed = rt.store.today_summary(rt.user_id)["totals"]
-    return {"status": "pending" if unfinished else "ok", "data": {
-        "items": items, "total": total, "unfinished": unfinished, "date": rt.day,
-        "budget_difference": {k: round_number(standard[k] - consumed[k] - total[k]) for k in NUTRIENTS}}}
+    from ..planning import calculate_plan
+    return calculate_plan(rt, p)

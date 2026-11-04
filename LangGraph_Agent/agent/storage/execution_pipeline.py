@@ -174,7 +174,11 @@ class Pipeline:
             return
         started = time.monotonic()
         with span("send_reply", receipt_id=receipt["receipt_id"]):
-            if "progress_reply" in delivery:
+            if delivery.get("mode") == "action_note_edit":
+                mid = delivery["message_id"]
+                delivery["update_result"] = (update_send or feishu_client.update_text)(mid, state["result"]["reply"])
+                sent = {"data": {"message_id": mid}}
+            elif "progress_reply" in delivery:
                 mid = delivery.get("message_id") or delivery.get("send_result", {}).get("data", {}).get("message_id")
                 if not mid:
                     prior = (send or feishu_client.send_text)(message["chat_id"], delivery["progress_reply"], uuid_key=delivery["uuid"])
@@ -199,6 +203,28 @@ class Pipeline:
                           "events": list(EVENTS.get() or []), **delivery}, ensure_ascii=False))
         mark_reply_presented(store, message["user_id"], message["chat_id"], {"dialogue_turn_id": "calorie-user:" + message_key(message), **state["result"]})
         state["status"] = "needs_attention" if unresolved else "completed"
+
+    def action_note(self, store, receipt, state, text, send=None, **context):
+        from . import feishu_client
+        from .bitable_adapter import stable_uuid
+        from .model_transport import deadline_scope
+        from .timeutil import remaining_timeout
+        from .telemetry import span
+        if state.get("action_notice"):
+            return state["action_notice"]
+        notice = {"text": text, "status": "attempted", "attempted_at": time.time(),
+                  "uuid": stable_uuid("action-note:" + reply_uuid(receipt["message"])), **context}
+        state["action_notice"] = notice
+        store.save_document("receipt_state", "system", receipt["receipt_id"], state)
+        try:
+            with span("action_note_send", receipt_id=receipt["receipt_id"]), deadline_scope(time.monotonic() + remaining_timeout(1)):
+                response = (send or feishu_client.send_action_note)(receipt["message"]["chat_id"], text, uuid_key=notice["uuid"])
+                mid = response.get("data", {}).get("message_id")
+                notice.update(status="confirmed" if mid else "unknown", message_id=mid, confirmed_at=time.time() if mid else None)
+        except Exception as exc:
+            notice.update(status="unknown", error=type(exc).__name__)
+        store.save_document("receipt_state", "system", receipt["receipt_id"], state)
+        return deepcopy(notice)
 
     def recover_result(self, store, receipt, state, execute, send, update_send):
         from agent import run
@@ -236,8 +262,9 @@ class Pipeline:
         finally:
             PROCESSING_DEADLINE.reset(token)
 
-    def worker(self, event, *, execute=None, send=None, update_send=None):
+    def worker(self, event, *, execute=None, send=None, update_send=None, note_send=None):
         attempt_started = time.monotonic()
+        worker_started_at = time.time()
         if event.get("type") == "calorie_summary":
             from .conversation import apply_candidate
             store = self.store()
@@ -312,7 +339,8 @@ class Pipeline:
             if automatic_attempts >= 3 and not event.get("manual_recovery"):
                 raise RuntimeError("receipt retry budget exhausted: " + rid)
             state = {**state, "attempts": state.get("attempts", 0) + 1, "status": "processing",
-                     "receipt_id": rid, "sequence": receipt["sequence"], "started_at": time.time()}
+                     "receipt_id": rid, "sequence": receipt["sequence"], "started_at": time.time(),
+                     "worker_started_at": worker_started_at}
             if "recovery_attempts" in state.get("delivery", {}):
                 state["delivery"]["recovery_attempts"] = automatic_attempts + 1
             if receipt["kind"] == "message":
@@ -333,7 +361,8 @@ class Pipeline:
                             settings = store.load_document("user_settings", message["user_id"])
                             if settings.get("feishu_chat_id") != message["chat_id"]:
                                 store.save_document("user_settings", message["user_id"], "", {**settings, "feishu_chat_id": message["chat_id"]})
-                        result = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"])
+                        callback = (lambda text, **context: self.action_note(store, receipt, state, text, note_send, **context)) if receipt["source"] == "feishu" else None
+                        result = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"], action_note_callback=callback)
                         errors = ";".join(result.get("errors", []))
                         deterministic = errors.startswith(("KeyError:", "ValueError:", "PermissionError:", "stale_execution_requires_new_message"))
                         if result.get("status") == "error" and state["attempts"] < 3 and not deterministic and not result.get("terminal"):
@@ -345,6 +374,11 @@ class Pipeline:
                         # Commit final text and reference before any delivery API.
                         state.update(result=deepcopy(result), delivery={"uuid": reply_uuid(message), "presented": False,
                             "result_digest": hashlib.sha256(result["reply"].encode()).hexdigest()})
+                        notice = state.get("action_notice", {})
+                        if notice.get("status") == "confirmed" and notice.get("message_id"):
+                            state["delivery"].update(mode="action_note_edit", message_id=notice["message_id"])
+                        else:
+                            state["delivery"]["mode"] = "send"
                         store.save_document("receipt_state", "system", rid, state)
                     self.deliver(store, receipt, state, send, update_send)
                     if state.get("work_status") == "needs_attention":
@@ -425,7 +459,16 @@ def configured_pipeline(headers=None):
     )
     key = (credentials, os.environ["COS_PREFIX"], os.getenv("COS_BUCKET"), os.getenv("COS_REGION", "ap-shanghai"))
     with _PIPELINE_LOCK:
-        if _PIPELINE_KEY != key:
-            pipeline = Pipeline(CosObjects(credentials=credentials), key[1])
-            _PIPELINE, _PIPELINE_KEY = pipeline, key
+        from .telemetry import span
+        reason = ('first_use' if _PIPELINE is None else 'confirmed_view' if _PIPELINE_KEY == key else
+                  'storage_scope_changed' if _PIPELINE_KEY[1:] != key[1:] else 'transport_credentials_changed')
+        previous = getattr(_PIPELINE, '_writer', None)
+        with span('cos_pipeline_view', reason=reason, rebuilt=_PIPELINE_KEY != key,
+                  function=os.getenv('SCF_FUNCTIONNAME', ''), prefix=key[1], region=key[3], bucket=key[2],
+                  previous_view_id=previous.journal.view_id if previous else None,
+                  previous_revision=previous.journal.revision if previous else None,
+                  authorization_scope='unknown' if reason == 'transport_credentials_changed' else 'unchanged' if reason == 'confirmed_view' else 'new'):
+            if _PIPELINE_KEY != key:
+                pipeline = Pipeline(CosObjects(credentials=credentials), key[1])
+                _PIPELINE, _PIPELINE_KEY = pipeline, key
         return _PIPELINE

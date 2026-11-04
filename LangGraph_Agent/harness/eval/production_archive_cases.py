@@ -20,9 +20,10 @@ class Objects:
         with self.lock:
             return self.data.get(key)
 
-    def list(self, prefix):
+    def list(self, prefix, marker='', limit=None):
         with self.lock:
-            return [key for key in self.data if key.startswith(prefix)]
+            keys = sorted(key for key in self.data if key.startswith(prefix) and key > marker)
+            return keys if limit is None else keys[:limit]
 
     def create(self, key, body):
         with self.lock:
@@ -185,4 +186,173 @@ def QA04():
         assert saved["status"] == status and saved["inflight"]["revision"] == 1
 
 
-CHECKS = {key: globals()[key] for key in ("QA01", "QA02", "QA03", "QA04")}
+def QA05():
+    """Archive comparisons preserve source decimals, integer dates/versions and one-decimal intake values without false matches."""
+    same = cos_archive._same_fields
+    for cell in (3.26, "3.26", ["3.26"], [{"text": "3.26"}], {"value": "3.26"},
+                 {"text": 3.26}, {"number": "3.260"}, {"value": [{"number": "3.26"}]}):
+        assert same({"fat_per_100g": cell}, {"fat_per_100g": 3.26}), cell
+    assert same({"protein_per_100g": "27.96"}, {"protein_per_100g": 27.96})
+    for actual, expected in (("3.3", 3.26), ("27.9", 27.96), ("3.261", 3.26),
+                             ("27.961", 27.96), ("52.51", 52.5)):
+        assert not same({"n": actual}, {"n": expected}), (actual, expected)
+    for invalid in (None, "", "not-a-number", "1_000", True, False, float("nan"), float("inf"),
+                    "-Infinity", "NaN", [], [3.26, 4], {"value": "bad", "text": "3.26"}):
+        assert not same({"n": invalid}, {"n": 3.26}), invalid
+    assert not same({"n": None}, {"n": float("nan")})
+    assert not same({"n": "Infinity"}, {"n": float("inf")})
+    assert same({"date": [{"value": "1793548800000"}], "agent_revision": {"number": "12.0"},
+                 "grams": "52.5", "kcal": 52.5},
+                {"date": 1793548800000, "agent_revision": 12, "grams": 52.5, "kcal": 52.5})
+    # Large integer revisions must not be collapsed by conversion to float.
+    assert not same({"agent_revision": "9007199254740993"}, {"agent_revision": 9007199254740992})
+    from agent.storage.timeutil import extract_number, round_number
+    assert extract_number("3.26") == 3.3 and round_number(27.96) == 28
+
+
+def QA06():
+    """Precise source readback after a lost create ACK only reads; mismatched fields never advance the watermark."""
+    source = {"food_id": "boohee-precise", "name": "真实精度来源夹具", "aliases": [],
+              "carbs_per_100g": 0, "protein_per_100g": 27.96, "fat_per_100g": 3.26,
+              "kcal_per_100g": 141, "source": "boohee", "boohee_id": "fixture-code", "detail_loaded": True}
+    change = {"kind": "food", "id": source["food_id"], "revision": 1, "value": source}
+    store, progress = _setup(change)
+    key = "archive:food:" + source["food_id"]
+    store.journal.state = {key: change}
+    wire = Wire()
+    wire.lose_create = True
+    with gateway(wire) as transport:
+        assert cos_archive.archive_pending(store, gateway=transport, progress=progress)["failed"] == [key]
+        saved = progress.get("item:" + key)
+        assert saved.get("ack_revision", -1) == -1 and saved["inflight"]["revision"] == 1
+        # Simulate the real Feishu cells: values were persisted with all source
+        # precision despite the lost response, and are returned as numeric text.
+        actual = next(iter(wire.rows["foods"].values()))
+        request = deepcopy(saved["inflight"])
+        fat = next(k for k, v in request["fields"].items() if v == 3.26)
+        protein = next(k for k, v in request["fields"].items() if v == 27.96)
+        actual[fat], actual[protein] = "3.26", [{"text": "27.96"}]
+        before = deepcopy(wire.calls)
+        resumed = cos_archive.archive_pending(store, gateway=transport, progress=progress)
+        assert resumed["failed"] == [] and resumed["confirmed"][0]["revision"] == 1
+        assert wire.calls == before and len(wire.rows["foods"]) == 1
+        assert progress.get("item:" + key)["ack_revision"] == 1
+
+    # A transport which acknowledges an update but still returns an unequal
+    # source value cannot confirm it, even when one-decimal rounding would hide
+    # the difference. The fixed request remains retryable and unacknowledged.
+    store, progress = _setup(change)
+    store.journal.state = {key: change}
+    wire = Wire()
+    with gateway(wire) as transport:
+        request = transport.prepare(change)
+        wire.rows["foods"] = {"existing": {**request["fields"], fat: "3.261", protein: "27.961"}}
+        with patch.object(transport.store, "_update_record", return_value={"code": 0}):
+            result = cos_archive.archive_pending(store, gateway=transport, progress=progress)
+        assert result["failed"] == [key] and not result["confirmed"]
+        saved = progress.get("item:" + key)
+        assert saved.get("ack_revision", -1) == -1 and saved["status"] == "retry" and saved["inflight"] == request
+        assert wire.calls == []
+
+    intake = {"kind": "intake", "id": "item-a", "revision": 12, "value": row(kcal=52.5)}
+    wire = Wire()
+    with gateway(wire) as transport:
+        request = transport.prepare(intake)
+        wire.rows["intake"] = {"existing": {**request["fields"], "agent_revision": [{"number": "13"}]}}
+        assert transport.apply_and_readback(request) == {"record_id": "existing", "superseded_by": 13}
+        assert wire.calls == []
+        # A fractional revision must not round into a false newer-version ACK.
+        wire.rows["intake"]["existing"]["agent_revision"] = "12.96"
+        with patch.object(transport.store, "_update_record", return_value={"code": 0}):
+            try:
+                transport.apply_and_readback(request)
+            except RuntimeError as exc:
+                assert "readback" in str(exc)
+            else:
+                raise AssertionError("fractional revision incorrectly confirmed")
+        assert wire.calls == []
+
+
+def QA07():
+    """New archive tokens isolate destination/version while identical preparations and UUIDv4 form remain stable."""
+    from uuid import UUID
+    from agent.storage.bitable_adapter import stable_uuid
+    change = {"kind": "food", "id": "shared-food-id", "revision": 7,
+              "value": {"food_id": "shared-food-id", "name": "来源食物", "carbs_per_100g": 1,
+                        "protein_per_100g": 27.96, "fat_per_100g": 3.26}}
+    wire = Wire()
+    with gateway(wire) as transport:
+        first = transport.prepare(change)
+        assert transport.prepare(deepcopy(change)) == first
+        assert UUID(first["client_token"]).version == 4
+        next_version = transport.prepare({**change, "revision": 8})
+        assert next_version["client_token"] != first["client_token"]
+        transport.store.food_table = "foods-other"
+        other_table = transport.prepare(change)
+        transport.store.app_token = "other-app"
+        other_app = transport.prepare(change)
+        assert len({r["client_token"] for r in (first, next_version, other_table, other_app)}) == 4
+        transport.store.app_token = "test-app"
+        assert transport.prepare(change) == other_table
+
+        # A deliberately global-token fake demonstrates the old formula's
+        # collision. This fixture does not assert Feishu's actual token scope.
+        legacy_token = stable_uuid("calorie-agent:archive:food:shared-food-id")
+        transport.apply_and_readback({**first, "client_token": legacy_token})
+        try:
+            transport.apply_and_readback({**other_table, "client_token": legacy_token})
+        except RuntimeError as exc:
+            assert "readback" in str(exc)
+        else:
+            raise AssertionError("global-token fixture did not expose old destination collision")
+        assert len(wire.rows["foods"]) == 1 and not wire.rows.get("foods-other")
+    wire = Wire()
+    with gateway(wire) as transport:
+        transport.apply_and_readback(first)
+        transport.apply_and_readback(other_table)
+        assert len(wire.rows["foods"]) == len(wire.rows["foods-other"]) == 1
+        assert len(wire.calls) == 2 and all(c[0] == "create" for c in wire.calls)
+        before = deepcopy(wire.calls)
+        transport.apply_and_readback(first)
+        transport.apply_and_readback(other_table)
+        assert wire.calls == before
+
+
+def QA08():
+    """Legacy inflight recovery uses its original fields/token, reads before retry, and never rotates an uncertain request."""
+    from agent.storage.bitable_adapter import stable_uuid
+    change = {"kind": "intake", "id": "item-a", "revision": 1, "value": row(kcal=52.5)}
+    store, progress = _setup(change)
+    wire = Wire()
+    wire.lose_create = True
+    with gateway(wire) as transport:
+        current = transport.prepare(change)
+        legacy = {**current, "client_token": stable_uuid("calorie-agent:archive:intake:item-a")}
+        assert current["client_token"] != legacy["client_token"]
+        with patch.object(transport, "prepare", return_value=deepcopy(legacy)):
+            failed = cos_archive.archive_pending(store, gateway=transport, progress=progress)
+        assert failed["failed"] == ["archive:intake:item-a"]
+        state = progress.get("item:archive:intake:item-a")
+        assert state["inflight"] == legacy and state.get("ack_revision", -1) == -1
+        assert wire.calls[0][3] == legacy["client_token"]
+        before = deepcopy(wire.calls)
+
+        # An unavailable read cannot authorize a new create or a new token.
+        with patch.object(transport, "prepare", side_effect=AssertionError("legacy request must not be prepared again")), \
+             patch.object(transport, "_find", side_effect=TimeoutError("readback unavailable")):
+            failed = cos_archive.archive_pending(store, gateway=transport, progress=progress)
+        assert failed["failed"] == ["archive:intake:item-a"] and wire.calls == before
+        state = progress.get("item:archive:intake:item-a")
+        assert state["inflight"] == legacy and state.get("ack_revision", -1) == -1
+
+        # Under the new prepare implementation, the lost-ACK legacy request is
+        # resolved solely by its persisted identity/fields. No write is replayed.
+        with patch.object(transport, "prepare", side_effect=AssertionError("legacy request must not be prepared again")):
+            confirmed = cos_archive.archive_pending(store, gateway=transport, progress=progress)
+        assert not confirmed["failed"] and confirmed["confirmed"][0]["revision"] == 1
+        assert wire.calls == before and len(wire.rows["intake"]) == 1
+        state = progress.get("item:archive:intake:item-a")
+        assert state["ack_revision"] == 1 and state["inflight"] is None
+
+
+CHECKS = {key: globals()[key] for key in ("QA01", "QA02", "QA03", "QA04", "QA05", "QA06", "QA07", "QA08")}
