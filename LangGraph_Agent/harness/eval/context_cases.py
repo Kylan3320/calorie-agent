@@ -338,9 +338,11 @@ def CX10():
         AIMessage(content="旧营养999千卡", additional_kwargs={"fact_scope": "business"}),
         HumanMessage(content="OLD_DELIVERED", id="calorie-user:old-delivered")]), "last_message_id": "old-delivered"})
     legacy.save_document("receipt_state", "system", receipt_id("feishu", "old-delivered"), {
-        "delivery": {"presented": True}, "result": {"status": "ok"}})
+        "delivery": {"presented": True}, "result": {"status": "ok", "business_status": "none", "tool_results": []}})
     recovered, _ = cx.history(legacy, "user", "legacy-boundary", for_model=True)
     assert [json.loads(m.content.split("：", 1)[1])["reply_status"] for m in recovered] == ["未知", "已回复"]
+    assert json.loads(recovered[1].content.split("：", 1)[1])["execution"] == {"business_status": "none", "tool_results": []}
+    assert json.loads(recovered[0].content.split("：", 1)[1])["execution"]["business_status"] == "未知"
     assert "999" not in json.dumps(wire_messages(recovered), ensure_ascii=False)
     # Knowledge JSON stays separately visible and travels with its complete historical group.
     ident = "knowledge-boundary"
