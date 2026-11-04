@@ -12,7 +12,7 @@ tool_results 为完整原生工具事实；query_knowledge.data.retriever 标记
 
 deadline_at为固定消息epoch截止，legacy_budget标记一次性旧收件接管。model_steps保存id/started_at/deadline_at/status及逐次attempts；请求wire和已接收response只在恢复日志保存，公共trace不复制。attempts逐次记录reserved_at/started_at/ended_at/state/status_code/provider_request_id/response_headers_ms/first_nonempty_response_byte_ms/completed_ms/usage/finish_reason及脱敏error，重试等待保存retry_delay_seconds/retry_not_before，不只留下最后一次。空白保活不算first_nonempty_response_byte。model_calls仅统计语义步骤。terminal/termination_reason/completion_status/business_status分别区分终结、待补全、待核对及已提交业务；未执行action终结列表保存在journal.termination。
 
-model_requests的ToolMessage审计项用result_ref（call_id）和原content_sha256关联已持久化工具事实。journal.messages 保存标准序列化的原生恢复交换，session.messages 是近期清洁视图；实际 HTTP 输入保存在 model_steps[].request_body。历史业务定位信息标记 historical，助手消息带 `fact_scope=business/knowledge/dialogue`，摘要另带 `lc_source=summarization`。当前用户消息 ID 为 `calorie-user:{message_key}`。完整工具事实保留于对应执行的 calls.result。
+model_requests的ToolMessage审计项用result_ref（call_id）和原content_sha256关联已持久化工具事实。journal.messages 保存标准序列化的原生恢复交换，session.messages 是近期清洁视图；实际 HTTP 输入保存在 model_steps[].request_body。主请求中的历史轮次以SystemMessage背景组携带turn_id、reply_status、dialogue和references；其预算归入parts.history，分组元数据不写回持久来源或当前原生交换。历史业务定位信息标记 historical，助手消息带 `fact_scope=business/knowledge/dialogue`，摘要另带 `lc_source=summarization`。当前用户消息 ID 为 `calorie-user:{message_key}`。完整工具事实保留于对应执行的 calls.result。
 
 latency_events为增量字段，含id/parent、instance_id、started_epoch_ms、started_monotonic、duration_ms、outcome及类别字段。model_http带main/summary目的、模型及供应商usage；feishu_http带方法、资源、attempt、请求/响应字节；RAG抽词和embedding单列。嵌套阶段不直接相加。标准AIMessage.usage_metadata及model_provider与适配器匹配，思考模式不变。
 

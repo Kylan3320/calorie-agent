@@ -10,7 +10,7 @@
 
 补全沿用原餐日期和未改动的条件。替换食物时清除旧匹配及候选；新克重与单位数量互相替代，避免旧 grams 遮蔽新 quantity/unit。候选编号仅引用原快照，传入食物名须指原查询或所选候选。latest 复用按本会话最近餐引用定位，只有明确给定来源日期才过滤来源；新增日期取本次消息。
 
-原生工具输出 `{tool,call_id,action_id,status,data,error?}`。完整业务结果持久化于 calls.result，当前轮 ToolMessage 通过 model_view 提供精简事实并保留配对 call_id。历史业务 ToolMessage 仅含 `status=historical` 及定位 references；业务 AI 回执不进入新输入。助手消息以 `fact_scope=business/knowledge/dialogue` 记录来源；无标记且无知识工具来源的旧正文不进入新输入。用户原话、独立状态及原执行审计保留。
+原生工具输出 `{tool,call_id,action_id,status,data,error?}`。完整业务结果持久化于 calls.result，当前轮 ToolMessage 通过 model_view 提供精简事实并保留配对 call_id。主请求的历史读取使用 `conversation.history(for_model=True)`，每轮以SystemMessage背景组携带turn_id、reply_status、旧原意／清洁对话及定位references，旧命令不再以独立user消息进入模型。reply_status只从正常dialogue-delivered提交或对应receipt_state的已确认最终交付取“已回复”，缺依据为“未知”；不以轮次顺序或complete猜测交付，不代表业务成功、待办关闭或授权。历史业务回执原文／营养数字不回填，知识原文及出处沿原证据身份单独保留在该组。分组元数据用于整轮预算裁剪，不写回持久清洁来源、摘要或会话。当前原话及原生call_id／结果／reasoning沿原路径独立保留。助手以 `fact_scope=business/knowledge/dialogue` 记录来源，无标记且无知识工具来源的旧正文不进入新输入。实际语义见[历史业务轮次](../CONVERSATION_EXPERIENCE_SPEC.md#32-输入选择与超限)。
 
 record_meal.data.total表示本次完成项合计；record_meal/revise_intake.data.meal_totals按meal_id返回原餐当前有效合计、日期/餐次、有效项数及estimated（任一有效项为估算）。改量保留原meal_id，明确可食克重重新保存称重依据。query_today.data.total表示全天，calculate_meal.data.total表示方案。部分记录分别携带实际items和unfinished。
 

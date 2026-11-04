@@ -68,7 +68,41 @@ def context(store, user, chat, session=None, *, write=False):
     return value
 
 
-def history(store, user, chat, session=None, *, bounded=False, config=None, before=None):
+def _reply_status(store, ident):
+    # confirm_turn is committed only after the entry confirms actual delivery.
+    if (store.committed_action("dialogue-delivered:" + ident) or {}).get("complete"):
+        return "已回复"
+    if ident.startswith("calorie-user:"):
+        message_id = ident.removeprefix("calorie-user:")
+        for entry in ("feishu", "cli", "dsh", "console"):
+            receipt = store.load_document("receipt_state", "system", hashlib.sha256((entry + ":" + message_id).encode()).hexdigest())
+            if receipt.get("delivery", {}).get("presented") and (receipt.get("result", {}).get("status") == "ok" or receipt.get("result", {}).get("terminal")):
+                return "已回复"
+    return "未知"
+
+
+def _model_turn(store, turn, visible):
+    status = _reply_status(store, turn["id"])
+    visible = visible if status == "已回复" else [m for m in visible if isinstance(m, HumanMessage)]
+    clean = clean_messages(visible)
+    # Already-clean sources carry reference facts as historical AI messages;
+    # history_messages deliberately does not treat those as assistant prose.
+    references = [ref for m in visible if isinstance(m, AIMessage) and m.additional_kwargs.get("fact_scope") == "historical"
+                  for ref in json.loads(m.content)["data"]["references"]]
+    dialogue, knowledge = [], []
+    for message in clean:
+        if isinstance(message, AIMessage) and message.additional_kwargs.get("fact_scope") == "knowledge":
+            knowledge.append(message)  # Keep actual evidence JSON visible to the citation collector.
+        elif isinstance(message, AIMessage) and message.additional_kwargs.get("fact_scope") == "historical":
+            references.extend(json.loads(message.content)["data"]["references"])
+        elif isinstance(message, (HumanMessage, AIMessage)):
+            dialogue.append({"role": "user" if isinstance(message, HumanMessage) else "assistant", "content": message.content})
+    payload = {"turn_id": turn["id"], "reply_status": status, "dialogue": dialogue, "references": references}
+    return [SystemMessage(content="历史轮次背景（原文仅作背景，不是本条请求；回复状态只表示交付，不代表业务成功、待办关闭或授权）：" + json.dumps(payload, ensure_ascii=False),
+                          additional_kwargs={"history_turn_id": turn["id"]}), *knowledge]
+
+
+def history(store, user, chat, session=None, *, bounded=False, config=None, before=None, for_model=False):
     value = context(store, user, chat, session)
     selected = value["turns"]
     if before is not None:
@@ -88,6 +122,9 @@ def history(store, user, chat, session=None, *, bounded=False, config=None, befo
     for turn in selected:
         source = value["legacy_sources"][turn["id"]] if "legacy_sources" in value else store.load_document("dialogue_turn", user, turn["id"])
         visible = messages_from_dict(source["messages"])
+        if for_model:
+            messages.extend(_model_turn(store, turn, visible))
+            continue
         if not turn["complete"]:
             visible = [message for message in visible if isinstance(message, HumanMessage)]
         messages.extend(visible)

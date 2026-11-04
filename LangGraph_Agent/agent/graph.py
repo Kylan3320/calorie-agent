@@ -344,7 +344,7 @@ class Runtime(AgentMiddleware):
         projection_started = time.monotonic()
         native = project_messages(request.messages)
         self.journal["messages"] = messages_to_dict(native)
-        history, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True, config=self.config, before=self.human_id)
+        history, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True, config=self.config, before=self.human_id, for_model=True)
         state = state_view(self)
         state["execution_budget"] = {"model_decision": self.journal["model_calls"],
                                      "model_decisions_after_this": self.config.max_model_calls - self.journal["model_calls"],

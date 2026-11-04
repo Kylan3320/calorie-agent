@@ -306,4 +306,61 @@ def CX09():
     assert observed == [(2.0, 20.0)], observed
 
 
-CHECKS = {"CX05": CX05, "CX06": CX06, "CX07": CX07, "CX08": CX08, "CX09": CX09}
+def CX10():
+    """Historical requests are grouped with real delivery state; current mixed exchanges and knowledge evidence stay intact."""
+    from agent.context import select_messages, wire_messages, turns
+    from agent.evidence import collect_visible_evidence
+    from agent.storage.execution_pipeline import receipt_id
+    store = open_store()
+    config = replace(CONFIG, preset="live")
+    message = {"message_id": "history-boundary", "user_id": "user", "chat_id": "boundary", "text": "记录夹具A200克和夹具B2个"}
+    result = run(message, store=store, config=config, model=NativeFake(responses=[call("record_meal", {
+        "items": [{"food_query": "夹具A", "grams": 200}, {"food_query": "夹具B", "quantity": 2, "unit": "个"}],
+        "finish_after_tools": True})]))
+    assert result["reply_source"] == "tool_facts"
+    before_delivery, _ = cx.history(store, "user", "boundary", for_model=True)
+    assert json.loads(before_delivery[0].content.split("：", 1)[1])["reply_status"] == "未知"
+    mark_reply_presented(store, "user", "boundary", result)
+    source_before = deepcopy(store.load_document("conversation_context", "user", "boundary"))
+    revision = store.journal.revision
+    projected, _ = cx.history(store, "user", "boundary", for_model=True)
+    payload = json.loads(projected[0].content.split("：", 1)[1])
+    assert isinstance(projected[0], SystemMessage) and payload["reply_status"] == "已回复"
+    assert len(payload["references"]) == 2 and all("record_id" in ref for ref in payload["references"])
+    assert payload["dialogue"][0]["content"] == message["text"]
+    assert not any(isinstance(m, HumanMessage) for m in projected)
+    assert "270" not in json.dumps(wire_messages(projected), ensure_ascii=False)
+    assert store.journal.revision == revision and store.load_document("conversation_context", "user", "boundary") == source_before
+    # Recovered legacy state must use its delivery receipt, never a guessed complete flag.
+    legacy = open_store()
+    legacy.save_session("user", "legacy-boundary", {"messages": messages_to_dict([
+        HumanMessage(content="OLD_UNKNOWN", id="calorie-user:old-unknown"),
+        AIMessage(content="旧营养999千卡", additional_kwargs={"fact_scope": "business"}),
+        HumanMessage(content="OLD_DELIVERED", id="calorie-user:old-delivered")]), "last_message_id": "old-delivered"})
+    legacy.save_document("receipt_state", "system", receipt_id("feishu", "old-delivered"), {
+        "delivery": {"presented": True}, "result": {"status": "ok"}})
+    recovered, _ = cx.history(legacy, "user", "legacy-boundary", for_model=True)
+    assert [json.loads(m.content.split("：", 1)[1])["reply_status"] for m in recovered] == ["未知", "已回复"]
+    assert "999" not in json.dumps(wire_messages(recovered), ensure_ascii=False)
+    # Knowledge JSON stays separately visible and travels with its complete historical group.
+    ident = "knowledge-boundary"
+    evidence = {"tool": "query_knowledge", "status": "ok", "data": {"entries": [{
+        "source_id": "K987654321", "evidence_id": "fixed-evidence", "answer": "保留原文42克。", "source": "原始出处"}]}}
+    cx.stage_turn(store, "user", "boundary", ident, [HumanMessage(content="旧知识问题", id=ident),
+        AIMessage(content=json.dumps(evidence, ensure_ascii=False), additional_kwargs={"fact_scope": "knowledge", "tool_evidence_origin": "query_knowledge"})])
+    cx.confirm_turn(store, "user", "boundary", ident, config)
+    history, _ = cx.history(store, "user", "boundary", for_model=True)
+    assert collect_visible_evidence(history)[0]["answer"] == "保留原文42克。"
+    current = [HumanMessage(content="记餐并修改上次菜单", id="current-original"),
+        AIMessage(content="", tool_calls=[{"id": "fixed-current-call", "name": "record_meal", "args": {}, "type": "tool_call"}], additional_kwargs={"reasoning_content": "CURRENT_REASONING"}),
+        ToolMessage(content='{"status":"ok"}', tool_call_id="fixed-current-call", name="record_meal")]
+    selected, measurement = select_messages(history, {"text": ""}, current, "规则", {}, [], replace(config, recent_turns=1, input_target_tokens=1), config.model)
+    assert len(turns(selected[:-len(current)])) == 1 and selected[-len(current):] == current
+    assert collect_visible_evidence(selected)[0]["source"] == "原始出处"
+    wire = wire_messages(selected)
+    assert [m["content"] for m in wire if m["role"] == "user"] == ["记餐并修改上次菜单"]
+    assert wire[-2]["tool_calls"][0]["id"] == wire[-1]["tool_call_id"] == "fixed-current-call"
+    assert wire[-2]["reasoning_content"] == "CURRENT_REASONING" and measurement["parts"]["history"] > 0
+
+
+CHECKS = {"CX05": CX05, "CX06": CX06, "CX07": CX07, "CX08": CX08, "CX09": CX09, "CX10": CX10}
