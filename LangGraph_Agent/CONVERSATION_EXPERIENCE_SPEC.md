@@ -1,6 +1,6 @@
 # Calorie Agent 交流体验与上下文治理规格
 
-从 R14 交付提交 `e6e9d93` 接续，运行时基线为 `e2433a7`。同包前五句办成，第六句把通用知识延伸成无依据的个体判断，整包暂缓试用。本轮只修知识答复范围和依据。[R14 完整回执与实测](reports/CONVERSATION_DELIVERY.md#r12r14-历史轮次边界修复2026-11-04) · [正式版本](reports/LATENCY_DELIVERY.md)
+从 R14 交付提交 `e6e9d93` 接续，R15 冻结运行时 `4f6b408`。知识 A/B 对照通过，同包消除了无依据的个体判断，但第六句末尾仍追加题外查询建议，按本规格暂缓试用；正式未切换。[R15 完整回执与实测](reports/CONVERSATION_DELIVERY.md#r15-知识答复范围修复2026-11-04) · [正式版本](reports/LATENCY_DELIVERY.md)
 
 个人业务见 [个人功能规格](PERSONAL_CALORIE_SPEC.md)，需求见 [REQUIREMENTS.md](REQUIREMENTS.md)，实际接口见 [contracts/](contracts/)。本规格管理回复、请求完成与等待预算、模型上下文及话题记忆；[COS 规格](LATENCY_OPTIMIZATION_SPEC.md) 管理持久化、物理保留和回收。上下文投影不能删除账本、待办、执行事实或防重凭据。
 
