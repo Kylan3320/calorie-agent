@@ -2,42 +2,51 @@
 import os
 import time
 import httpx
+from .model_transport import create_client, deadline_scope, remaining
+from .timeutil import remaining_timeout
+
+_CLIENT = create_client()
 
 
 class LiveClient:
     def __init__(self, *, client=None):
         self.endpoint = os.environ["CALORIE_SERVICE_URL"].rstrip("/")
         self.token = os.environ["CALORIE_SERVICE_TOKEN"]
-        self.client = client or httpx.Client(timeout=10)
+        self.client = client or _CLIENT
 
     def _request(self, method, path, **kwargs):
-        request = self.client.build_request(method, self.endpoint + path, **kwargs)
-        if os.getenv("CALORIE_SERVICE_AUTH", "bearer") == "cam":
-            from .scf_dispatch import function_url_headers
-            request.headers.update(function_url_headers(request))
-            request.headers["X-Calorie-Service-Token"] = self.token
-        else:
-            request.headers["Authorization"] = "Bearer " + self.token
-        response = self.client.send(request)
-        response.raise_for_status()
-        return response.json()
+        with deadline_scope(time.monotonic() + remaining_timeout(10)):
+            request = self.client.build_request(method, self.endpoint + path, timeout=remaining(), **kwargs)
+            if os.getenv("CALORIE_SERVICE_AUTH", "bearer") == "cam":
+                from .scf_dispatch import function_url_headers
+                request.headers.update(function_url_headers(request))
+                request.headers["X-Calorie-Service-Token"] = self.token
+            else:
+                request.headers["Authorization"] = "Bearer " + self.token
+            response = self.client.send(request)
+            response.raise_for_status()
+            return response.json()
 
     def submit(self, message, *, source, timeout=180):
-        accepted = self._request("POST", "/internal/intake", json={"message": message, "source": source})
-        rid = accepted["receipt_id"]
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            state = self._request("GET", "/internal/result", params={"receipt_id": rid})
-            if state.get("result"):
-                digest = state["delivery"].get("result_digest")
-                return {**state["result"], "delivery_reference": {
-                    "receipt_id": rid, "uuid": state["delivery"]["uuid"], "source": source,
-                    **({"result_digest": digest} if digest else {}),
-                    "message": message}}
-            if state.get("status") == "needs_attention":
-                raise RuntimeError(state.get("error", "message requires recovery"))
-            time.sleep(0.5)
-        raise TimeoutError("durable message remains accepted; retry with the original message key: " + rid)
+        rid = None
+        try:
+            with deadline_scope(time.monotonic() + remaining_timeout(timeout)):
+                accepted = self._request("POST", "/internal/intake", json={"message": message, "source": source})
+                rid = accepted["receipt_id"]
+                while True:
+                    state = self._request("GET", "/internal/result", params={"receipt_id": rid})
+                    if state.get("result"):
+                        digest = state["delivery"].get("result_digest")
+                        return {**state["result"], "delivery_reference": {
+                            "receipt_id": rid, "uuid": state["delivery"]["uuid"], "source": source,
+                            **({"result_digest": digest} if digest else {}),
+                            "message": message}}
+                    if state.get("status") == "needs_attention":
+                        raise RuntimeError(state.get("error", "message requires recovery"))
+                    time.sleep(min(0.5, remaining()))
+        except (TimeoutError, httpx.TimeoutException) as exc:
+            state = "durable message remains accepted" if rid else "durable message acceptance is unknown"
+            raise TimeoutError(state + "; retry with the original message key: " + str(message["message_id"])) from exc
 
     def presented(self, reference):
         digest = reference.get("result_digest")

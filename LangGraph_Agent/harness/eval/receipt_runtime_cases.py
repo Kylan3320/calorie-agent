@@ -158,6 +158,33 @@ def RR02():
     assert "210千卡" in result["reply"] and "2026-10-31" in result["reply"] and "270千卡" not in result["reply"]
     assert store.intake[0]["grams"] == 100 and store.intake[0]["nutrition"]["kcal"] == 60
 
+    # A successful preliminary read does not require another model-written receipt.
+    store = setup()
+    result, model, _ = _send(store, "记录A200克", [
+        call("query_food_nutrition", {"food_query": "夹具A", "grams": 100}),
+        _finish("record_meal", {"items": [{"food_query": "夹具A", "grams": 200}]}, "c2"),
+    ], "rr-nutrition-record")
+    _direct(result, model, 2)
+    assert len(result["tool_results"]) == 2 and result["tool_results"][0]["data"]["items"][0]["nutrition"]["kcal"] == 60
+    assert len(store.intake) == 1 and "120千卡" in result["reply"]
+
+    # Earlier writes and failed reads still need a reply, even when the last
+    # ledger batch alone would have a supported result shape.
+    for name, args, first_status, text in (
+        ("update_user_settings", {"kind": "targets", "values": {"kcal": 1900}}, "ok", "目标已设为1900千卡，A已记录120千卡。"),
+        ("query_food_nutrition", {"food_query": "夹具A", "grams": -1}, "error", "营养查询参数有误；A已记录120千卡。"),
+    ):
+        store = setup()
+        result, model, _ = _send(store, text, [
+            call(name, args),
+            _finish("record_meal", {"items": [{"food_query": "夹具A", "grams": 200}]}, "c2"),
+            AIMessage(content=text),
+        ], "rr-prior-" + name)
+        _model_body(result, model, text, 3)
+        assert result["tool_results"][0]["status"] == first_status and len(store.intake) == 1
+        if name == "update_user_settings":
+            assert store.get_standard("user")["kcal"] == 1900
+
     store = setup()
     advice = "这餐已记录，合计270千卡，份量含估算。下一餐可以搭配蔬菜。"
     result, model, _ = _send(store, "记录午餐并给个下一餐搭配建议", [call("record_meal", {**MEAL, "finish_after_tools": False}), AIMessage(content=advice)], "rr-record-advice")

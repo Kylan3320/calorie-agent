@@ -38,7 +38,7 @@ payload的物理编码为JSON封套 `{encoding:"zlib-base64",data:"..."}`，data
 
 上述内部状态 expires_at=0。导出保留摄入含软删除、营养快照、原 ID/身份/日期/数值、来源配置、设置、会话、未完事项及幂等和投递状态。尚待回答的missing_grams/missing_food在目标COS基线中迁移日期、已知数量、候选及原文事实并保留旧任务的取消状态；旧confirm_undo只保留目标引用，不执行旧计划。不修改或删除源行。
 
-`deploy/migrate_cos.py export/import` 保存原始快照及独立审计；首次导入要求空前缀，同一基线可幂等重试；通过生产 Store API 回读核对所有 ID、有效行数、按日热量、完整营养快照和幂等任务摘要。测试前缀不导入。迁移与回退要求见 [COS 规格](../LATENCY_OPTIMIZATION_SPEC.md#5-迁移与回退)。
+`deploy/migrate_cos.py export/import` 保存原始快照及独立审计；首次导入要求空前缀，同一基线可幂等重试；通过生产 Store API 回读核对所有 ID、有效行数、按日热量、完整营养快照和幂等任务摘要。测试前缀不导入。该入口用于首次 Bitable→COS 导入；后续 COS→COS 格式迁移与回退目标见 [COS 规格](../LATENCY_OPTIMIZATION_SPEC.md#5-迁移与回退)。
 
 ## 幂等公式
 

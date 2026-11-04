@@ -1,0 +1,29 @@
+{
+  "artifact": "D:\\项目\\calorie-agent\\LangGraph_Agent\\reports\\production-candidate\\knowledge-source-fix\\rag-layer-sourcefix-20261102-69ca0bd3e30f6317.zip",
+  "sha256": "3ac484a780b3adff15d2c2c625a67ac4fd05247994dc1ee6193071e9f7662936",
+  "bytes": 38545393,
+  "index_version": "sourcefix-20261102-69ca0bd3e30f6317",
+  "dependency_files": 4209,
+  "unchanged_dependency_content_sha256": "642fd50f38b1a7d545d6bfeccb41007bbdaf7e2ebbeb51f7903d9122d94b153a",
+  "vector_matrix_validation": {
+    "vdb_chunks.json": {
+      "rows": 36,
+      "dimension": 1024,
+      "finite_nonzero_vectors": true
+    },
+    "vdb_entities.json": {
+      "rows": 336,
+      "dimension": 1024,
+      "finite_nonzero_vectors": true
+    },
+    "vdb_relationships.json": {
+      "rows": 432,
+      "dimension": 1024,
+      "finite_nonzero_vectors": true
+    }
+  },
+  "dependency_source": "existing verified deploy/production-layer, same LightRAG 1.5.7",
+  "zip_integrity": "passed",
+  "published_to_cloud": false,
+  "formal_bitable_modified": false
+}

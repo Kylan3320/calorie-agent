@@ -174,15 +174,12 @@ def U03():
     assert result["tool_results"][0]["status"]=="pending" and len(s.intake)==5
 
 def U04():
-    """多轮压缩、Store恢复、工具schema及结果回传、会话隔离和完全只读。"""
+    """跨轮知识与待办、Store恢复、工具schema及结果回传、会话隔离和完全只读。"""
     s=setup()
     send(s,"记录夹具A",[call("record_meal",{"items":[{"food_query":"夹具A"}]}),answer])
     pending=next(iter(s.load_session("user","test")["unfinished"].values()))
     send(s,"减脂期间可以吃米饭吗",[call("query_knowledge",{"query":"减脂期间可以吃米饭吗"}),answer],mid="m2")
-    summary=NativeFake(responses=[AIMessage(content="用户有待补全夹具A，刚询问米饭知识。")])
-    compressed=replace(CONFIG,input_target_tokens=5000)
-    r,m=send(s,"先看看今天",[call("query_today",{}),answer],mid="m3",config=compressed)
-    assert not summary.requests
+    r,m=send(s,"先看看今天",[call("query_today",{}),answer],mid="m3")
     assert any("米饭" in str(x.content) for x in m.requests[0])
     assert m.schemas[0][0]["function"]["description"]
     assert {x["function"]["name"] for x in m.schemas[0]}==set(DEFAULT_ALLOWED_TOOLS)

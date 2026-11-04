@@ -1,0 +1,23 @@
+{
+  "python": "3.10.22",
+  "platform": "linux",
+  "health": {
+    "build_id": "cos-production-8794be0e62e0015b",
+    "model": "deepseek-v4-flash",
+    "retriever": "lightrag",
+    "status": "ok"
+  },
+  "native_agent_loaded": true,
+  "lightrag_loaded": true,
+  "cos_store_loaded": true,
+  "cos_transport_loaded": true,
+  "archive_entry_loaded": true,
+  "reminder_entry": "app.reminder_handler",
+  "build_id": "cos-production-8794be0e62e0015b",
+  "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c",
+  "bytes": 22257853,
+  "package": "/mnt/d/\u9879\u76ee/calorie-agent/LangGraph_Agent/deploy/calorie-agent-v4.zip",
+  "layer": "/mnt/d/\u9879\u76ee/calorie-agent/LangGraph_Agent/reports/production-candidate/knowledge-source-fix/rag-layer-sourcefix-20261102-69ca0bd3e30f6317.zip",
+  "layer_sha256": "3ac484a780b3adff15d2c2c625a67ac4fd05247994dc1ee6193071e9f7662936",
+  "index_version": "sourcefix-20261102-69ca0bd3e30f6317"
+}

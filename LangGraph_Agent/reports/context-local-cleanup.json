@@ -1,0 +1,23 @@
+{
+  "deleted_files": 2867,
+  "deleted_directories": 420,
+  "fixed_task_roots_verified_absent": true,
+  "trace_cleanup": [
+    {
+      "path": "D:\\tmp\\traces.jsonl",
+      "removed_current_task_test_lines": 677,
+      "remaining_bytes": 25836503
+    },
+    {
+      "path": "C:\\tmp\\traces.jsonl",
+      "removed_current_task_test_lines": 0,
+      "remaining_bytes": 41790
+    }
+  ],
+  "retained": [
+    "final business ZIP",
+    "runtime encoding resources",
+    "minimal acceptance evidence"
+  ],
+  "credentials_file_preserved": true
+}

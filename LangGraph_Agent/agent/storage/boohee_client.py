@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-import json
 import os
 import time
 import urllib.parse
-import urllib.request
-import urllib.error
 from collections.abc import Callable
 from typing import Any
+import httpx
+from .model_transport import create_client, deadline_scope, remaining
 from .timeutil import remaining_timeout
 
 BOOHEE_SEARCH_URL = "https://api.boohee.com/open-apis/v1/food/search"
 BOOHEE_TIMEOUT_SECONDS = 10.0
 _CACHE_TTL_SECONDS = 600.0
 _MAX_CANDIDATES = 3
+_CLIENT = create_client()
 
 _cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _TRANSPORT: HttpGet | None = None
@@ -130,17 +130,21 @@ def food_detail(code: str) -> dict[str, Any]:
 
 
 def _default_http_get(url: str, headers: dict[str, str]) -> dict[str, Any]:
-    request = urllib.request.Request(url, headers=headers, method="GET")
-    for attempt in range(2):  # one retry on 429/5xx, mirroring feishu_client discipline
-        try:
-            with urllib.request.urlopen(request, timeout=remaining_timeout(BOOHEE_TIMEOUT_SECONDS)) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError) as exc:
-            retryable = not isinstance(exc, urllib.error.HTTPError) or exc.code == 429 or 500 <= exc.code < 600
-            if attempt == 0 and retryable:
-                time.sleep(0.5)
-                continue
-            raise
+    deadline = time.monotonic() + remaining_timeout(BOOHEE_TIMEOUT_SECONDS)
+    with deadline_scope(deadline):
+        for attempt in range(2):  # one retry shares the original RPC deadline
+            try:
+                response = _CLIENT.get(url, headers=headers, timeout=remaining())
+                response.raise_for_status()
+                return response.json()
+            except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+                retryable = isinstance(exc, httpx.RequestError) or exc.response.status_code == 429 or 500 <= exc.response.status_code < 600
+                if attempt == 0 and retryable:
+                    if 0.5 >= remaining():
+                        raise TimeoutError("Boohee retry wait would exhaust its fixed RPC deadline") from exc
+                    time.sleep(0.5)
+                    continue
+                raise
 
 
 __all__ = ["BooheeError", "food_detail", "search_food", "set_transport"]

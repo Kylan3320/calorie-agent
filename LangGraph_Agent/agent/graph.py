@@ -221,10 +221,17 @@ class Runtime(AgentMiddleware):
         self.journal["completion"] = {"batch_id": calls[-1]["batch_id"], "declared": [entry.get("finish_after_tools", False) for entry in batch], "adopted": False}
         if not complete:
             return False
-        # A final batch declares its own results sufficient; earlier reads may
-        # have served only as locators. Earlier committed writes still need a receipt.
-        selected = [entry["result"] for entry in calls if "result" in entry and
-                    (entry in batch or entry["tool"] not in {"query_today", "query_history"})]
+        # The final batch declares its results sufficient. Keep earlier writes
+        # and non-success results; successful reads may have only informed it.
+        selected = []
+        for entry in calls:
+            if "result" not in entry:
+                continue
+            tool = TOOL_REGISTRY.get(entry["tool"])
+            if (entry not in batch and entry["result"].get("status") == "ok"
+                    and tool is not None and tool.metadata["risk"] == "read_only"):
+                continue
+            selected.append(entry["result"])
         text = tool_facts_reply(selected)
         if text is None:
             return False

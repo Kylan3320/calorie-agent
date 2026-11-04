@@ -5,11 +5,11 @@ import json
 import os
 import time
 from datetime import datetime, timezone
-import httpx
 from .telemetry import span, EVENTS
 from .timeutil import remaining_timeout
+from .model_transport import create_client, deadline_scope
 
-_CLIENT = httpx.Client()
+_CLIENT = create_client()
 WORKER = "calorie-agent-reminder"
 REGION = "ap-shanghai"
 HOST = "scf.tencentcloudapi.com"
@@ -72,7 +72,7 @@ def dispatch_event(event, headers=None):
     key=sign(sign(sign(("TC3"+secret_key).encode(),day),"scf"),"tc3_request")
     signature=hmac.new(key,string_to_sign.encode(),hashlib.sha256).hexdigest()
     auth=f"TC3-HMAC-SHA256 Credential={secret_id}/{scope}, SignedHeaders=content-type;host;x-tc-action, Signature={signature}"
-    with span("scf_handoff",target=worker):
+    with deadline_scope(time.monotonic() + remaining_timeout(2)), span("scf_handoff",target=worker):
         response=_CLIENT.post("https://"+HOST+"/",content=body,headers={"Content-Type":"application/json; charset=utf-8","Host":HOST,"X-TC-Action":"Invoke","X-TC-Version":"2018-04-16","X-TC-Region":REGION,"X-TC-Timestamp":str(timestamp),"X-TC-Token":token,"Authorization":auth},timeout=remaining_timeout(2))
         response.raise_for_status()
         result=response.json()["Response"]

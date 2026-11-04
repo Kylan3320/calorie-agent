@@ -1,0 +1,545 @@
+{
+  "started_at": 1793713270.4164462,
+  "authorization": "User explicitly requested production deployment after candidate result disclosure",
+  "candidate_performance_gate_passed": false,
+  "package": {
+    "build_id": "cos-production-8794be0e62e0015b",
+    "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c",
+    "bytes": 22257853,
+    "package": "D:\\项目\\calorie-agent\\LangGraph_Agent\\deploy\\calorie-agent-v4.zip"
+  },
+  "operations": [
+    {
+      "stage": "backup_verified",
+      "time": 1793713272.2219632,
+      "function": "calorie-agent-api-v3-test",
+      "build_id": "cos-production-4c3fe0d5ea618cc5",
+      "sha256": "e169e93f3c78de5caddf0241747bebac7e11df17e5f3d25b226915fc54d52ffa"
+    },
+    {
+      "stage": "backup_verified",
+      "time": 1793713273.8281922,
+      "function": "calorie-agent-reminder",
+      "build_id": "cos-production-4c3fe0d5ea618cc5",
+      "sha256": "d81e0cfc0477f6120cdaa003334e042ea6e5d3db4ad951bc0819fc881a492564"
+    },
+    {
+      "stage": "backup_verified",
+      "time": 1793713275.4239047,
+      "function": "calorie-agent-archive",
+      "build_id": "cos-production-4c3fe0d5ea618cc5",
+      "sha256": "d81e0cfc0477f6120cdaa003334e042ea6e5d3db4ad951bc0819fc881a492564"
+    },
+    {
+      "stage": "maintenance_enabled",
+      "time": 1793713282.8547509
+    },
+    {
+      "stage": "maintenance_1",
+      "time": 1793713547.775101
+    },
+    {
+      "stage": "code_update_accepted",
+      "time": 1793713560.2515428,
+      "function": "calorie-agent-reminder",
+      "request_id": "bc3dd369-b0b1-4875-b4a8-3cd124932a37"
+    },
+    {
+      "stage": "deployed_code_verified",
+      "time": 1793713575.48079,
+      "function": "calorie-agent-reminder",
+      "build_id": "cos-production-8794be0e62e0015b"
+    },
+    {
+      "stage": "code_update_accepted",
+      "time": 1793713587.4790149,
+      "function": "calorie-agent-archive",
+      "request_id": "1656f67c-5bd0-49ee-89ca-f5ff55773e0b"
+    },
+    {
+      "stage": "deployed_code_verified",
+      "time": 1793713602.467048,
+      "function": "calorie-agent-archive",
+      "build_id": "cos-production-8794be0e62e0015b"
+    },
+    {
+      "stage": "code_update_accepted",
+      "time": 1793713614.343921,
+      "function": "calorie-agent-api-v3-test",
+      "request_id": "15d5673c-72d0-433a-964a-ac3ca1066981"
+    },
+    {
+      "stage": "deployment_failed",
+      "time": 1793713764.328362,
+      "error": "AssertionError: calorie-agent-api-v3-test"
+    },
+    {
+      "stage": "rolled_back",
+      "time": 1793713800.6683397,
+      "function": "calorie-agent-api-v3-test"
+    },
+    {
+      "stage": "rolled_back",
+      "time": 1793713831.5395446,
+      "function": "calorie-agent-archive"
+    },
+    {
+      "stage": "rolled_back",
+      "time": 1793713858.3323224,
+      "function": "calorie-agent-reminder"
+    },
+    {
+      "stage": "maintenance_0",
+      "time": 1793713862.5087326
+    },
+    {
+      "stage": "maintenance_1",
+      "time": 1793713924.3315957
+    },
+    {
+      "stage": "structured_code_update_accepted",
+      "time": 1793713936.4077132,
+      "function": "calorie-agent-api-v3-test",
+      "request_id": "f5b46091-4a2d-4768-bad3-1f27d4e15720"
+    },
+    {
+      "stage": "actual_package_comparison",
+      "time": 1793714063.0239263,
+      "function": "calorie-agent-api-v3-test",
+      "sha256": "f232614eeda7a0cab9bc8aa98abfff10f03f1fa4216b0c99fcc42a3e0054c12f",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "different_members": []
+    },
+    {
+      "stage": "deployed_code_verified",
+      "time": 1793714081.3637383,
+      "function": "calorie-agent-api-v3-test",
+      "build_id": "cos-production-8794be0e62e0015b"
+    },
+    {
+      "stage": "structured_code_update_accepted",
+      "time": 1793714093.238372,
+      "function": "calorie-agent-reminder",
+      "request_id": "0b342636-a2c1-4658-b526-2e48c98338cb"
+    },
+    {
+      "stage": "actual_package_comparison",
+      "time": 1793714108.65841,
+      "function": "calorie-agent-reminder",
+      "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "different_members": []
+    },
+    {
+      "stage": "deployed_code_verified",
+      "time": 1793714109.0276153,
+      "function": "calorie-agent-reminder",
+      "build_id": "cos-production-8794be0e62e0015b"
+    },
+    {
+      "stage": "structured_code_update_accepted",
+      "time": 1793714120.9348602,
+      "function": "calorie-agent-archive",
+      "request_id": "691d4960-6294-4ceb-a653-e1691eb745a6"
+    },
+    {
+      "stage": "actual_package_comparison",
+      "time": 1793714136.2717097,
+      "function": "calorie-agent-archive",
+      "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "different_members": []
+    },
+    {
+      "stage": "deployed_code_verified",
+      "time": 1793714136.7092514,
+      "function": "calorie-agent-archive",
+      "build_id": "cos-production-8794be0e62e0015b"
+    },
+    {
+      "stage": "maintenance_0",
+      "time": 1793714188.9665034
+    }
+  ],
+  "status": "production_ready",
+  "before": {
+    "calorie-agent-api-v3-test": {
+      "Runtime": "Python3.10",
+      "Handler": "",
+      "Type": "HTTP",
+      "MemorySize": 512,
+      "Timeout": 120,
+      "Role": "calorie-agent-cos-ingress-role",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 6,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "LightRAG deps + knowledge index (calorie agent RAG M3)",
+          "LicenseInfo": "",
+          "AddTime": "2026-09-07 02:05:42",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "ModTime": "2026-11-02 02:50:56",
+      "sha256": "e169e93f3c78de5caddf0241747bebac7e11df17e5f3d25b226915fc54d52ffa",
+      "build_id": "cos-production-4c3fe0d5ea618cc5",
+      "triggers": [
+        {
+          "AddTime": "2026-06-20 15:12:00",
+          "AvailableStatus": "Available",
+          "BindStatus": "on",
+          "BoundResources": "",
+          "CustomArgument": "",
+          "Description": "",
+          "Enable": 1,
+          "InstanceStatus": "",
+          "ModTime": "2026-06-20 15:12:00",
+          "Qualifier": "$DEFAULT",
+          "ResourceId": "qcs::scf:sh:uin/100049554055:function/calorie-agent-api-v3-test/65q5tm95zk",
+          "TriggerAttribute": "single",
+          "TriggerDesc": "{\"AuthType\":\"NONE\",\"NetConfig\":{\"EnableIntranet\":false,\"IntranetUrl\":\"\",\"IntranetHTTPUrl\":\"\",\"ExtranetUrl\":\"https://1440448581-65q5tm95zk.ap-shanghai.tencentscf.com\",\"ExtranetHTTPUrl\":\"http://1440448581-65q5tm95zk.ap-shanghai.tencentscf.com\",\"WssIntranetUrl\":\"\",\"WsIntranetUrl\":\"\",\"WssExtranetUrl\":\"\",\"WsExtranetUrl\":\"\",\"EnableExtranet\":true},\"CorsConfig\":{\"Enable\":false,\"Origins\":[\"\"],\"Headers\":[\"\"],\"Methods\":[],\"ExposeHeaders\":[\"\"],\"MaxAge\":5,\"Credentials\":false},\"ApiGwCompatible\":true,\"EnableSimpleMode\":false}",
+          "TriggerId": 4137767,
+          "TriggerName": "65q5tm95zk",
+          "Type": "http"
+        }
+      ],
+      "reserved": {
+        "ReservedMem": 512,
+        "RequestId": "10d4bf99-a57c-473b-ab29-601d2e4f58ac"
+      }
+    },
+    "calorie-agent-reminder": {
+      "Runtime": "Python3.10",
+      "Handler": "app.message_handler",
+      "Type": "Event",
+      "MemorySize": 512,
+      "Timeout": 120,
+      "Role": "calorie-agent-cos-message-role",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 7,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "Calorie COS sourcefix sourcefix-20261102-69ca0bd3e30f6317",
+          "LicenseInfo": "",
+          "AddTime": "2026-11-02 01:57:55",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "ModTime": "2026-11-02 02:50:22",
+      "sha256": "d81e0cfc0477f6120cdaa003334e042ea6e5d3db4ad951bc0819fc881a492564",
+      "build_id": "cos-production-4c3fe0d5ea618cc5",
+      "triggers": [
+        {
+          "AddTime": "2026-11-01 17:16:38",
+          "AvailableStatus": "Available",
+          "BindStatus": "on",
+          "BoundResources": "",
+          "CustomArgument": "",
+          "Description": "",
+          "Enable": 1,
+          "InstanceStatus": "",
+          "ModTime": "2026-11-02 02:51:03",
+          "Qualifier": "$DEFAULT",
+          "ResourceId": "qcs::scf:sh:uin/100049554055:function/calorie-agent-reminder/calorie-reminder-minute",
+          "TriggerAttribute": "single",
+          "TriggerDesc": "{\"cron\":\"0 */1 * * * * *\"}",
+          "TriggerId": 5083355,
+          "TriggerName": "calorie-reminder-minute",
+          "Type": "timer"
+        }
+      ],
+      "reserved": {
+        "ReservedMem": 512,
+        "RequestId": "9ee9a3a0-acb5-4e57-b03f-ab845f06fac8"
+      }
+    },
+    "calorie-agent-archive": {
+      "Runtime": "Python3.10",
+      "Handler": "app.maintenance_handler",
+      "Type": "Event",
+      "MemorySize": 512,
+      "Timeout": 120,
+      "Role": "calorie-agent-cos-archive-role",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 7,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "Calorie COS sourcefix sourcefix-20261102-69ca0bd3e30f6317",
+          "LicenseInfo": "",
+          "AddTime": "2026-11-02 01:57:55",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "ModTime": "2026-11-02 02:32:08",
+      "sha256": "d81e0cfc0477f6120cdaa003334e042ea6e5d3db4ad951bc0819fc881a492564",
+      "build_id": "cos-production-4c3fe0d5ea618cc5",
+      "triggers": [
+        {
+          "AddTime": "2026-11-02 02:33:54",
+          "AvailableStatus": "Available",
+          "BindStatus": "on",
+          "BoundResources": "",
+          "CustomArgument": "",
+          "Description": "",
+          "Enable": 1,
+          "InstanceStatus": "",
+          "ModTime": "2026-11-02 02:51:04",
+          "Qualifier": "$LATEST",
+          "ResourceId": "qcs::scf:sh:uin/100049554055:function/calorie-agent-archive/calorie-maintenance-five-minutes",
+          "TriggerAttribute": "single",
+          "TriggerDesc": "{\"cron\":\"0 */5 * * * * *\"}",
+          "TriggerId": 5086957,
+          "TriggerName": "calorie-maintenance-five-minutes",
+          "Type": "timer"
+        }
+      ],
+      "reserved": {
+        "ReservedMem": 512,
+        "RequestId": "2630f3c0-4e71-46ca-8c01-3b26134bcda4"
+      }
+    }
+  },
+  "rollback_directory": "C:\\Users\\33203\\.config\\calorie-agent\\deploy-backups\\facts-20261103-214110",
+  "preexisting_pending": [
+    {
+      "receipt_id": "c4739647c908da3f6b7b691f4debf675f9669f7f8f886e28e1a282d506433d0e",
+      "sequence": 2521,
+      "kind": "reminder",
+      "status": "processing",
+      "attempts": 3,
+      "work_status": null,
+      "age_seconds": 415
+    },
+    {
+      "receipt_id": "8cdec9c9d27c71a1281f9fd175dd4d6107d69d7b16ef48f8f782c9af0abbebeb",
+      "sequence": 2522,
+      "kind": "reminder",
+      "status": "unstarted",
+      "attempts": 0,
+      "work_status": null,
+      "age_seconds": 292
+    }
+  ],
+  "queue_disposition": "Only stale reminder receipts; no pending meal business; compatible code update retains all original receipts without manual replay",
+  "after": {
+    "calorie-agent-reminder": {
+      "Status": "Active",
+      "Runtime": "Python3.10",
+      "Handler": "app.message_handler",
+      "Type": "Event",
+      "MemorySize": 512,
+      "Timeout": 120,
+      "Role": "calorie-agent-cos-message-role",
+      "ModTime": "2026-11-03 21:54:52",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 7,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "Calorie COS sourcefix sourcefix-20261102-69ca0bd3e30f6317",
+          "LicenseInfo": "",
+          "AddTime": "2026-11-02 01:57:55",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "different_members": [],
+      "reserved": {
+        "ReservedMem": 512,
+        "RequestId": "9378f21b-b46f-4069-b676-d462417b1181"
+      },
+      "triggers": [
+        {
+          "AddTime": "2026-11-01 17:16:38",
+          "AvailableStatus": "Available",
+          "BindStatus": "on",
+          "BoundResources": "",
+          "CustomArgument": "",
+          "Description": "",
+          "Enable": 1,
+          "InstanceStatus": "",
+          "ModTime": "2026-11-02 02:51:03",
+          "Qualifier": "$DEFAULT",
+          "ResourceId": "qcs::scf:sh:uin/100049554055:function/calorie-agent-reminder/calorie-reminder-minute",
+          "TriggerAttribute": "single",
+          "TriggerDesc": "{\"cron\":\"0 */1 * * * * *\"}",
+          "TriggerId": 5083355,
+          "TriggerName": "calorie-reminder-minute",
+          "Type": "timer"
+        }
+      ]
+    },
+    "calorie-agent-archive": {
+      "Status": "Active",
+      "Runtime": "Python3.10",
+      "Handler": "app.maintenance_handler",
+      "Type": "Event",
+      "MemorySize": 512,
+      "Timeout": 120,
+      "Role": "calorie-agent-cos-archive-role",
+      "ModTime": "2026-11-03 21:55:20",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 7,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "Calorie COS sourcefix sourcefix-20261102-69ca0bd3e30f6317",
+          "LicenseInfo": "",
+          "AddTime": "2026-11-02 01:57:55",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "sha256": "3eeac2319b2d3e7df6d5e564061d89862fec637379959aa3bb4e26d960bca30c",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "different_members": [],
+      "reserved": {
+        "ReservedMem": 512,
+        "RequestId": "d03815ec-50ed-4fe4-86fc-dc5ca1010039"
+      },
+      "triggers": [
+        {
+          "AddTime": "2026-11-02 02:33:54",
+          "AvailableStatus": "Available",
+          "BindStatus": "on",
+          "BoundResources": "",
+          "CustomArgument": "",
+          "Description": "",
+          "Enable": 1,
+          "InstanceStatus": "",
+          "ModTime": "2026-11-02 02:51:04",
+          "Qualifier": "$LATEST",
+          "ResourceId": "qcs::scf:sh:uin/100049554055:function/calorie-agent-archive/calorie-maintenance-five-minutes",
+          "TriggerAttribute": "single",
+          "TriggerDesc": "{\"cron\":\"0 */5 * * * * *\"}",
+          "TriggerId": 5086957,
+          "TriggerName": "calorie-maintenance-five-minutes",
+          "Type": "timer"
+        }
+      ]
+    },
+    "calorie-agent-api-v3-test": {
+      "Status": "Active",
+      "Runtime": "Python3.10",
+      "Handler": "",
+      "Type": "HTTP",
+      "MemorySize": 512,
+      "Timeout": 120,
+      "Role": "calorie-agent-cos-ingress-role",
+      "ModTime": "2026-11-03 21:54:23",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 7,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "Calorie COS sourcefix sourcefix-20261102-69ca0bd3e30f6317",
+          "LicenseInfo": "",
+          "AddTime": "2026-11-02 01:57:55",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "sha256": "f232614eeda7a0cab9bc8aa98abfff10f03f1fa4216b0c99fcc42a3e0054c12f",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "different_members": [],
+      "reserved": {
+        "ReservedMem": 512,
+        "RequestId": "becaed22-3862-4cc9-bd96-aff6933b0f13"
+      },
+      "triggers": [
+        {
+          "AddTime": "2026-06-20 15:12:00",
+          "AvailableStatus": "Available",
+          "BindStatus": "on",
+          "BoundResources": "",
+          "CustomArgument": "",
+          "Description": "",
+          "Enable": 1,
+          "InstanceStatus": "",
+          "ModTime": "2026-06-20 15:12:00",
+          "Qualifier": "$DEFAULT",
+          "ResourceId": "qcs::scf:sh:uin/100049554055:function/calorie-agent-api-v3-test/65q5tm95zk",
+          "TriggerAttribute": "single",
+          "TriggerDesc": "{\"AuthType\":\"NONE\",\"NetConfig\":{\"EnableIntranet\":false,\"IntranetUrl\":\"\",\"IntranetHTTPUrl\":\"\",\"ExtranetUrl\":\"https://1440448581-65q5tm95zk.ap-shanghai.tencentscf.com\",\"ExtranetHTTPUrl\":\"http://1440448581-65q5tm95zk.ap-shanghai.tencentscf.com\",\"WssIntranetUrl\":\"\",\"WsIntranetUrl\":\"\",\"WssExtranetUrl\":\"\",\"WsExtranetUrl\":\"\",\"EnableExtranet\":true},\"CorsConfig\":{\"Enable\":false,\"Origins\":[\"\"],\"Headers\":[\"\"],\"Methods\":[],\"ExposeHeaders\":[\"\"],\"MaxAge\":5,\"Credentials\":false},\"ApiGwCompatible\":true,\"EnableSimpleMode\":false}",
+          "TriggerId": 4137767,
+          "TriggerName": "65q5tm95zk",
+          "Type": "http"
+        }
+      ]
+    }
+  },
+  "completed_at": 1793714188.9676557,
+  "previous_attempt_error": "RuntimeError: production queue requires reconciliation before deployment",
+  "verification": {
+    "at": 1793714220.4196608,
+    "health": {
+      "status": "ok",
+      "service": "calorie-agent-v4",
+      "build_id": "cos-production-8794be0e62e0015b",
+      "model": "deepseek-v4-flash",
+      "retriever": "lightrag",
+      "version": "v4.0.1",
+      "env": "production",
+      "env_check": {
+        "FEISHU_APP_ID": true,
+        "FEISHU_APP_SECRET": true,
+        "FEISHU_VERIFICATION_TOKEN": true,
+        "DEEPSEEK_API_KEY": true,
+        "BITABLE_APP_TOKEN": true,
+        "BITABLE_FOOD_TABLE_ID": true,
+        "BITABLE_INTAKE_TABLE_ID": true,
+        "BITABLE_STANDARD_TABLE_ID": true,
+        "BITABLE_PENDING_TABLE_ID": true,
+        "BITABLE_USAGE_TABLE_ID": true,
+        "COS_BUCKET": true,
+        "COS_PREFIX": true
+      }
+    },
+    "webhook_valid_token_challenge": true,
+    "webhook_invalid_token_rejected_403": true,
+    "feishu_tenant_authentication": true,
+    "ingress_maintenance": "0",
+    "production_prefix_preserved": true,
+    "business_test_messages_sent": 0,
+    "note": "No new test meals or business receipts; prior same-build isolated business evidence reused."
+  },
+  "http_zip_container_note": "HTTP service download ZIP SHA differs after cloud repack; BUILD_ID and every ZIP member byte match the frozen candidate. Event ZIP SHA matches directly."
+}

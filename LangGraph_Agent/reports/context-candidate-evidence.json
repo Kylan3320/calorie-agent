@@ -1,0 +1,1044 @@
+{
+  "status": "candidate_failed; formal_not_deployed",
+  "build": {
+    "python": "3.10.22",
+    "platform": "linux",
+    "health": {
+      "build_id": "cos-production-a0c20e95eb79b5cc",
+      "model": "deepseek-v4-flash",
+      "retriever": "lightrag",
+      "status": "ok"
+    },
+    "native_agent_loaded": true,
+    "lightrag_loaded": true,
+    "cos_store_loaded": true,
+    "cos_transport_loaded": true,
+    "archive_entry_loaded": true,
+    "reminder_entry": "app.reminder_handler",
+    "build_id": "cos-production-a0c20e95eb79b5cc",
+    "sha256": "cf05b8597183514b25320494b5a31badb5152c8529d8072a39de9fb259ebe064",
+    "bytes": 22243816,
+    "package": "/mnt/d/项目/calorie-agent/LangGraph_Agent/deploy/calorie-agent-v4.zip",
+    "layer": "/mnt/d/项目/calorie-agent/LangGraph_Agent/reports/production-candidate/knowledge-source-fix/rag-layer-sourcefix-20261102-69ca0bd3e30f6317.zip",
+    "layer_sha256": "3ac484a780b3adff15d2c2c625a67ac4fd05247994dc1ee6193071e9f7662936",
+    "index_version": "sourcefix-20261102-69ca0bd3e30f6317"
+  },
+  "actual_deployed_code": [
+    {
+      "function": "calorie-cos-ingress-probe",
+      "sha256": "cf05b8597183514b25320494b5a31badb5152c8529d8072a39de9fb259ebe064",
+      "request_id": "d338b938-4efb-4166-9271-284d5a339818"
+    },
+    {
+      "function": "calorie-cos-msg-probe",
+      "sha256": "cf05b8597183514b25320494b5a31badb5152c8529d8072a39de9fb259ebe064",
+      "request_id": "e60b328f-17e0-4626-9cc5-544bf6233aac"
+    },
+    {
+      "function": "calorie-cos-sync-probe",
+      "sha256": "cf05b8597183514b25320494b5a31badb5152c8529d8072a39de9fb259ebe064",
+      "request_id": "ebeed2ca-fe60-4205-9ade-bef45ac493bc"
+    }
+  ],
+  "original_candidate_report_sha256": "36056d47a9cef53db406c487119ba0840930aac2d1edd7bc633f2110ff7c0d7b",
+  "source_count": 125,
+  "source_sha256": "bbeb8f53d9a733859ce55914fb378c1b2af622eb2f2ecb662ac266ad41fe7c1b",
+  "stage_attempts": [
+    {
+      "stage": "business",
+      "started_at": 1793699146.2393122,
+      "status": "failed",
+      "error": "AssertionError:independent grams/nutrition mismatch",
+      "failed_at": 1793699241.3329906
+    }
+  ],
+  "fixture_correction": {
+    "reason": "independent fixture used binary round at half-decimal; use decimal ROUND_HALF_UP on frozen published source values",
+    "original_plan_sha256": "217d93577530dca394052e857a6b08c13a4a1a3fd1f530fec25692b845894aff",
+    "corrected_revise_expected_items": [
+      {
+        "food_name": "米饭",
+        "date": "2026-11-03",
+        "meal_type": "lunch",
+        "grams": 50,
+        "nutrition": {
+          "carbs": 13.0,
+          "protein": 1.3,
+          "fat": 0.2,
+          "kcal": 58.0
+        },
+        "estimated": false
+      },
+      {
+        "food_name": "鸡蛋",
+        "date": "2026-11-03",
+        "meal_type": "lunch",
+        "grams": 100,
+        "nutrition": {
+          "carbs": 2.4,
+          "protein": 13.1,
+          "fat": 8.6,
+          "kcal": 139.0
+        },
+        "estimated": false
+      }
+    ],
+    "readback_status": "passed"
+  },
+  "summary_overlap": {
+    "task_id": "d6cfaa534f6cd55e331ea672282e1f984728f24f8927ae0f16e5d9bf037e62aa",
+    "invoke_request_id": "316cdbad-02b2-4e90-8334-f24dc9e86247",
+    "observations": [
+      {
+        "at": 1793699146.2369587,
+        "state": "computing",
+        "attempts": 1
+      }
+    ]
+  },
+  "summary_progress": {
+    "summary:d6cfaa534f6cd55e331ea672282e1f984728f24f8927ae0f16e5d9bf037e62aa": {
+      "attempts": 2,
+      "base_id": "root",
+      "candidate": {
+        "base_id": "root",
+        "chat_id": "context-background",
+        "diagnostic": "HTTPStatusError:Server error '503 Service Temporarily Unavailable' for url 'https://api.deepseek.com/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503",
+        "source_hash": "856f81f2b5766d5721fc2e0730f9432354cde6fb7d73dfb454ca1a1589bf80d1",
+        "status": "failed",
+        "task_id": "d6cfaa534f6cd55e331ea672282e1f984728f24f8927ae0f16e5d9bf037e62aa",
+        "turn_ids": [
+          "context-background:0",
+          "context-background:1",
+          "context-background:2",
+          "context-background:3",
+          "context-background:4"
+        ],
+        "user_id": "context-background-20261103"
+      },
+      "chat_id": "context-background",
+      "diagnostic": "HTTPStatusError:Server error '503 Service Temporarily Unavailable' for url 'https://api.deepseek.com/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503",
+      "duration_ms": 320.099,
+      "measurement": {
+        "encoding": "deepseek-v4-official-20261103",
+        "hard_input_limit": 1042432,
+        "input_target": 12000,
+        "input_tokens": 4980,
+        "output_reserve": 4096,
+        "parts": {
+          "calls": 0,
+          "current": 4832,
+          "history": 0,
+          "protocol": 67,
+          "reasoning": 0,
+          "state": 0,
+          "summary": 0,
+          "system": 81,
+          "tools": 0
+        },
+        "protocol_margin": 2048,
+        "purpose": "summary",
+        "wire_encoding": "json-wire-v1"
+      },
+      "registered_at": 1793699142.8809376,
+      "status": "failed",
+      "task_id": "d6cfaa534f6cd55e331ea672282e1f984728f24f8927ae0f16e5d9bf037e62aa",
+      "user_id": "context-background-20261103"
+    }
+  },
+  "archive_progress": {
+    "item:archive:intake:d2420e25-bd73-45e1-ba18-728151886ed4": {
+      "ack_revision": 1,
+      "confirmed_at": 1793699724.147237,
+      "failed_at": 1793699425.4771268,
+      "inflight": null,
+      "last_error": "",
+      "record_id": "reczz28VA9LPGpWO",
+      "status": "confirmed"
+    },
+    "item:archive:intake:f43dfa4d-29c3-4fe2-9671-dbd8e3f3818b": {
+      "ack_revision": 2,
+      "confirmed_at": 1793699450.539479,
+      "inflight": null,
+      "last_error": "",
+      "record_id": "reczz28VA4WjZt3i",
+      "status": "confirmed"
+    }
+  },
+  "cleanup": {
+    "functions_deleted": [
+      {
+        "function": "calorie-cos-ingress-probe",
+        "request_id": "9fd00a8c-a7ab-496c-8a32-70dace559336"
+      },
+      {
+        "function": "calorie-cos-msg-probe",
+        "request_id": "cd06beeb-4717-42be-8cbb-89ec5eb163e7"
+      },
+      {
+        "function": "calorie-cos-sync-probe",
+        "request_id": "b83e7f81-8669-4f6d-a0fc-103c46cf61dd"
+      }
+    ],
+    "functions_remaining": [],
+    "cos_prefix": "cos-probe/production-candidate/context-20261103/",
+    "cos_objects_deleted": 339,
+    "cos_objects_remaining": 0,
+    "fixed_business_ids": [
+      "d2420e25-bd73-45e1-ba18-728151886ed4",
+      "f43dfa4d-29c3-4fe2-9671-dbd8e3f3818b"
+    ],
+    "bitable_rows_deleted": [
+      {
+        "record_id": "reczz28VA4WjZt3i",
+        "agent_item_id": "f43dfa4d-29c3-4fe2-9671-dbd8e3f3818b"
+      },
+      {
+        "record_id": "reczz28VA9LPGpWO",
+        "agent_item_id": "d2420e25-bd73-45e1-ba18-728151886ed4"
+      }
+    ],
+    "bitable_matching_rows_remaining": 0,
+    "bot_messages_deleted": [
+      {
+        "message_id": "om_x100b61ae9649d8a0ce8a935fc97cae3",
+        "code": 0
+      },
+      {
+        "message_id": "om_x100b61ae94af20a4cf2f7f43aa9a6bb",
+        "code": 0
+      },
+      {
+        "message_id": "om_x100b61aebd00ccacdd2ef7db473a9c5",
+        "code": 0
+      }
+    ],
+    "production_unchanged": true,
+    "verified_at": 1793699849.7849572
+  },
+  "samples": [
+    {
+      "step": "record",
+      "message_id": "ctx-20261103-record",
+      "original_received_at": 1793699147.569156,
+      "ack_elapsed_ms": 2429.519,
+      "t_service_ms": 60976.144,
+      "driver_quality_error": null,
+      "driver_wait_timed_out": false,
+      "status": "completed",
+      "work_status": null,
+      "attempts": 1,
+      "reply": "今天午餐已记录：米饭100克（116千卡）和鸡蛋100克（139千卡），本餐合计255千卡。",
+      "result_status": "ok",
+      "errors": [],
+      "model_calls": 2,
+      "tool_results": [
+        {
+          "action_id": "ctx-20261103-record:agent:1",
+          "call_id": "call_00_sJLAnpFp4TiNa4w2Scrn5773",
+          "data": {
+            "cancelled": [],
+            "completed_count": 2,
+            "items": [
+              {
+                "date": "2026-11-03",
+                "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                "grams": 100.0,
+                "matched_name": "米饭",
+                "meal_type": "lunch",
+                "message_id": "ctx-20261103-record:agent:1",
+                "nutrition": {
+                  "carbs": 25.9,
+                  "fat": 0.3,
+                  "kcal": 116.0,
+                  "protein": 2.6
+                },
+                "record_id": "f43dfa4d-29c3-4fe2-9671-dbd8e3f3818b",
+                "snapshot": {
+                  "basis": "user_edible_grams",
+                  "estimated": false,
+                  "food": {
+                    "aliases": [],
+                    "boohee_id": "mifan_zheng",
+                    "carbs_per_100g": 25.9,
+                    "detail_loaded": true,
+                    "fat_per_100g": 0.3,
+                    "feishu_record_id": "recvqfMGl45nJZ",
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "kcal_per_100g": 116.0,
+                    "name": "米饭",
+                    "protein_per_100g": 2.6,
+                    "record_id": "recvqfMGl45nJZ",
+                    "source": "boohee",
+                    "units": [
+                      {
+                        "eat_weight": "1.00",
+                        "unit_id": 0,
+                        "unit_name": "克",
+                        "weight": "1.00"
+                      },
+                      {
+                        "eat_weight": "40.00",
+                        "unit_id": 233,
+                        "unit_name": "勺",
+                        "weight": "40.00"
+                      },
+                      {
+                        "eat_weight": "20.00",
+                        "unit_id": 587542,
+                        "unit_name": "口",
+                        "weight": "20.00"
+                      },
+                      {
+                        "eat_weight": "150.00",
+                        "unit_id": 132,
+                        "unit_name": "小碗",
+                        "weight": "150.00"
+                      },
+                      {
+                        "eat_weight": "180.00",
+                        "unit_id": 980,
+                        "unit_name": "碗",
+                        "weight": "180.00"
+                      }
+                    ]
+                  },
+                  "kcal_source": "source",
+                  "meal_id": "ctx-20261103-record:agent:1",
+                  "quantity": null,
+                  "quantity_text": "",
+                  "unit": ""
+                }
+              },
+              {
+                "date": "2026-11-03",
+                "food_id": "food_egg",
+                "grams": 100.0,
+                "matched_name": "鸡蛋",
+                "meal_type": "lunch",
+                "message_id": "ctx-20261103-record:agent:1",
+                "nutrition": {
+                  "carbs": 2.4,
+                  "fat": 8.6,
+                  "kcal": 139.0,
+                  "protein": 13.1
+                },
+                "record_id": "d2420e25-bd73-45e1-ba18-728151886ed4",
+                "snapshot": {
+                  "basis": "user_edible_grams",
+                  "estimated": false,
+                  "food": {
+                    "aliases": [],
+                    "boohee_id": "jidan_junzhi",
+                    "carbs_per_100g": 2.4,
+                    "detail_loaded": true,
+                    "fat_per_100g": 8.6,
+                    "feishu_record_id": "recfMVSEICvi7q",
+                    "food_id": "food_egg",
+                    "kcal_per_100g": 139.0,
+                    "name": "鸡蛋",
+                    "protein_per_100g": 13.1,
+                    "record_id": "recfMVSEICvi7q",
+                    "source": "boohee",
+                    "units": [
+                      {
+                        "eat_weight": "1.00",
+                        "unit_id": 0,
+                        "unit_name": "克",
+                        "weight": "1.00"
+                      },
+                      {
+                        "eat_weight": "52.80",
+                        "unit_id": 34,
+                        "unit_name": "只(中)",
+                        "weight": "60.00"
+                      },
+                      {
+                        "eat_weight": "61.60",
+                        "unit_id": 210,
+                        "unit_name": "只(大)",
+                        "weight": "70.00"
+                      }
+                    ]
+                  },
+                  "kcal_source": "source",
+                  "meal_id": "ctx-20261103-record:agent:1",
+                  "quantity": null,
+                  "quantity_text": "",
+                  "unit": ""
+                }
+              }
+            ],
+            "meal_totals": [
+              {
+                "count": 2,
+                "date": "2026-11-03",
+                "estimated": false,
+                "meal_id": "ctx-20261103-record:agent:1",
+                "meal_type": "lunch",
+                "total": {
+                  "carbs": 28.3,
+                  "fat": 8.9,
+                  "kcal": 255.0,
+                  "protein": 15.7
+                }
+              }
+            ],
+            "total": {
+              "carbs": 28.3,
+              "fat": 8.9,
+              "kcal": 255.0,
+              "protein": 15.7
+            },
+            "unfinished": [],
+            "write_status": "created"
+          },
+          "status": "ok",
+          "tool": "record_meal"
+        }
+      ],
+      "budgets": [
+        {
+          "encoding": "deepseek-v4-official-20261103",
+          "finish_reason": "tool_calls",
+          "hard_input_limit": 1038336,
+          "input_target": 16000,
+          "input_tokens": 2914,
+          "output_reserve": 8192,
+          "over_target_reason": null,
+          "parts": {
+            "calls": 0,
+            "current": 18,
+            "history": 0,
+            "protocol": 75,
+            "reasoning": 0,
+            "state": 48,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "removed_turns": 0,
+          "usage": {
+            "completion_tokens": 182,
+            "completion_tokens_details": {
+              "reasoning_tokens": 78
+            },
+            "prompt_cache_hit_tokens": 3328,
+            "prompt_cache_miss_tokens": 186,
+            "prompt_tokens": 3514,
+            "prompt_tokens_details": {
+              "cached_tokens": 3328
+            },
+            "total_tokens": 3696
+          },
+          "wire_encoding": "json-wire-v1"
+        },
+        {
+          "encoding": "deepseek-v4-official-20261103",
+          "finish_reason": "stop",
+          "hard_input_limit": 1038336,
+          "input_target": 16000,
+          "input_tokens": 3673,
+          "output_reserve": 8192,
+          "over_target_reason": null,
+          "parts": {
+            "calls": 93,
+            "current": 373,
+            "history": 0,
+            "protocol": 146,
+            "reasoning": 78,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "removed_turns": 0,
+          "usage": {
+            "completion_tokens": 30,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 3456,
+            "prompt_cache_miss_tokens": 769,
+            "prompt_tokens": 4225,
+            "prompt_tokens_details": {
+              "cached_tokens": 3456
+            },
+            "total_tokens": 4255
+          },
+          "wire_encoding": "json-wire-v1"
+        }
+      ],
+      "model_http_events": [
+        {
+          "duration_ms": 32266.715,
+          "encoding": "deepseek-v4-official-20261103",
+          "finish_reason": "tool_calls",
+          "hard_input_limit": 1038336,
+          "id": "86952326b164",
+          "input_target": 16000,
+          "input_tokens": 2914,
+          "instance_id": "9ab2734818ab4eb5a20f8ecf27109bca",
+          "kind": "model_http",
+          "message_id": "ctx-20261103-record",
+          "model": "deepseek-v4-flash",
+          "outcome": "ok",
+          "output_reserve": 8192,
+          "parent": "37ffd9abe43d",
+          "parts": {
+            "calls": 0,
+            "current": 18,
+            "history": 0,
+            "protocol": 75,
+            "reasoning": 0,
+            "state": 48,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "started_epoch_ms": 1793699151564.534,
+          "started_monotonic": 221.649734605,
+          "usage": {
+            "completion_tokens": 182,
+            "completion_tokens_details": {
+              "reasoning_tokens": 78
+            },
+            "prompt_cache_hit_tokens": 3328,
+            "prompt_cache_miss_tokens": 186,
+            "prompt_tokens": 3514,
+            "prompt_tokens_details": {
+              "cached_tokens": 3328
+            },
+            "total_tokens": 3696
+          },
+          "wire_encoding": "json-wire-v1"
+        },
+        {
+          "duration_ms": 22420.692,
+          "encoding": "deepseek-v4-official-20261103",
+          "finish_reason": "stop",
+          "hard_input_limit": 1038336,
+          "id": "1b961fce6e69",
+          "input_target": 16000,
+          "input_tokens": 3673,
+          "instance_id": "9ab2734818ab4eb5a20f8ecf27109bca",
+          "kind": "model_http",
+          "message_id": "ctx-20261103-record",
+          "model": "deepseek-v4-flash",
+          "outcome": "ok",
+          "output_reserve": 8192,
+          "parent": "37ffd9abe43d",
+          "parts": {
+            "calls": 93,
+            "current": 373,
+            "history": 0,
+            "protocol": 146,
+            "reasoning": 78,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "started_epoch_ms": 1793699184582.2686,
+          "started_monotonic": 254.667469686,
+          "usage": {
+            "completion_tokens": 30,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 3456,
+            "prompt_cache_miss_tokens": 769,
+            "prompt_tokens": 4225,
+            "prompt_tokens_details": {
+              "cached_tokens": 3456
+            },
+            "total_tokens": 4255
+          },
+          "wire_encoding": "json-wire-v1"
+        }
+      ],
+      "delivery": {
+        "cos_revision": 19,
+        "presented": true,
+        "sent_at": 1793699208.5453002,
+        "t_service_ms": 60976.144,
+        "t_user_ms": 61987.3,
+        "uuid": "cb9e21a5-aca8-48b1-bfdd-2752fb854454"
+      }
+    },
+    {
+      "step": "revise",
+      "message_id": "ctx-20261103-revise",
+      "original_received_at": 1793699212.0357218,
+      "ack_elapsed_ms": 1408.839,
+      "t_service_ms": 26377.773,
+      "driver_quality_error": "AssertionError:independent grams/nutrition mismatch",
+      "driver_wait_timed_out": false,
+      "status": "completed",
+      "work_status": null,
+      "attempts": 1,
+      "reply": "已将午餐里的米饭改成 50 克，鸡蛋仍为 100 克。本餐合计约 197 千卡。",
+      "result_status": "ok",
+      "errors": [],
+      "model_calls": 2,
+      "tool_results": [
+        {
+          "action_id": "ctx-20261103-revise:agent:1",
+          "call_id": "call_00_5Qp0kzPNHEXcAfo6RgTs1543",
+          "data": {
+            "item": {
+              "agent_revision": 2,
+              "created_at": 1793699184174,
+              "date": "2026-11-03",
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "food_name": "米饭",
+              "grams": 50.0,
+              "meal_type": "lunch",
+              "message_id": "ctx-20261103-record:agent:1",
+              "nutrition": {
+                "carbs": 13.0,
+                "fat": 0.2,
+                "kcal": 58.0,
+                "protein": 1.3
+              },
+              "raw_text": "记录今天午餐：米饭100克、鸡蛋100克，均为可食克重。",
+              "record_id": "f43dfa4d-29c3-4fe2-9671-dbd8e3f3818b",
+              "snapshot": {
+                "basis": "user_edible_grams",
+                "estimated": false,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "mifan_zheng",
+                  "carbs_per_100g": 25.9,
+                  "detail_loaded": true,
+                  "fat_per_100g": 0.3,
+                  "feishu_record_id": "recvqfMGl45nJZ",
+                  "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                  "kcal_per_100g": 116.0,
+                  "name": "米饭",
+                  "protein_per_100g": 2.6,
+                  "record_id": "recvqfMGl45nJZ",
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "40.00",
+                      "unit_id": 233,
+                      "unit_name": "勺",
+                      "weight": "40.00"
+                    },
+                    {
+                      "eat_weight": "20.00",
+                      "unit_id": 587542,
+                      "unit_name": "口",
+                      "weight": "20.00"
+                    },
+                    {
+                      "eat_weight": "150.00",
+                      "unit_id": 132,
+                      "unit_name": "小碗",
+                      "weight": "150.00"
+                    },
+                    {
+                      "eat_weight": "180.00",
+                      "unit_id": 980,
+                      "unit_name": "碗",
+                      "weight": "180.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "meal_id": "ctx-20261103-record:agent:1",
+                "quantity": null,
+                "quantity_text": "",
+                "unit": ""
+              },
+              "status": "valid",
+              "user_id": "context-candidate-20261103"
+            },
+            "meal_totals": [
+              {
+                "count": 2,
+                "date": "2026-11-03",
+                "estimated": false,
+                "meal_id": "ctx-20261103-record:agent:1",
+                "meal_type": "lunch",
+                "total": {
+                  "carbs": 15.4,
+                  "fat": 8.8,
+                  "kcal": 197.0,
+                  "protein": 14.4
+                }
+              }
+            ],
+            "operation": "revised"
+          },
+          "status": "ok",
+          "tool": "revise_intake"
+        }
+      ],
+      "budgets": [
+        {
+          "encoding": "deepseek-v4-official-20261103",
+          "finish_reason": "tool_calls",
+          "hard_input_limit": 1038336,
+          "input_target": 16000,
+          "input_tokens": 3274,
+          "output_reserve": 8192,
+          "over_target_reason": null,
+          "parts": {
+            "calls": 0,
+            "current": 12,
+            "history": 177,
+            "protocol": 102,
+            "reasoning": 0,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "removed_turns": 0,
+          "usage": {
+            "completion_tokens": 129,
+            "completion_tokens_details": {
+              "reasoning_tokens": 31
+            },
+            "prompt_cache_hit_tokens": 3456,
+            "prompt_cache_miss_tokens": 396,
+            "prompt_tokens": 3852,
+            "prompt_tokens_details": {
+              "cached_tokens": 3456
+            },
+            "total_tokens": 3981
+          },
+          "wire_encoding": "json-wire-v1"
+        },
+        {
+          "encoding": "deepseek-v4-official-20261103",
+          "finish_reason": "stop",
+          "hard_input_limit": 1038336,
+          "input_target": 16000,
+          "input_tokens": 3733,
+          "output_reserve": 8192,
+          "over_target_reason": null,
+          "parts": {
+            "calls": 90,
+            "current": 291,
+            "history": 177,
+            "protocol": 161,
+            "reasoning": 31,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "removed_turns": 0,
+          "usage": {
+            "completion_tokens": 29,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 3840,
+            "prompt_cache_miss_tokens": 432,
+            "prompt_tokens": 4272,
+            "prompt_tokens_details": {
+              "cached_tokens": 3840
+            },
+            "total_tokens": 4301
+          },
+          "wire_encoding": "json-wire-v1"
+        }
+      ],
+      "model_http_events": [
+        {
+          "duration_ms": 871.817,
+          "encoding": "deepseek-v4-official-20261103",
+          "finish_reason": "tool_calls",
+          "hard_input_limit": 1038336,
+          "id": "9ce452b36cac",
+          "input_target": 16000,
+          "input_tokens": 3274,
+          "instance_id": "9ab2734818ab4eb5a20f8ecf27109bca",
+          "kind": "model_http",
+          "message_id": "ctx-20261103-revise",
+          "model": "deepseek-v4-flash",
+          "outcome": "ok",
+          "output_reserve": 8192,
+          "parent": "2dc7e1365e57",
+          "parts": {
+            "calls": 0,
+            "current": 12,
+            "history": 177,
+            "protocol": 102,
+            "reasoning": 0,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "started_epoch_ms": 1793699213592.2292,
+          "started_monotonic": 283.677430564,
+          "usage": {
+            "completion_tokens": 129,
+            "completion_tokens_details": {
+              "reasoning_tokens": 31
+            },
+            "prompt_cache_hit_tokens": 3456,
+            "prompt_cache_miss_tokens": 396,
+            "prompt_tokens": 3852,
+            "prompt_tokens_details": {
+              "cached_tokens": 3456
+            },
+            "total_tokens": 3981
+          },
+          "wire_encoding": "json-wire-v1"
+        },
+        {
+          "duration_ms": 22166.754,
+          "encoding": "deepseek-v4-official-20261103",
+          "finish_reason": "stop",
+          "hard_input_limit": 1038336,
+          "id": "907a539723a1",
+          "input_target": 16000,
+          "input_tokens": 3733,
+          "instance_id": "9ab2734818ab4eb5a20f8ecf27109bca",
+          "kind": "model_http",
+          "message_id": "ctx-20261103-revise",
+          "model": "deepseek-v4-flash",
+          "outcome": "ok",
+          "output_reserve": 8192,
+          "parent": "2dc7e1365e57",
+          "parts": {
+            "calls": 90,
+            "current": 291,
+            "history": 177,
+            "protocol": 161,
+            "reasoning": 31,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "started_epoch_ms": 1793699215000.8064,
+          "started_monotonic": 285.086007369,
+          "usage": {
+            "completion_tokens": 29,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 3840,
+            "prompt_cache_miss_tokens": 432,
+            "prompt_tokens": 4272,
+            "prompt_tokens_details": {
+              "cached_tokens": 3840
+            },
+            "total_tokens": 4301
+          },
+          "wire_encoding": "json-wire-v1"
+        }
+      ],
+      "delivery": {
+        "cos_revision": 34,
+        "presented": true,
+        "sent_at": 1793699238.4134943,
+        "t_service_ms": 26377.773,
+        "t_user_ms": 27058.494,
+        "uuid": "a8e3616d-a65a-45c5-ae45-9e04534254ef"
+      }
+    },
+    {
+      "step": "today",
+      "message_id": "ctx-20261103-today",
+      "original_received_at": null,
+      "ack_elapsed_ms": 1466.237,
+      "t_service_ms": 166899.233,
+      "driver_quality_error": null,
+      "driver_wait_timed_out": true,
+      "status": "completed",
+      "work_status": "needs_attention",
+      "attempts": 3,
+      "reply": "这次处理遇到了问题，请稍后重试。\n本轮未完成，已保留执行进度。",
+      "result_status": "error",
+      "errors": [
+        "HTTPStatusError:Server error '503 Service Temporarily Unavailable' for url 'https://api.deepseek.com/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+      ],
+      "model_calls": 3,
+      "tool_results": [],
+      "budgets": [
+        {
+          "encoding": "deepseek-v4-official-20261103",
+          "hard_input_limit": 1038336,
+          "input_target": 16000,
+          "input_tokens": 3413,
+          "output_reserve": 8192,
+          "over_target_reason": null,
+          "parts": {
+            "calls": 0,
+            "current": 10,
+            "history": 299,
+            "protocol": 121,
+            "reasoning": 0,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "removed_turns": 0,
+          "wire_encoding": "json-wire-v1"
+        },
+        {
+          "encoding": "deepseek-v4-official-20261103",
+          "hard_input_limit": 1038336,
+          "input_target": 16000,
+          "input_tokens": 3413,
+          "output_reserve": 8192,
+          "over_target_reason": null,
+          "parts": {
+            "calls": 0,
+            "current": 10,
+            "history": 299,
+            "protocol": 121,
+            "reasoning": 0,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "removed_turns": 0,
+          "wire_encoding": "json-wire-v1"
+        },
+        {
+          "encoding": "deepseek-v4-official-20261103",
+          "hard_input_limit": 1038336,
+          "input_target": 16000,
+          "input_tokens": 3413,
+          "output_reserve": 8192,
+          "over_target_reason": null,
+          "parts": {
+            "calls": 0,
+            "current": 10,
+            "history": 299,
+            "protocol": 121,
+            "reasoning": 0,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "removed_turns": 0,
+          "wire_encoding": "json-wire-v1"
+        }
+      ],
+      "model_http_events": [
+        {
+          "duration_ms": 204.092,
+          "encoding": "deepseek-v4-official-20261103",
+          "hard_input_limit": 1038336,
+          "id": "f9970f204f9d",
+          "input_target": 16000,
+          "input_tokens": 3413,
+          "instance_id": "9ab2734818ab4eb5a20f8ecf27109bca",
+          "kind": "model_http",
+          "message_id": "ctx-20261103-today",
+          "model": "deepseek-v4-flash",
+          "outcome": "error",
+          "output_reserve": 8192,
+          "parent": "4d28628d6693",
+          "parts": {
+            "calls": 0,
+            "current": 10,
+            "history": 299,
+            "protocol": 121,
+            "reasoning": 0,
+            "state": 210,
+            "summary": 0,
+            "system": 316,
+            "tools": 2457
+          },
+          "protocol_margin": 2048,
+          "purpose": "main",
+          "started_epoch_ms": 1793699643769.2305,
+          "started_monotonic": 713.854431669,
+          "wire_encoding": "json-wire-v1"
+        }
+      ],
+      "delivery": {
+        "cos_revision": 54,
+        "presented": true,
+        "sent_at": 1793699645.067088,
+        "t_service_ms": 166899.233,
+        "t_user_ms": 167564.088,
+        "uuid": "ed287526-846b-4f25-9090-9b78531e197a"
+      }
+    }
+  ],
+  "independent_business_readback": [
+    {
+      "agent_revision": 2,
+      "created_at": 1793699184174,
+      "date": "2026-11-03",
+      "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+      "food_name": "米饭",
+      "grams": 50.0,
+      "meal_type": "lunch",
+      "message_id": "ctx-20261103-record:agent:1",
+      "nutrition": {
+        "carbs": 13.0,
+        "fat": 0.2,
+        "kcal": 58.0,
+        "protein": 1.3
+      },
+      "raw_text": "记录今天午餐：米饭100克、鸡蛋100克，均为可食克重。",
+      "record_id": "f43dfa4d-29c3-4fe2-9671-dbd8e3f3818b",
+      "status": "valid",
+      "user_id": "context-candidate-20261103"
+    },
+    {
+      "agent_revision": 1,
+      "created_at": 1793699184175,
+      "date": "2026-11-03",
+      "food_id": "food_egg",
+      "food_name": "鸡蛋",
+      "grams": 100.0,
+      "meal_type": "lunch",
+      "message_id": "ctx-20261103-record:agent:1",
+      "nutrition": {
+        "carbs": 2.4,
+        "fat": 8.6,
+        "kcal": 139.0,
+        "protein": 13.1
+      },
+      "raw_text": "记录今天午餐：米饭100克、鸡蛋100克，均为可食克重。",
+      "record_id": "d2420e25-bd73-45e1-ba18-728151886ed4",
+      "status": "valid",
+      "user_id": "context-candidate-20261103"
+    }
+  ]
+}

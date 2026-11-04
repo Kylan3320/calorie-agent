@@ -5,7 +5,7 @@
 
 ## 实现边界
 
-- 飞书＋COS 存储与执行约定见 `LATENCY_OPTIMIZATION_SPEC.md`：COS 保存运行状态及已提交业务事实，Bitable 后台归档；LLM 负责理解和规划，营养计算与读写由工具执行。
+- 当前存储与执行接口见 `contracts/tool_protocol.md`，长期增量处理与保留目标见 `LATENCY_OPTIMIZATION_SPEC.md`。COS 保存运行状态及已提交业务事实，Bitable 后台归档；LLM 负责理解和规划，营养计算与读写由工具执行。
 - 预设行为集中在 `agent/policy/presets.py`。
 - COS 与 Feishu/Bitable HTTP 仅在 `agent/storage/`；工具实现和注册在 `agent/tools/`。
 - 业务数字须有工具事实依据；知识回答数字须出现在检索原文中。

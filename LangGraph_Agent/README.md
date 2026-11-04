@@ -16,7 +16,7 @@ py -3 -m venv .venv
 ```
 
 CLI 默认 FakeStore，仍需配置 DeepSeek 凭据并联网调用模型；交互模式保留同一会话状态。
-Linux/WSL 下使用 `.venv/bin/python`。评测用 `--list` 查看场景、`--case ID[,ID]` 严格选择；全量用 `--all` 显式运行。`--real-model` 需选择 E 类场景。
+Linux/WSL 下使用 `.venv/bin/python`。评测用 `--list` 查看场景、`--case ID[,ID]` 严格选择；全量用 `--all` 显式运行。`--real-model` 需选择 E 类场景，轨迹默认按 UTC 时间独立保存；`--output PATH` 可指定新文件，已有文件会在调用模型前拒绝覆盖。
 
 ## 本地控制台与 DSH
 
@@ -88,9 +88,15 @@ python deploy/production_release.py inspect --function calorie-agent-reminder
 python deploy/api_deploy.py --function calorie-agent-reminder  # 默认 deploy/calorie-agent-v4.zip
 ```
 
-按实际改动更新受影响函数：受理 Web 函数 `calorie-agent-api-v3-test`、消息 Event 函数 `calorie-agent-reminder`、归档 Event 函数 `calorie-agent-archive`。发布后分别核对实际构建、入口及所需配置。
+按实际改动更新受影响函数：受理 Web 函数 `calorie-agent-api-v3-test`、消息 Event 函数 `calorie-agent-reminder`、归档 Event 函数 `calorie-agent-archive`。状态兼容的更新沿用以下步骤：
 
-脚本从环境读取 TENCENTCLOUD_SECRET_ID／TENCENTCLOUD_SECRET_KEY，临时凭据另需 TENCENTCLOUD_SESSION_TOKEN；SCF_REGION 默认 ap-shanghai。资源及首次切换记录见 [生产计划](deploy/cos-production-plan.json)。该计划及 `cloudshell_cutover.py` 保留首次迁移恢复用途；状态兼容的日常更新不自动重跑维护、迁移或整组候选。迁移接口见 [Bitable 契约](contracts/bitable_schema.md#旧-bitable-状态与迁移)。
+1. 用 `production_release.py freeze` 固定包身份，inspect 受影响函数并将原包及私有配置备份到仓库外。
+2. 用 `production_release.py maintenance-on --function calorie-agent-api-v3-test` 暂停新受理，核对未完收件及未知提交，保留原任务。
+3. 向受影响函数上传同一冻结包，保留角色、前缀、环境、触发及所需 Layer；消息 handler 为 app.message_handler，归档为 app.maintenance_handler。每个已受理更新仅轮询至 Active。
+4. 下载实际代码，核对 BUILD_ID、全部成员内容及所需配置，并检查受理 health。HTTP 平台重封装可能改变 ZIP 整体哈希，成员内容须匹配。
+5. 核对通过后用 `production_release.py maintenance-off --function calorie-agent-api-v3-test` 恢复受理；失败则先恢复原包和配置并核对。
+
+脚本从环境读取 TENCENTCLOUD_SECRET_ID／TENCENTCLOUD_SECRET_KEY，临时凭据另需 TENCENTCLOUD_SESSION_TOKEN；SCF_REGION 默认 ap-shanghai。资源及首次切换记录见 [生产计划](deploy/cos-production-plan.json)。该计划及 `cloudshell_cutover.py` 保留首次迁移恢复用途；日常更新按上述发布步骤，不重跑首次迁移、COS维护回收或未受影响的候选验收。迁移接口见 [Bitable 契约](contracts/bitable_schema.md#旧-bitable-状态与迁移)。
 
 ## 知识维护与发布
 

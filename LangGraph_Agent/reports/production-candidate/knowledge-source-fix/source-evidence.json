@@ -1,0 +1,43 @@
+{
+  "checked_at": "2026-11-02",
+  "scope": "Only the two retrieved rice/staple-food documents; no audit or rewrite of the other 34 documents",
+  "primary": {
+    "title": "《中国居民膳食指南（2022）》平衡膳食八准则",
+    "publisher": "中国营养学会",
+    "published_at": "2022-04-26",
+    "url": "https://dg.cnsoc.org/article/04/J4-AsD_DR3OLQMnHG0-jZA.html",
+    "access": "Direct web open timed out; official-domain indexed original text was available in search. Official principle-one page and Society toolkit corroborate the diet-pattern recommendations.",
+    "short_original_terms": ["谷类为主", "食物多样", "食不过量，保持能量平衡"],
+    "supported_paraphrase": "准则一把谷类、蔬果、动物性食物及豆类纳入多样搭配的膳食；准则二要求饮食摄入与身体活动相协调以维持健康体重。这里使用定性原则，不把一般人群建议解释成个人减脂的统一克重处方。"
+  },
+  "corroboration": [
+    {
+      "title": "中国居民膳食指南2022 | 准则一 食物多样，合理搭配",
+      "url": "https://dg.cnsoc.org/article/04/K7tlcs-UQh67DBC5XY1Jqw.html",
+      "publisher": "中国营养学会",
+      "published_at": "2022-04-29",
+      "supported_paraphrase": "平衡膳食面向不同能量需要的人群，强调多类别食物与谷类安排；不能不经个体评估就变成统一的减脂期主食份量。"
+    },
+    {
+      "title": "全民营养周-2022年核心工具包",
+      "url": "https://www.cnsoc.org/activitykit2/6522002010.html",
+      "publisher": "中国营养学会",
+      "supported_paraphrase": "官方工具包重述准则一的多样搭配及谷类膳食模式。"
+    },
+    {
+      "title": "中国居民平衡膳食宝塔（2022）修订和解析",
+      "url": "https://dg.cnsoc.org/article/04/RMAbPdrjQ6CGWTwmo62hQg.html",
+      "publisher": "中国营养学会",
+      "supported_paraphrase": "米饭属于谷类食物及其制品，因而可以放在谷类膳食的定性解释中。"
+    }
+  ],
+  "removed_unverified_claims": [
+    "每餐主食生重50~75g",
+    "熟米饭约130~200g",
+    "减脂主食每天生重150~250g",
+    "减脂主食占总热量40~50%",
+    "全谷物和杂豆占1/3以上",
+    "长期低于120g会发生代谢适应"
+  ],
+  "boundary": "The repaired entries contain no dietary quantity recommendation. Their source field includes the actual official title and URL. The other corpus entries remain unchanged and are not thereby certified."
+}

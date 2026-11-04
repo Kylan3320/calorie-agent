@@ -1,0 +1,56 @@
+{
+  "fixed_task_directories": [
+    {
+      "path": "D:\\项目\\calorie-agent\\LangGraph_Agent\\deploy\\build",
+      "deleted_files": 2002,
+      "deleted_directories": 305,
+      "deleted_bytes": 81112269,
+      "verified_absent": true
+    },
+    {
+      "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-facts-20261103",
+      "deleted_files": 1,
+      "deleted_directories": 1,
+      "deleted_bytes": 754,
+      "verified_absent": true
+    }
+  ],
+  "final_business_zip_preserved": true,
+  "runtime_encoding_preserved": true,
+  "credentials_file_preserved": true,
+  "python_cache_cleanup": {
+    "deleted_files": 72,
+    "deleted_directories": 6,
+    "scope": [
+      "agent",
+      "harness",
+      "deploy"
+    ]
+  },
+  "trace_cleanup": [
+    {
+      "path": "D:\\tmp\\traces.jsonl",
+      "removed_current_round_fake_lines": 27,
+      "remaining_bytes": 25836503,
+      "removed_current_round_mock_wire_lines": 1
+    },
+    {
+      "path": "C:\\tmp\\traces.jsonl",
+      "removed_current_round_fake_lines": 0,
+      "remaining_bytes": 41790
+    }
+  ],
+  "linux_task_temporary_directory_verified_absent": true,
+  "candidate_temporary_cleanup": {
+    "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-facts-candidate-20261103",
+    "removed": false,
+    "remaining_files": 12,
+    "remaining_bytes": 802180,
+    "automatic_review_rejections": 2,
+    "reason": "blocked by policy",
+    "reason_detail_provided": false,
+    "deletion_dispatched": false,
+    "requires_manual_cleanup": true
+  },
+  "all_local_test_data_removed": false
+}

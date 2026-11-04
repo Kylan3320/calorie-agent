@@ -1,0 +1,65 @@
+{
+  "recorded_at": "2026-11-03T13:03:56.747822+00:00",
+  "scope": "Offline real loopback HTTP against current transport source; no cloud requests or deployment.",
+  "runtime": {
+    "platform": "Linux (WSL)",
+    "python": "3.10.22",
+    "python_executable": "/home/wcl3320382478/.local/bin/python3.10",
+    "dependencies": {
+      "httpx": "0.28.1",
+      "httpcore": "1.0.9",
+      "requests": "2.34.2",
+      "cos-python-sdk-v5": "1.9.44",
+      "cos_sdk_user_agent_version": "5.1.9.44"
+    },
+    "dependency_source": "Existing deploy/calorie-agent-v4.zip deps/ extracted unchanged into /tmp/calorie-rpc-deadline-20261103/deps"
+  },
+  "command": {
+    "launcher": "wsl -e /home/wcl3320382478/.local/bin/python3.10 -c <python_code>",
+    "python_code": "import json, pathlib, sys, time, types\nroot = pathlib.Path('/mnt/d/项目/LangGraph_Agent').resolve()\nsys.path[:0] = [str(root), '/tmp/calorie-rpc-deadline-20261103/deps']\nfor name, directory in [('agent', root / 'agent'), ('agent.storage', root / 'agent/storage')]:\n    package = types.ModuleType(name)\n    package.__path__ = [str(directory)]\n    sys.modules[name] = package\nfrom harness.eval.production_transport_cases import ST01\nfrom harness.eval.rpc_deadline_cases import CHECKS\nfor name, case in [('ST01', ST01), *CHECKS.items()]:\n    started = time.monotonic()\n    case()\n    print(json.dumps({'case': name, 'passed': True, 'elapsed_ms': round((time.monotonic() - started) * 1000, 3)}))"
+  },
+  "cases": {
+    "ST01": {
+      "passed": true,
+      "elapsed_ms": 2.285
+    },
+    "RP01": {
+      "passed": true,
+      "elapsed_ms": 22.385
+    },
+    "RP02": {
+      "passed": true,
+      "elapsed_ms": 1214.251
+    },
+    "RP03": {
+      "passed": true,
+      "elapsed_ms": 1233.928
+    },
+    "RP04": {
+      "passed": true,
+      "elapsed_ms": 430.112
+    },
+    "RP05": {
+      "passed": true,
+      "elapsed_ms": 217.876
+    }
+  },
+  "assertions": {
+    "rpc_deadline_seconds": 0.2,
+    "per_blocked_rpc_elapsed_seconds": {
+      "minimum": 0.14,
+      "maximum": 0.7
+    },
+    "RP02": "Six Feishu combinations: main/worker threads x blocked headers/stalled body/continuous whitespace keepalive.",
+    "RP03": "Six production COS SDK combinations: same main/worker and HTTP blocking modes; errors remain CosClientError.",
+    "RP04": "Two attempts/backoff share original RPC deadline; backoff that consumes budget starts no second HTTP.",
+    "RP05": "Issued PUT can be committed while response times out; error propagates and GET of original key recovers the same bytes."
+  },
+  "source_sha256": {
+    "agent/storage/model_transport.py": "79b3d265e1ababfac098d2d9576a16744553000b05ae8d4fae4511131b5f23e6",
+    "agent/storage/cos_transport.py": "abfc8bcdaaaa90b50a78ed95506c4fbe4f044d4d1af83d7f1f747753f6df97c6",
+    "agent/storage/feishu_client.py": "fad99d6f8c4d488a3ea75f8038f2e16db4cdfdf71d7e2f91435e659bc5aeb9cf",
+    "harness/eval/rpc_deadline_cases.py": "6f0cdae639b89e6fc829ad4f0919ed39a0593ee4214e76ae42e72bfb3b1c128f"
+  },
+  "limitation": "Transport modules were bootstrapped as package namespaces to avoid unrelated graph/native dependencies from the older frozen ZIP. This is not a full candidate package/deployment acceptance."
+}

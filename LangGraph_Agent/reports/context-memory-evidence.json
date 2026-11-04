@@ -1,0 +1,300 @@
+{
+  "first_attempt": {
+    "status": "retry",
+    "elapsed_ms": 20161.608,
+    "passed": false
+  },
+  "recheck": {
+    "predeclared": {
+      "retain": [
+        "周四跑步",
+        "清淡省时晚餐",
+        "未完鱼缺数量"
+      ],
+      "invalid": [
+        "周三仍生效",
+        "曾经同意构成本轮确认"
+      ],
+      "forbidden_current_numbers": [
+        "525.6",
+        "773"
+      ]
+    },
+    "summary": {
+      "status": "ready",
+      "task_id": "d6eed04347da0b14c59a87cf70cfc7d76fbc0d0e1548e22a2b13e523c4d2be6c",
+      "candidate": {
+        "task_id": "d6eed04347da0b14c59a87cf70cfc7d76fbc0d0e1548e22a2b13e523c4d2be6c",
+        "user_id": "user",
+        "chat_id": "memory",
+        "base_id": "root",
+        "status": "ready",
+        "text": "用户希望安排简单省时的晚餐，偏好清淡、方便准备，做饭优先蒸煮。原本周三跑步后晚餐清淡，已明确纠正为跑步改到周四，周三安排取消；后续继续围绕简单省时晚餐话题。",
+        "turn_ids": [
+          "memory:0",
+          "memory:1",
+          "memory:2",
+          "memory:3",
+          "memory:4"
+        ],
+        "source_hash": "06882605aa7611fe17de2ca9989d469639df058e7dc8fce3bc0f3d95796c9db6"
+      }
+    },
+    "task_state": {
+      "task_id": "d6eed04347da0b14c59a87cf70cfc7d76fbc0d0e1548e22a2b13e523c4d2be6c",
+      "user_id": "user",
+      "chat_id": "memory",
+      "base_id": "root",
+      "registered_at": 1793697622.7775533,
+      "attempts": 1,
+      "status": "ready",
+      "candidate": {
+        "task_id": "d6eed04347da0b14c59a87cf70cfc7d76fbc0d0e1548e22a2b13e523c4d2be6c",
+        "user_id": "user",
+        "chat_id": "memory",
+        "base_id": "root",
+        "status": "ready",
+        "text": "用户希望安排简单省时的晚餐，偏好清淡、方便准备，做饭优先蒸煮。原本周三跑步后晚餐清淡，已明确纠正为跑步改到周四，周三安排取消；后续继续围绕简单省时晚餐话题。",
+        "turn_ids": [
+          "memory:0",
+          "memory:1",
+          "memory:2",
+          "memory:3",
+          "memory:4"
+        ],
+        "source_hash": "06882605aa7611fe17de2ca9989d469639df058e7dc8fce3bc0f3d95796c9db6"
+      },
+      "measurement": {
+        "purpose": "summary",
+        "encoding": "deepseek-v4-official-20261103",
+        "wire_encoding": "json-wire-v1",
+        "parts": {
+          "system": 81,
+          "state": 0,
+          "summary": 0,
+          "history": 0,
+          "current": 4542,
+          "reasoning": 0,
+          "calls": 0,
+          "tools": 0,
+          "protocol": 67
+        },
+        "input_tokens": 4690,
+        "input_target": 12000,
+        "output_reserve": 4096,
+        "protocol_margin": 2048,
+        "hard_input_limit": 1042432,
+        "usage": {
+          "prompt_tokens": 4653,
+          "completion_tokens": 309,
+          "total_tokens": 4962,
+          "prompt_tokens_details": {
+            "cached_tokens": 1408
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 260
+          },
+          "prompt_cache_hit_tokens": 1408,
+          "prompt_cache_miss_tokens": 3245
+        },
+        "finish_reason": "stop"
+      },
+      "duration_ms": 2546.023
+    },
+    "elapsed_ms": 2546.307,
+    "uncompressed": {
+      "status": "ok",
+      "reply": "三件事的答复：\n\n- **跑步**：最后定在**周四**；原来安排在周三的那次已经取消。\n- **鱼**：11月2日你记录的那条“鱼”还缺份量，具体需要补充数量，比如多重、几条；候选是“鱼（生）”。请告诉我份量，我再帮你补上。\n- **今天（11月3日）的热量**：目前还没有记录，合计 0 kcal。",
+      "model_calls": 2,
+      "tool_facts": [
+        {
+          "tool": "query_today",
+          "status": "ok",
+          "data": {
+            "date": "2026-11-03",
+            "count": 0,
+            "total": {
+              "kcal": 0.0
+            },
+            "items": [],
+            "detail": "calories"
+          }
+        }
+      ],
+      "budgets": [
+        {
+          "purpose": "main",
+          "encoding": "deepseek-v4-official-20261103",
+          "wire_encoding": "json-wire-v1",
+          "parts": {
+            "system": 316,
+            "state": 115,
+            "summary": 0,
+            "history": 4436,
+            "current": 23,
+            "reasoning": 0,
+            "calls": 0,
+            "tools": 2457,
+            "protocol": 183
+          },
+          "input_tokens": 7530,
+          "input_target": 16000,
+          "output_reserve": 8192,
+          "protocol_margin": 2048,
+          "hard_input_limit": 1038336,
+          "removed_turns": 0,
+          "over_target_reason": null,
+          "usage": {
+            "prompt_tokens": 8057,
+            "completion_tokens": 128,
+            "total_tokens": 8185,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 88
+            },
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 8057
+          },
+          "finish_reason": "tool_calls"
+        },
+        {
+          "purpose": "main",
+          "encoding": "deepseek-v4-official-20261103",
+          "wire_encoding": "json-wire-v1",
+          "parts": {
+            "system": 316,
+            "state": 115,
+            "summary": 0,
+            "history": 4436,
+            "current": 98,
+            "reasoning": 88,
+            "calls": 47,
+            "tools": 2457,
+            "protocol": 245
+          },
+          "input_tokens": 7802,
+          "input_target": 16000,
+          "output_reserve": 8192,
+          "protocol_margin": 2048,
+          "hard_input_limit": 1038336,
+          "removed_turns": 0,
+          "over_target_reason": null,
+          "usage": {
+            "prompt_tokens": 8272,
+            "completion_tokens": 154,
+            "total_tokens": 8426,
+            "prompt_tokens_details": {
+              "cached_tokens": 8064
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 57
+            },
+            "prompt_cache_hit_tokens": 8064,
+            "prompt_cache_miss_tokens": 208
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "latency_ms": 2432
+    },
+    "summarized": {
+      "status": "ok",
+      "reply": "这周跑步最后定在周四，周三安排已取消。\n\n昨天那份鱼（生）只缺数量，你吃的重量或份量（比如一条多大、多少克）还需要补充；补上后就能记入。\n\n今天目前还没有任何有效摄入记录，热量合计为 0 千卡。",
+      "model_calls": 2,
+      "tool_facts": [
+        {
+          "tool": "query_today",
+          "status": "ok",
+          "data": {
+            "date": "2026-11-03",
+            "count": 0,
+            "total": {
+              "kcal": 0.0
+            },
+            "items": [],
+            "detail": "calories"
+          }
+        }
+      ],
+      "budgets": [
+        {
+          "purpose": "main",
+          "encoding": "deepseek-v4-official-20261103",
+          "wire_encoding": "json-wire-v1",
+          "parts": {
+            "system": 316,
+            "state": 115,
+            "summary": 63,
+            "history": 28,
+            "current": 23,
+            "reasoning": 0,
+            "calls": 0,
+            "tools": 2457,
+            "protocol": 115
+          },
+          "input_tokens": 3117,
+          "input_target": 16000,
+          "output_reserve": 8192,
+          "protocol_margin": 2048,
+          "hard_input_limit": 1038336,
+          "removed_turns": 0,
+          "over_target_reason": null,
+          "usage": {
+            "prompt_tokens": 3688,
+            "completion_tokens": 123,
+            "total_tokens": 3811,
+            "prompt_tokens_details": {
+              "cached_tokens": 3328
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 83
+            },
+            "prompt_cache_hit_tokens": 3328,
+            "prompt_cache_miss_tokens": 360
+          },
+          "finish_reason": "tool_calls"
+        },
+        {
+          "purpose": "main",
+          "encoding": "deepseek-v4-official-20261103",
+          "wire_encoding": "json-wire-v1",
+          "parts": {
+            "system": 316,
+            "state": 115,
+            "summary": 63,
+            "history": 28,
+            "current": 101,
+            "reasoning": 83,
+            "calls": 50,
+            "tools": 2457,
+            "protocol": 177
+          },
+          "input_tokens": 3390,
+          "input_target": 16000,
+          "output_reserve": 8192,
+          "protocol_margin": 2048,
+          "hard_input_limit": 1038336,
+          "removed_turns": 0,
+          "over_target_reason": null,
+          "usage": {
+            "prompt_tokens": 3901,
+            "completion_tokens": 65,
+            "total_tokens": 3966,
+            "prompt_tokens_details": {
+              "cached_tokens": 3712
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 3712,
+            "prompt_cache_miss_tokens": 189
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "latency_ms": 2496
+    }
+  }
+}
