@@ -1,6 +1,6 @@
 # Calorie Agent 交流体验与上下文治理规格
 
-从隔离候选 R10（`cos-production-6168137783460961`）继续。本轮修复已有相同早餐时明确记餐却只查旧账的问题。R10 原失败作为修前证据。[同包实测](reports/CONVERSATION_DELIVERY.md#同包真实结果) · [正式版本](reports/LATENCY_DELIVERY.md)
+R10（`cos-production-6168137783460961`）的相同早餐漏记已在后续源码修复。第6.1节三句及第6.2节核对旧账已通过本地正常收件、真实模型及独立COS读回；尚无新包云端验收，暂缓试用，部署另行授权。R10原失败保留为修前证据。[本轮读回与实际回执](reports/CONVERSATION_DELIVERY.md#r11相同早餐漏记修复2026-11-04未部署) · [正式版本](reports/LATENCY_DELIVERY.md)
 
 个人业务见 [个人功能规格](PERSONAL_CALORIE_SPEC.md)，需求见 [REQUIREMENTS.md](REQUIREMENTS.md)，实际接口见 [contracts/](contracts/)。本规格管理回复、请求完成与等待预算、模型上下文及话题记忆；[COS 规格](LATENCY_OPTIMIZATION_SPEC.md) 管理持久化、物理保留和回收。上下文投影不能删除账本、待办、执行事实或防重凭据。
 

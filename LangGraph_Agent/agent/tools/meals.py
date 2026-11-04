@@ -179,11 +179,12 @@ def explicit_selection(rt, refs, *, kind, name="", day="", meal_type=""):
     rt.session.pop("failed_selection", None)
     return [available[ref] for ref in refs], None
 
-def meal_totals(rt, items):
+def meal_totals(rt, items, *, rows=None):
     keys = {i.get("snapshot", {}).get("meal_id", i.get("message_id", "")) for i in items}
     dates = sorted({i.get("date", rt.day) for i in items})
     from datetime import date, timedelta
-    rows = rt.store.intake_items(rt.user_id, dates[0], (date.fromisoformat(dates[-1])+timedelta(days=1)).isoformat()) if dates else []
+    if rows is None:
+        rows = rt.store.intake_items(rt.user_id, dates[0], (date.fromisoformat(dates[-1])+timedelta(days=1)).isoformat()) if dates else []
     result = []
     for key in sorted(keys - {""}):
         group = [r for r in rows if r.get("snapshot", {}).get("meal_id", r.get("message_id", "")) == key]

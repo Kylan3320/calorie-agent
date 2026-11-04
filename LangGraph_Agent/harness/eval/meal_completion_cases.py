@@ -239,4 +239,36 @@ def MC06():
     assert result["status"] == "ok" and not result["termination_reason"]
 
 
-CHECKS = {"MC01": MC01, "MC02": MC02, "MC03": MC03, "MC04": MC04, "MC05": MC05, "MC06": MC06}
+def MC07():
+    """Old-meal checks get per-meal totals from the same query snapshot, without a second ledger read."""
+    from types import SimpleNamespace
+    from agent.tools.registry import query_today
+    from agent.replies import model_view
+    store = setup()
+    for mid in ("check-old-breakfast", "check-new-breakfast"):
+        result, _ = send(store, "记录早餐", [call("record_meal", {"items": [
+            {"food_query": "夹具A", "grams": 100}, {"food_query": "夹具B", "grams": 100}],
+            "meal_type": "breakfast", "finish_after_tools": True})], mid=mid)
+        deliver(store, result)
+    result, _ = send(store, "刚才夹具A改50克", [call("revise_intake", {
+        "food_query": "夹具A", "grams": 50, "finish_after_tools": True})], mid="check-revise")
+    deliver(store, result)
+    before = deepcopy(store.intake)
+    snapshot = deepcopy(store.today_summary("user"))
+    rt = SimpleNamespace(store=store, user_id="user", day=store.today, add_refs=lambda rows: None)
+    with patch.object(store, "today_summary", return_value=snapshot), patch.object(
+            store, "intake_items", side_effect=AssertionError("second ledger read")):
+        fact = {"tool": "query_today", **query_today(rt, {"detail": "items"})}
+    assert fact["data"]["total"]["kcal"] == 390
+    groups = fact["data"]["meal_totals"]
+    assert sorted(m["total"]["kcal"] for m in groups) == [180, 210]
+    assert all(m["count"] == 2 and m["meal_type"] == "breakfast" for m in groups)
+    assert model_view(fact)["data"]["meal_totals"] == groups
+    assert store.intake == before
+    with patch.object(store, "today_summary", return_value=snapshot):
+        assert "meal_totals" not in query_today(rt, {"detail": "summary"})["data"]
+    with patch.object(store, "today_summary", return_value=snapshot):
+        assert "meal_totals" not in query_today(rt, {"detail": "calories"})["data"]
+
+
+CHECKS = {"MC01": MC01, "MC02": MC02, "MC03": MC03, "MC04": MC04, "MC05": MC05, "MC06": MC06, "MC07": MC07}

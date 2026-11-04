@@ -167,6 +167,7 @@ def query_today(rt, p):
     target = rt.store.get_standard(rt.user_id)
     rt.add_refs(summary["items"])
     return {"status": "ok", "data": {"date": summary["date"], "items": summary["items"], "total": summary["totals"],
+        **({"meal_totals": meals.meal_totals(rt, summary["items"], rows=summary["items"])} if p.get("detail") == "items" else {}),
         "count": summary["count"], "detail": p.get("detail", "calories"), "estimated": estimated, "targets": target,
         "remaining": {k: round_number(target[k]-summary["totals"][k]) for k in meals.NUTRIENTS}}}
 
@@ -237,7 +238,7 @@ def entry(name, schema, description, risk, runner):
         args_schema=schema, metadata={"risk": risk})
 
 TOOL_REGISTRY = {t.name: t for t in [
-    entry("record_meal", Record, "记录整餐多项食物；可确定项先写，其余合并追问。补全传pending_id及新增信息，候选choice绑定已展示快照；支持cancel_pending及历史/常用餐reuse和ratio。未给餐次用unknown。只有报告已食用或明确要求记录才执行，用户明确请求记录使用execute；待讨论的写入建议使用propose。", "write", meals.record_meal),
+    entry("record_meal", Record, "记录整餐多项食物；可确定项先写，其余合并追问。新消息明确记录/复用时新增一餐，同日已有相同餐食也照常新增；系统按原消息ID和固定动作键防重，不按食物/份量防重。核对旧账不调用本工具。补全传pending_id及新增信息，候选choice绑定已展示快照；支持cancel_pending及历史/常用餐reuse和ratio。未给餐次用unknown。只有报告已食用或明确要求记录才执行，用户明确请求记录使用execute；待讨论的写入建议使用propose。", "write", meals.record_meal),
     entry("revise_intake", Revise, "按已返回的record_id改量或软删除指定摄入项。用户说刚才那餐且last_meal内食物唯一时，直接传该record_id或food_query执行，不先查历史；今天某餐未指明哪一份且可能多餐时先定位消歧。目标不唯一先询问，明确修改/撤销直接execute。", "destructive", meals.revise_intake),
     entry("query_today", Query, "查询今日有效摄入。默认calories给出完整热量合计，足够直接回答只问热量的请求。用户需要宏量、目标或剩余时用summary，需要逐项明细时用items；返回可操作record_id。", "read_only", query_today),
     entry("query_history", History, "查询指定日期/时间窗和餐次的有效摄入。默认summary仅给范围、项数和准确合计；daily给范围内每日合计，unrecorded表示未记录而非未进食；历史改量、复用和明细直接用items取得完整匹配快照及record_id，无需先查summary。end_date不含尾日。", "read_only", query_history),
