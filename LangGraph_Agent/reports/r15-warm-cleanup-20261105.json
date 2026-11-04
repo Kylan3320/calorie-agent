@@ -1,0 +1,36 @@
+{
+  "schema": "r15-warm-local-cleanup.v1",
+  "archives": [
+    {
+      "source": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-supplement-20261104",
+      "path": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r15-warm-supplement-20261105\\operator.zip",
+      "sha256": "0934fffae13caf7dfce4bb546901807049b388df89b5f6d8206086e0907cad68",
+      "files": 19
+    },
+    {
+      "source": "D:\\项目\\LangGraph_Agent\\reports\\r15-supplement-evidence-20261104.json",
+      "path": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r15-warm-supplement-20261105\\full-evidence.json",
+      "sha256": "6504a3df49fa5a313dcfb1b7c38cb61e6f08116af396479a264c1cee88044f0f"
+    }
+  ],
+  "exact_directories": [
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-supplement-20261104"
+  ],
+  "exact_files": [
+    "D:\\项目\\LangGraph_Agent\\reports\\r15-supplement-evidence-20261104.json"
+  ],
+  "local_delete_attempted": true,
+  "historical_residuals_reused": [
+    "reports/knowledge-scope-cleanup-r15-20261104.json",
+    "reports/history-boundary-cleanup-20261104.json"
+  ],
+  "frozen_r15_package_retained": "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r15-4f6b408.zip",
+  "local_delete_executed": false,
+  "automatic_approval_rejection": "blocked by policy",
+  "local_directories_remaining": [
+    "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-supplement-20261104"
+  ],
+  "local_files_remaining": [
+    "D:\\项目\\LangGraph_Agent\\reports\\r15-supplement-evidence-20261104.json"
+  ]
+}

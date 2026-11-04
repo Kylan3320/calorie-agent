@@ -1,0 +1,4740 @@
+{
+  "schema": "r15-unchanged-package-warm-supplement.v1",
+  "delivery_date_beijing": "2026-11-05",
+  "sampling_business_date": "2026-11-04",
+  "package": {
+    "source_commit": "4f6b408554cb0a3ddd2dd0b2222e2f6e952e3bdb",
+    "build_id": "cos-production-303ddad6d78b8b0a",
+    "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+    "bytes": 22287667,
+    "package": "deploy/calorie-agent-r15-4f6b408.zip"
+  },
+  "package_runtime_prompt_unchanged": true,
+  "raw_evidence": {
+    "path": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r15-warm-supplement-20261105\\full-evidence.json",
+    "sha256": "6504a3df49fa5a313dcfb1b7c38cb61e6f08116af396479a264c1cee88044f0f",
+    "bytes": 1389407
+  },
+  "reused_evidence": {
+    "same_package_main": "reports/knowledge-scope-cloud-r15-20261104.json",
+    "knowledge_contrast": "reports/knowledge-scope-contrast-r15-20261104.json",
+    "linux_assembly": "reports/r15-cloud-package-20261104.json",
+    "original_record_warmth": "unknown",
+    "original_record_t_service_ms": 9057.341
+  },
+  "resources": {
+    "build_id": "cos-production-303ddad6d78b8b0a",
+    "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+    "bytes": 22287667,
+    "created": [
+      "calorie-cos-ingress-probe",
+      "calorie-cos-msg-probe",
+      "calorie-cos-sync-probe"
+    ],
+    "code_readbacks": [
+      {
+        "function": "calorie-cos-ingress-probe",
+        "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+        "handler": "app.ingress_handler",
+        "runtime": "Python3.10",
+        "memory": 512,
+        "timeout": 120,
+        "role": "calorie-cos-probe-role",
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "request_id": "a7091bc9-83ba-47a0-a6a8-bd8c0ae85e55"
+      },
+      {
+        "function": "calorie-cos-msg-probe",
+        "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+        "handler": "app.message_handler",
+        "runtime": "Python3.10",
+        "memory": 512,
+        "timeout": 120,
+        "role": "calorie-cos-probe-role",
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "request_id": "be0f4264-7412-49f4-9613-9eb7595debb0"
+      },
+      {
+        "function": "calorie-cos-sync-probe",
+        "sha256": "5db7c6f3ac525fe39a9f1a6e149f1fa826a8e2b1752681347945370cba29534b",
+        "handler": "app.maintenance_handler",
+        "runtime": "Python3.10",
+        "memory": 512,
+        "timeout": 120,
+        "role": "calorie-cos-probe-role",
+        "layers": [
+          [
+            "calorie-rag",
+            7
+          ]
+        ],
+        "request_id": "d7bffed9-1379-42c4-9aa6-7acfba1a1c1a"
+      }
+    ],
+    "operations": [
+      {
+        "action": "CreateFunction",
+        "function": "calorie-cos-ingress-probe",
+        "started_at": 1793807638.9999895,
+        "request_id": "18ced730-35d8-4097-b502-e7f7410b55be"
+      },
+      {
+        "action": "CreateFunction",
+        "function": "calorie-cos-msg-probe",
+        "started_at": 1793807672.6305287,
+        "request_id": "75f243d1-c2ff-46b5-94e7-2ea0484d1dda"
+      },
+      {
+        "action": "CreateFunction",
+        "function": "calorie-cos-sync-probe",
+        "started_at": 1793807708.0638027,
+        "request_id": "c3964735-8f92-4c13-b225-e17131e348a9"
+      }
+    ],
+    "archive_destinations": {
+      "BITABLE_AGENT_TRACE_TABLE_ID": "",
+      "BITABLE_ALIASES_TABLE_ID": "",
+      "BITABLE_ANOMALY_TABLE_ID": "",
+      "BITABLE_COMBO_TABLE_ID": "",
+      "BITABLE_FOOD_TABLE_ID": "tblbjGujfFB7VUjX",
+      "BITABLE_INTAKE_TABLE_ID": "tblWHzJKKPBNuZkC",
+      "BITABLE_KNOWLEDGE_TABLE_ID": "",
+      "BITABLE_MEMORY_TABLE_ID": "",
+      "BITABLE_PENDING_TABLE_ID": "tblIthKe3qYRT3KF",
+      "BITABLE_PREFERENCE_TABLE_ID": "",
+      "BITABLE_REMINDER_EVENT_TABLE_ID": "",
+      "BITABLE_REMINDER_RULE_TABLE_ID": "",
+      "BITABLE_REPORT_TABLE_ID": "",
+      "BITABLE_STANDARD_TABLE_ID": "",
+      "BITABLE_USAGE_TABLE_ID": ""
+    },
+    "model_config": {},
+    "url_trigger_request_id": "05422412-8f90-410d-993e-1e361ba42ec9",
+    "baseline_verification": {
+      "source": {
+        "schema": "calorie-agent.baseline-audit.v1",
+        "intake_count": 0,
+        "valid_count": 0,
+        "daily_kcal": {},
+        "ledger_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "pending_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "pending_count": 0,
+        "source_sha256": "292b78436531941169a227e8c77147b90939cd22b91e208e09a25e4cb1b5ce1e"
+      },
+      "verified": {
+        "intake_count": 0,
+        "valid_count": 0,
+        "daily_kcal": {},
+        "ledger_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "pending_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "pending_count": 0
+      }
+    },
+    "settings_seed": {
+      "business_date": "2026-11-04",
+      "targets": {
+        "kcal": 2230,
+        "carbs": 250,
+        "protein": 150,
+        "fat": 70
+      },
+      "daily_targets": {
+        "2026-11-04": {
+          "kcal": 1800,
+          "carbs": 180,
+          "protein": 120,
+          "fat": 60
+        }
+      }
+    },
+    "timer_request_id": "f4b8c03a-c487-43ce-abaa-4decb15d1910",
+    "timer_enabled_at": 1793807766.9644334
+  },
+  "seed": {
+    "restored_at": 1793807804.5992758,
+    "original_rows": [
+      {
+        "agent_revision": 1,
+        "created_at": 1793789238784,
+        "date": "2026-11-04",
+        "food_id": "food_egg",
+        "food_name": "鸡蛋",
+        "grams": 100.0,
+        "meal_type": "breakfast",
+        "message_id": "menu-r8-20261104-prepared-record:agent:1",
+        "nutrition": {
+          "carbs": 2.4,
+          "fat": 8.6,
+          "kcal": 139.0,
+          "protein": 13.1
+        },
+        "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+        "snapshot": {
+          "basis": "user_edible_grams",
+          "estimated": false,
+          "food": {
+            "aliases": [],
+            "boohee_id": "jidan_junzhi",
+            "carbs_per_100g": 2.4,
+            "detail_loaded": true,
+            "fat_per_100g": 8.6,
+            "food_id": "food_egg",
+            "kcal_per_100g": 139.0,
+            "name": "鸡蛋",
+            "protein_per_100g": 13.1,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "52.80",
+                "unit_id": 34,
+                "unit_name": "只(中)",
+                "weight": "60.00"
+              },
+              {
+                "eat_weight": "61.60",
+                "unit_id": 210,
+                "unit_name": "只(大)",
+                "weight": "70.00"
+              }
+            ]
+          },
+          "kcal_source": "source",
+          "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+          "quantity": null,
+          "quantity_text": "",
+          "unit": ""
+        },
+        "status": "valid",
+        "user_id": "r11-feishu-20261104"
+      },
+      {
+        "agent_revision": 1,
+        "created_at": 1793789238783,
+        "date": "2026-11-04",
+        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+        "food_name": "米饭",
+        "grams": 100.0,
+        "meal_type": "breakfast",
+        "message_id": "menu-r8-20261104-prepared-record:agent:1",
+        "nutrition": {
+          "carbs": 25.9,
+          "fat": 0.3,
+          "kcal": 116.0,
+          "protein": 2.6
+        },
+        "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+        "snapshot": {
+          "basis": "user_edible_grams",
+          "estimated": false,
+          "food": {
+            "aliases": [],
+            "boohee_id": "mifan_zheng",
+            "carbs_per_100g": 25.9,
+            "detail_loaded": true,
+            "fat_per_100g": 0.3,
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "kcal_per_100g": 116.0,
+            "name": "米饭",
+            "protein_per_100g": 2.6,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "40.00",
+                "unit_id": 233,
+                "unit_name": "勺",
+                "weight": "40.00"
+              },
+              {
+                "eat_weight": "20.00",
+                "unit_id": 587542,
+                "unit_name": "口",
+                "weight": "20.00"
+              },
+              {
+                "eat_weight": "150.00",
+                "unit_id": 132,
+                "unit_name": "小碗",
+                "weight": "150.00"
+              },
+              {
+                "eat_weight": "180.00",
+                "unit_id": 980,
+                "unit_name": "碗",
+                "weight": "180.00"
+              }
+            ]
+          },
+          "kcal_source": "source",
+          "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+          "quantity": null,
+          "quantity_text": "",
+          "unit": ""
+        },
+        "status": "valid",
+        "user_id": "r11-feishu-20261104"
+      }
+    ],
+    "isolated_rows": [
+      {
+        "agent_revision": 1,
+        "created_at": 1793789238784,
+        "date": "2026-11-04",
+        "food_id": "food_egg",
+        "food_name": "鸡蛋",
+        "grams": 100.0,
+        "meal_type": "breakfast",
+        "message_id": "menu-r8-20261104-prepared-record:agent:1",
+        "nutrition": {
+          "carbs": 2.4,
+          "fat": 8.6,
+          "kcal": 139.0,
+          "protein": 13.1
+        },
+        "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+        "snapshot": {
+          "basis": "user_edible_grams",
+          "estimated": false,
+          "food": {
+            "aliases": [],
+            "boohee_id": "jidan_junzhi",
+            "carbs_per_100g": 2.4,
+            "detail_loaded": true,
+            "fat_per_100g": 8.6,
+            "food_id": "food_egg",
+            "kcal_per_100g": 139.0,
+            "name": "鸡蛋",
+            "protein_per_100g": 13.1,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "52.80",
+                "unit_id": 34,
+                "unit_name": "只(中)",
+                "weight": "60.00"
+              },
+              {
+                "eat_weight": "61.60",
+                "unit_id": 210,
+                "unit_name": "只(大)",
+                "weight": "70.00"
+              }
+            ]
+          },
+          "kcal_source": "source",
+          "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+          "quantity": null,
+          "quantity_text": "",
+          "unit": ""
+        },
+        "status": "valid",
+        "user_id": "r15-supplement-20261104"
+      },
+      {
+        "agent_revision": 1,
+        "created_at": 1793789238783,
+        "date": "2026-11-04",
+        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+        "food_name": "米饭",
+        "grams": 100.0,
+        "meal_type": "breakfast",
+        "message_id": "menu-r8-20261104-prepared-record:agent:1",
+        "nutrition": {
+          "carbs": 25.9,
+          "fat": 0.3,
+          "kcal": 116.0,
+          "protein": 2.6
+        },
+        "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+        "snapshot": {
+          "basis": "user_edible_grams",
+          "estimated": false,
+          "food": {
+            "aliases": [],
+            "boohee_id": "mifan_zheng",
+            "carbs_per_100g": 25.9,
+            "detail_loaded": true,
+            "fat_per_100g": 0.3,
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "kcal_per_100g": 116.0,
+            "name": "米饭",
+            "protein_per_100g": 2.6,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "40.00",
+                "unit_id": 233,
+                "unit_name": "勺",
+                "weight": "40.00"
+              },
+              {
+                "eat_weight": "20.00",
+                "unit_id": 587542,
+                "unit_name": "口",
+                "weight": "20.00"
+              },
+              {
+                "eat_weight": "150.00",
+                "unit_id": 132,
+                "unit_name": "小碗",
+                "weight": "150.00"
+              },
+              {
+                "eat_weight": "180.00",
+                "unit_id": 980,
+                "unit_name": "碗",
+                "weight": "180.00"
+              }
+            ]
+          },
+          "kcal_source": "source",
+          "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+          "quantity": null,
+          "quantity_text": "",
+          "unit": ""
+        },
+        "status": "valid",
+        "user_id": "r15-supplement-20261104"
+      }
+    ],
+    "identity_remapping_only": true,
+    "sampling_business_date": "2026-11-04",
+    "date_mapping": {
+      "original": [
+        "2026-11-04"
+      ],
+      "sample": "2026-11-04"
+    },
+    "raw_ledger": {
+      "revision": 4,
+      "commit_key": "cos-probe/production-candidate/r15-supplement-20261104/message/commits/000000000004.json",
+      "items": [
+        {
+          "agent_revision": 1,
+          "created_at": 1793789238784,
+          "date": "2026-11-04",
+          "food_id": "food_egg",
+          "food_name": "鸡蛋",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "nutrition": {
+            "carbs": 2.4,
+            "fat": 8.6,
+            "kcal": 139.0,
+            "protein": 13.1
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "jidan_junzhi",
+              "carbs_per_100g": 2.4,
+              "detail_loaded": true,
+              "fat_per_100g": 8.6,
+              "food_id": "food_egg",
+              "kcal_per_100g": 139.0,
+              "name": "鸡蛋",
+              "protein_per_100g": 13.1,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "52.80",
+                  "unit_id": 34,
+                  "unit_name": "只(中)",
+                  "weight": "60.00"
+                },
+                {
+                  "eat_weight": "61.60",
+                  "unit_id": 210,
+                  "unit_name": "只(大)",
+                  "weight": "70.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r15-supplement-20261104"
+        },
+        {
+          "agent_revision": 1,
+          "created_at": 1793789238783,
+          "date": "2026-11-04",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name": "米饭",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "nutrition": {
+            "carbs": 25.9,
+            "fat": 0.3,
+            "kcal": 116.0,
+            "protein": 2.6
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "mifan_zheng",
+              "carbs_per_100g": 25.9,
+              "detail_loaded": true,
+              "fat_per_100g": 0.3,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "kcal_per_100g": 116.0,
+              "name": "米饭",
+              "protein_per_100g": 2.6,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "40.00",
+                  "unit_id": 233,
+                  "unit_name": "勺",
+                  "weight": "40.00"
+                },
+                {
+                  "eat_weight": "20.00",
+                  "unit_id": 587542,
+                  "unit_name": "口",
+                  "weight": "20.00"
+                },
+                {
+                  "eat_weight": "150.00",
+                  "unit_id": 132,
+                  "unit_name": "小碗",
+                  "weight": "150.00"
+                },
+                {
+                  "eat_weight": "180.00",
+                  "unit_id": 980,
+                  "unit_name": "碗",
+                  "weight": "180.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r15-supplement-20261104"
+        }
+      ],
+      "item_refs": {
+        "item:b1ea74ac-d942-4ff8-8afc-0112e4dc051c": "9e4e3b149802869253c3c128fe81738bc855ac1b7fd060258b02e21afecd6b99",
+        "item:ffc8fa64-e9c7-418a-ba30-56d2795ac197": "ea009761c5e59b9d2592f69b995986efd323357195a29b85bd4db8a90e38ff22"
+      }
+    },
+    "session": {
+      "food_sources": {
+        "food:3feb2fc96a969f4ce5f7c141": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "",
+            "carbs_per_100g": 20.0,
+            "detail_loaded": false,
+            "fat_per_100g": 0.2,
+            "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+            "kcal_per_100g": null,
+            "name": "土豆泥",
+            "protein_per_100g": 2.0,
+            "source": "",
+            "units": []
+          },
+          "kind": "food"
+        },
+        "food:5077a76425e6e86fa57f9755": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "mifan_zheng",
+            "carbs_per_100g": 25.9,
+            "detail_loaded": true,
+            "fat_per_100g": 0.3,
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "kcal_per_100g": 116.0,
+            "name": "米饭",
+            "protein_per_100g": 2.6,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "40.00",
+                "unit_id": 233,
+                "unit_name": "勺",
+                "weight": "40.00"
+              },
+              {
+                "eat_weight": "20.00",
+                "unit_id": 587542,
+                "unit_name": "口",
+                "weight": "20.00"
+              },
+              {
+                "eat_weight": "150.00",
+                "unit_id": 132,
+                "unit_name": "小碗",
+                "weight": "150.00"
+              },
+              {
+                "eat_weight": "180.00",
+                "unit_id": 980,
+                "unit_name": "碗",
+                "weight": "180.00"
+              }
+            ]
+          },
+          "kind": "food"
+        },
+        "food:54c519a639adf82bbd0cb105": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "",
+            "carbs_per_100g": 86.4,
+            "detail_loaded": false,
+            "fat_per_100g": 0.0,
+            "food_id": "food_corn_starch",
+            "kcal_per_100g": null,
+            "name": "玉米淀粉",
+            "protein_per_100g": 0.0,
+            "source": "",
+            "units": []
+          },
+          "kind": "food"
+        },
+        "food:819a6614a0f02360fb7681b4": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "",
+            "carbs_per_100g": 20.5,
+            "detail_loaded": false,
+            "fat_per_100g": 7.5,
+            "food_id": "food_item_62",
+            "kcal_per_100g": null,
+            "name": "火腿芝士土豆饼",
+            "protein_per_100g": 10.1,
+            "source": "",
+            "units": []
+          },
+          "kind": "food"
+        },
+        "food:a3825031d4a5055a115960da": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "",
+            "carbs_per_100g": 8.4,
+            "detail_loaded": false,
+            "fat_per_100g": 0.0,
+            "food_id": "food_ymz",
+            "kcal_per_100g": null,
+            "name": "玉米汁",
+            "protein_per_100g": 1.0,
+            "source": "",
+            "units": []
+          },
+          "kind": "food"
+        },
+        "food:b50cbb257a5800f1d8111451": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "",
+            "carbs_per_100g": 1.6,
+            "detail_loaded": false,
+            "fat_per_100g": 12.8,
+            "food_id": "food_hyatui",
+            "kcal_per_100g": null,
+            "name": "盒马鸭腿",
+            "protein_per_100g": 25.9,
+            "source": "",
+            "units": []
+          },
+          "kind": "food"
+        },
+        "food:c692d91b0ccfdcc2d947e747": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "jidan_junzhi",
+            "carbs_per_100g": 2.4,
+            "detail_loaded": true,
+            "fat_per_100g": 8.6,
+            "food_id": "food_egg",
+            "kcal_per_100g": 139.0,
+            "name": "鸡蛋",
+            "protein_per_100g": 13.1,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "52.80",
+                "unit_id": 34,
+                "unit_name": "只(中)",
+                "weight": "60.00"
+              },
+              {
+                "eat_weight": "61.60",
+                "unit_id": 210,
+                "unit_name": "只(大)",
+                "weight": "70.00"
+              }
+            ]
+          },
+          "kind": "food"
+        },
+        "food:d80aca8c0e60579bbb1dc1da": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "",
+            "carbs_per_100g": 0.0,
+            "detail_loaded": false,
+            "fat_per_100g": 1.2,
+            "food_id": "food_chicken_breast",
+            "kcal_per_100g": null,
+            "name": "鸡胸肉",
+            "protein_per_100g": 21.5,
+            "source": "",
+            "units": []
+          },
+          "kind": "food"
+        },
+        "food:fc72f09dc7d77bc3c6692bff": {
+          "food": {
+            "aliases": [],
+            "boohee_id": "",
+            "carbs_per_100g": 16.8,
+            "detail_loaded": false,
+            "fat_per_100g": 2.1,
+            "food_id": "food_corn",
+            "kcal_per_100g": null,
+            "name": "玉米粒",
+            "protein_per_100g": 2.9,
+            "source": "",
+            "units": []
+          },
+          "kind": "food"
+        }
+      },
+      "last_execution_complete": true,
+      "last_meal": [
+        "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+        "b1ea74ac-d942-4ff8-8afc-0112e4dc051c"
+      ],
+      "last_message_id": "menu-r8-20261104-prepared-r10-replace",
+      "meal_draft": {
+        "calculation": {
+          "budget_difference": {
+            "carbs": 10.4,
+            "fat": -1.6,
+            "kcal": 86.6,
+            "protein": 13.5
+          },
+          "complete": true,
+          "constraints": [
+            "每天两顿沙县小吃鸭腿饭各一份为固定餐，只按白米饭和鸭腿组成，不加卤蛋",
+            "补充食材须微波炉易加工",
+            "单项食物份量不宜过多",
+            "补充蛋白以鸡蛋为主"
+          ],
+          "consumed": {
+            "carbs": 0.0,
+            "fat": 0.0,
+            "kcal": 0.0,
+            "protein": 0.0
+          },
+          "consumed_count": 0,
+          "consumed_scope": {
+            "date": "2026-11-04",
+            "included": false,
+            "record_ids": []
+          },
+          "date": "2026-11-04",
+          "draft_id": "draft:826522861416f63146810a8a",
+          "estimated": true,
+          "fixed_complete": true,
+          "fixed_subtotal": {
+            "carbs": 106.8,
+            "fat": 26.8,
+            "kcal": 914.4,
+            "protein": 62.2
+          },
+          "items": [
+            {
+              "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+              "fixed": true,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "grams": 200.0,
+              "group": "午餐",
+              "item_id": "l-rice",
+              "matched_name": "米饭",
+              "nutrition": {
+                "carbs": 51.8,
+                "fat": 0.6,
+                "kcal": 232.0,
+                "protein": 5.2
+              },
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 51.8,
+                  "fat": 0.6,
+                  "kcal": 232.0,
+                  "protein": 5.2
+                }
+              },
+              "portion_basis": "assumed_takeout",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "mifan_zheng",
+                  "carbs_per_100g": 25.9,
+                  "detail_loaded": true,
+                  "fat_per_100g": 0.3,
+                  "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                  "kcal_per_100g": 116.0,
+                  "name": "米饭",
+                  "protein_per_100g": 2.6,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "40.00",
+                      "unit_id": 233,
+                      "unit_name": "勺",
+                      "weight": "40.00"
+                    },
+                    {
+                      "eat_weight": "20.00",
+                      "unit_id": 587542,
+                      "unit_name": "口",
+                      "weight": "20.00"
+                    },
+                    {
+                      "eat_weight": "150.00",
+                      "unit_id": 132,
+                      "unit_name": "小碗",
+                      "weight": "150.00"
+                    },
+                    {
+                      "eat_weight": "180.00",
+                      "unit_id": 980,
+                      "unit_name": "碗",
+                      "weight": "180.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "assumed_takeout",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:5077a76425e6e86fa57f9755"
+            },
+            {
+              "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+              "fixed": true,
+              "food_id": "food_hyatui",
+              "grams": 100.0,
+              "group": "午餐",
+              "item_id": "l-duck",
+              "matched_name": "盒马鸭腿",
+              "nutrition": {
+                "carbs": 1.6,
+                "fat": 12.8,
+                "kcal": 225.2,
+                "protein": 25.9
+              },
+              "per_serving": {
+                "grams": 100.0,
+                "nutrition": {
+                  "carbs": 1.6,
+                  "fat": 12.8,
+                  "kcal": 225.2,
+                  "protein": 25.9
+                }
+              },
+              "portion_basis": "assumed_takeout",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "",
+                  "carbs_per_100g": 1.6,
+                  "detail_loaded": false,
+                  "fat_per_100g": 12.8,
+                  "food_id": "food_hyatui",
+                  "kcal_per_100g": null,
+                  "name": "盒马鸭腿",
+                  "protein_per_100g": 25.9,
+                  "source": "",
+                  "units": []
+                },
+                "kcal_source": "macro_formula",
+                "portion_basis": "assumed_takeout",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:b50cbb257a5800f1d8111451"
+            },
+            {
+              "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+              "fixed": true,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "grams": 200.0,
+              "group": "晚餐",
+              "item_id": "d-rice",
+              "matched_name": "米饭",
+              "nutrition": {
+                "carbs": 51.8,
+                "fat": 0.6,
+                "kcal": 232.0,
+                "protein": 5.2
+              },
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 51.8,
+                  "fat": 0.6,
+                  "kcal": 232.0,
+                  "protein": 5.2
+                }
+              },
+              "portion_basis": "assumed_takeout",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "mifan_zheng",
+                  "carbs_per_100g": 25.9,
+                  "detail_loaded": true,
+                  "fat_per_100g": 0.3,
+                  "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                  "kcal_per_100g": 116.0,
+                  "name": "米饭",
+                  "protein_per_100g": 2.6,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "40.00",
+                      "unit_id": 233,
+                      "unit_name": "勺",
+                      "weight": "40.00"
+                    },
+                    {
+                      "eat_weight": "20.00",
+                      "unit_id": 587542,
+                      "unit_name": "口",
+                      "weight": "20.00"
+                    },
+                    {
+                      "eat_weight": "150.00",
+                      "unit_id": 132,
+                      "unit_name": "小碗",
+                      "weight": "150.00"
+                    },
+                    {
+                      "eat_weight": "180.00",
+                      "unit_id": 980,
+                      "unit_name": "碗",
+                      "weight": "180.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "assumed_takeout",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:5077a76425e6e86fa57f9755"
+            },
+            {
+              "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+              "fixed": true,
+              "food_id": "food_hyatui",
+              "grams": 100.0,
+              "group": "晚餐",
+              "item_id": "d-duck",
+              "matched_name": "盒马鸭腿",
+              "nutrition": {
+                "carbs": 1.6,
+                "fat": 12.8,
+                "kcal": 225.2,
+                "protein": 25.9
+              },
+              "per_serving": {
+                "grams": 100.0,
+                "nutrition": {
+                  "carbs": 1.6,
+                  "fat": 12.8,
+                  "kcal": 225.2,
+                  "protein": 25.9
+                }
+              },
+              "portion_basis": "assumed_takeout",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "",
+                  "carbs_per_100g": 1.6,
+                  "detail_loaded": false,
+                  "fat_per_100g": 12.8,
+                  "food_id": "food_hyatui",
+                  "kcal_per_100g": null,
+                  "name": "盒马鸭腿",
+                  "protein_per_100g": 25.9,
+                  "source": "",
+                  "units": []
+                },
+                "kcal_source": "macro_formula",
+                "portion_basis": "assumed_takeout",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:b50cbb257a5800f1d8111451"
+            },
+            {
+              "assumption": "水煮或微波加热",
+              "fixed": false,
+              "food_id": "food_egg",
+              "grams": 200.0,
+              "group": "早餐",
+              "item_id": "b-egg",
+              "matched_name": "鸡蛋",
+              "nutrition": {
+                "carbs": 4.8,
+                "fat": 17.2,
+                "kcal": 278.0,
+                "protein": 26.2
+              },
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 4.8,
+                  "fat": 17.2,
+                  "kcal": 278.0,
+                  "protein": 26.2
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "水煮或微波加热",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "jidan_junzhi",
+                  "carbs_per_100g": 2.4,
+                  "detail_loaded": true,
+                  "fat_per_100g": 8.6,
+                  "food_id": "food_egg",
+                  "kcal_per_100g": 139.0,
+                  "name": "鸡蛋",
+                  "protein_per_100g": 13.1,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:c692d91b0ccfdcc2d947e747"
+            },
+            {
+              "assumption": "水煮或蒸玉米粒，微波加热即可",
+              "fixed": false,
+              "food_id": "food_corn",
+              "grams": 250.0,
+              "group": "早餐",
+              "item_id": "b-corn",
+              "matched_name": "玉米粒",
+              "nutrition": {
+                "carbs": 42.0,
+                "fat": 5.3,
+                "kcal": 244.3,
+                "protein": 7.3
+              },
+              "per_serving": {
+                "grams": 250.0,
+                "nutrition": {
+                  "carbs": 42.0,
+                  "fat": 5.3,
+                  "kcal": 244.3,
+                  "protein": 7.3
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "水煮或蒸玉米粒，微波加热即可",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "",
+                  "carbs_per_100g": 16.8,
+                  "detail_loaded": false,
+                  "fat_per_100g": 2.1,
+                  "food_id": "food_corn",
+                  "kcal_per_100g": null,
+                  "name": "玉米粒",
+                  "protein_per_100g": 2.9,
+                  "source": "",
+                  "units": []
+                },
+                "kcal_source": "macro_formula",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:fc72f09dc7d77bc3c6692bff"
+            },
+            {
+              "assumption": "水煮后微波加热",
+              "fixed": false,
+              "food_id": "food_egg",
+              "grams": 100.0,
+              "group": "上午加餐",
+              "item_id": "s1-egg",
+              "matched_name": "鸡蛋",
+              "nutrition": {
+                "carbs": 2.4,
+                "fat": 8.6,
+                "kcal": 139.0,
+                "protein": 13.1
+              },
+              "per_serving": {
+                "grams": 100.0,
+                "nutrition": {
+                  "carbs": 2.4,
+                  "fat": 8.6,
+                  "kcal": 139.0,
+                  "protein": 13.1
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "水煮后微波加热",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "jidan_junzhi",
+                  "carbs_per_100g": 2.4,
+                  "detail_loaded": true,
+                  "fat_per_100g": 8.6,
+                  "food_id": "food_egg",
+                  "kcal_per_100g": 139.0,
+                  "name": "鸡蛋",
+                  "protein_per_100g": 13.1,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:c692d91b0ccfdcc2d947e747"
+            },
+            {
+              "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+              "fixed": false,
+              "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+              "grams": 400.0,
+              "group": "下午加餐",
+              "item_id": "s2-potato",
+              "matched_name": "土豆泥",
+              "nutrition": {
+                "carbs": 80.0,
+                "fat": 0.8,
+                "kcal": 359.2,
+                "protein": 8.0
+              },
+              "per_serving": {
+                "grams": 400.0,
+                "nutrition": {
+                  "carbs": 80.0,
+                  "fat": 0.8,
+                  "kcal": 359.2,
+                  "protein": 8.0
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "",
+                  "carbs_per_100g": 20.0,
+                  "detail_loaded": false,
+                  "fat_per_100g": 0.2,
+                  "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+                  "kcal_per_100g": null,
+                  "name": "土豆泥",
+                  "protein_per_100g": 2.0,
+                  "source": "",
+                  "units": []
+                },
+                "kcal_source": "macro_formula",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:3feb2fc96a969f4ce5f7c141"
+            },
+            {
+              "assumption": "水煮后微波加热",
+              "fixed": false,
+              "food_id": "food_egg",
+              "grams": 150.0,
+              "group": "晚间加餐",
+              "item_id": "s3-egg",
+              "matched_name": "鸡蛋",
+              "nutrition": {
+                "carbs": 3.6,
+                "fat": 12.9,
+                "kcal": 208.5,
+                "protein": 19.7
+              },
+              "per_serving": {
+                "grams": 150.0,
+                "nutrition": {
+                  "carbs": 3.6,
+                  "fat": 12.9,
+                  "kcal": 208.5,
+                  "protein": 19.7
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "水煮后微波加热",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "jidan_junzhi",
+                  "carbs_per_100g": 2.4,
+                  "detail_loaded": true,
+                  "fat_per_100g": 8.6,
+                  "food_id": "food_egg",
+                  "kcal_per_100g": 139.0,
+                  "name": "鸡蛋",
+                  "protein_per_100g": 13.1,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:c692d91b0ccfdcc2d947e747"
+            }
+          ],
+          "scope": "daily",
+          "selection": {
+            "calibration": {
+              "status": "already_within_tolerance"
+            },
+            "candidates": [
+              {
+                "budget_difference": {
+                  "carbs": 10.4,
+                  "fat": -1.6,
+                  "kcal": 86.6,
+                  "protein": 13.5
+                },
+                "complete": true,
+                "items": [
+                  {
+                    "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                    "fixed": true,
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "grams": 200.0,
+                    "group": "午餐",
+                    "item_id": "l-rice",
+                    "matched_name": "米饭",
+                    "nutrition": {
+                      "carbs": 51.8,
+                      "fat": 0.6,
+                      "kcal": 232.0,
+                      "protein": 5.2
+                    },
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 51.8,
+                        "fat": 0.6,
+                        "kcal": 232.0,
+                        "protein": 5.2
+                      }
+                    },
+                    "portion_basis": "assumed_takeout",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "mifan_zheng",
+                        "carbs_per_100g": 25.9,
+                        "detail_loaded": true,
+                        "fat_per_100g": 0.3,
+                        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                        "kcal_per_100g": 116.0,
+                        "name": "米饭",
+                        "protein_per_100g": 2.6,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "40.00",
+                            "unit_id": 233,
+                            "unit_name": "勺",
+                            "weight": "40.00"
+                          },
+                          {
+                            "eat_weight": "20.00",
+                            "unit_id": 587542,
+                            "unit_name": "口",
+                            "weight": "20.00"
+                          },
+                          {
+                            "eat_weight": "150.00",
+                            "unit_id": 132,
+                            "unit_name": "小碗",
+                            "weight": "150.00"
+                          },
+                          {
+                            "eat_weight": "180.00",
+                            "unit_id": 980,
+                            "unit_name": "碗",
+                            "weight": "180.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "assumed_takeout",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:5077a76425e6e86fa57f9755"
+                  },
+                  {
+                    "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                    "fixed": true,
+                    "food_id": "food_hyatui",
+                    "grams": 100.0,
+                    "group": "午餐",
+                    "item_id": "l-duck",
+                    "matched_name": "盒马鸭腿",
+                    "nutrition": {
+                      "carbs": 1.6,
+                      "fat": 12.8,
+                      "kcal": 225.2,
+                      "protein": 25.9
+                    },
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 1.6,
+                        "fat": 12.8,
+                        "kcal": 225.2,
+                        "protein": 25.9
+                      }
+                    },
+                    "portion_basis": "assumed_takeout",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "",
+                        "carbs_per_100g": 1.6,
+                        "detail_loaded": false,
+                        "fat_per_100g": 12.8,
+                        "food_id": "food_hyatui",
+                        "kcal_per_100g": null,
+                        "name": "盒马鸭腿",
+                        "protein_per_100g": 25.9,
+                        "source": "",
+                        "units": []
+                      },
+                      "kcal_source": "macro_formula",
+                      "portion_basis": "assumed_takeout",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:b50cbb257a5800f1d8111451"
+                  },
+                  {
+                    "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                    "fixed": true,
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "grams": 200.0,
+                    "group": "晚餐",
+                    "item_id": "d-rice",
+                    "matched_name": "米饭",
+                    "nutrition": {
+                      "carbs": 51.8,
+                      "fat": 0.6,
+                      "kcal": 232.0,
+                      "protein": 5.2
+                    },
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 51.8,
+                        "fat": 0.6,
+                        "kcal": 232.0,
+                        "protein": 5.2
+                      }
+                    },
+                    "portion_basis": "assumed_takeout",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "mifan_zheng",
+                        "carbs_per_100g": 25.9,
+                        "detail_loaded": true,
+                        "fat_per_100g": 0.3,
+                        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                        "kcal_per_100g": 116.0,
+                        "name": "米饭",
+                        "protein_per_100g": 2.6,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "40.00",
+                            "unit_id": 233,
+                            "unit_name": "勺",
+                            "weight": "40.00"
+                          },
+                          {
+                            "eat_weight": "20.00",
+                            "unit_id": 587542,
+                            "unit_name": "口",
+                            "weight": "20.00"
+                          },
+                          {
+                            "eat_weight": "150.00",
+                            "unit_id": 132,
+                            "unit_name": "小碗",
+                            "weight": "150.00"
+                          },
+                          {
+                            "eat_weight": "180.00",
+                            "unit_id": 980,
+                            "unit_name": "碗",
+                            "weight": "180.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "assumed_takeout",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:5077a76425e6e86fa57f9755"
+                  },
+                  {
+                    "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                    "fixed": true,
+                    "food_id": "food_hyatui",
+                    "grams": 100.0,
+                    "group": "晚餐",
+                    "item_id": "d-duck",
+                    "matched_name": "盒马鸭腿",
+                    "nutrition": {
+                      "carbs": 1.6,
+                      "fat": 12.8,
+                      "kcal": 225.2,
+                      "protein": 25.9
+                    },
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 1.6,
+                        "fat": 12.8,
+                        "kcal": 225.2,
+                        "protein": 25.9
+                      }
+                    },
+                    "portion_basis": "assumed_takeout",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "",
+                        "carbs_per_100g": 1.6,
+                        "detail_loaded": false,
+                        "fat_per_100g": 12.8,
+                        "food_id": "food_hyatui",
+                        "kcal_per_100g": null,
+                        "name": "盒马鸭腿",
+                        "protein_per_100g": 25.9,
+                        "source": "",
+                        "units": []
+                      },
+                      "kcal_source": "macro_formula",
+                      "portion_basis": "assumed_takeout",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:b50cbb257a5800f1d8111451"
+                  },
+                  {
+                    "assumption": "水煮或微波加热",
+                    "fixed": false,
+                    "food_id": "food_egg",
+                    "grams": 200.0,
+                    "group": "早餐",
+                    "item_id": "b-egg",
+                    "matched_name": "鸡蛋",
+                    "nutrition": {
+                      "carbs": 4.8,
+                      "fat": 17.2,
+                      "kcal": 278.0,
+                      "protein": 26.2
+                    },
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 4.8,
+                        "fat": 17.2,
+                        "kcal": 278.0,
+                        "protein": 26.2
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "水煮或微波加热",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "jidan_junzhi",
+                        "carbs_per_100g": 2.4,
+                        "detail_loaded": true,
+                        "fat_per_100g": 8.6,
+                        "food_id": "food_egg",
+                        "kcal_per_100g": 139.0,
+                        "name": "鸡蛋",
+                        "protein_per_100g": 13.1,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:c692d91b0ccfdcc2d947e747"
+                  },
+                  {
+                    "assumption": "水煮或蒸玉米粒，微波加热即可",
+                    "fixed": false,
+                    "food_id": "food_corn",
+                    "grams": 250.0,
+                    "group": "早餐",
+                    "item_id": "b-corn",
+                    "matched_name": "玉米粒",
+                    "nutrition": {
+                      "carbs": 42.0,
+                      "fat": 5.3,
+                      "kcal": 244.3,
+                      "protein": 7.3
+                    },
+                    "per_serving": {
+                      "grams": 250.0,
+                      "nutrition": {
+                        "carbs": 42.0,
+                        "fat": 5.3,
+                        "kcal": 244.3,
+                        "protein": 7.3
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "水煮或蒸玉米粒，微波加热即可",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "",
+                        "carbs_per_100g": 16.8,
+                        "detail_loaded": false,
+                        "fat_per_100g": 2.1,
+                        "food_id": "food_corn",
+                        "kcal_per_100g": null,
+                        "name": "玉米粒",
+                        "protein_per_100g": 2.9,
+                        "source": "",
+                        "units": []
+                      },
+                      "kcal_source": "macro_formula",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:fc72f09dc7d77bc3c6692bff"
+                  },
+                  {
+                    "assumption": "水煮后微波加热",
+                    "fixed": false,
+                    "food_id": "food_egg",
+                    "grams": 100.0,
+                    "group": "上午加餐",
+                    "item_id": "s1-egg",
+                    "matched_name": "鸡蛋",
+                    "nutrition": {
+                      "carbs": 2.4,
+                      "fat": 8.6,
+                      "kcal": 139.0,
+                      "protein": 13.1
+                    },
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 2.4,
+                        "fat": 8.6,
+                        "kcal": 139.0,
+                        "protein": 13.1
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "水煮后微波加热",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "jidan_junzhi",
+                        "carbs_per_100g": 2.4,
+                        "detail_loaded": true,
+                        "fat_per_100g": 8.6,
+                        "food_id": "food_egg",
+                        "kcal_per_100g": 139.0,
+                        "name": "鸡蛋",
+                        "protein_per_100g": 13.1,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:c692d91b0ccfdcc2d947e747"
+                  },
+                  {
+                    "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+                    "fixed": false,
+                    "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+                    "grams": 400.0,
+                    "group": "下午加餐",
+                    "item_id": "s2-potato",
+                    "matched_name": "土豆泥",
+                    "nutrition": {
+                      "carbs": 80.0,
+                      "fat": 0.8,
+                      "kcal": 359.2,
+                      "protein": 8.0
+                    },
+                    "per_serving": {
+                      "grams": 400.0,
+                      "nutrition": {
+                        "carbs": 80.0,
+                        "fat": 0.8,
+                        "kcal": 359.2,
+                        "protein": 8.0
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "",
+                        "carbs_per_100g": 20.0,
+                        "detail_loaded": false,
+                        "fat_per_100g": 0.2,
+                        "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+                        "kcal_per_100g": null,
+                        "name": "土豆泥",
+                        "protein_per_100g": 2.0,
+                        "source": "",
+                        "units": []
+                      },
+                      "kcal_source": "macro_formula",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:3feb2fc96a969f4ce5f7c141"
+                  },
+                  {
+                    "assumption": "水煮后微波加热",
+                    "fixed": false,
+                    "food_id": "food_egg",
+                    "grams": 150.0,
+                    "group": "晚间加餐",
+                    "item_id": "s3-egg",
+                    "matched_name": "鸡蛋",
+                    "nutrition": {
+                      "carbs": 3.6,
+                      "fat": 12.9,
+                      "kcal": 208.5,
+                      "protein": 19.7
+                    },
+                    "per_serving": {
+                      "grams": 150.0,
+                      "nutrition": {
+                        "carbs": 3.6,
+                        "fat": 12.9,
+                        "kcal": 208.5,
+                        "protein": 19.7
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "水煮后微波加热",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "jidan_junzhi",
+                        "carbs_per_100g": 2.4,
+                        "detail_loaded": true,
+                        "fat_per_100g": 8.6,
+                        "food_id": "food_egg",
+                        "kcal_per_100g": 139.0,
+                        "name": "鸡蛋",
+                        "protein_per_100g": 13.1,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:c692d91b0ccfdcc2d947e747"
+                  }
+                ],
+                "macro_relative_deviation": {
+                  "carbs": 0.0416,
+                  "fat": 0.022857142857142857,
+                  "protein": 0.09
+                },
+                "portion_preference": [
+                  400.0,
+                  5
+                ],
+                "total": {
+                  "carbs": 239.6,
+                  "fat": 71.6,
+                  "kcal": 2143.4,
+                  "protein": 136.5
+                },
+                "unfinished": [],
+                "variant": "initial",
+                "within_tolerance": true,
+                "worst_macro_relative_deviation": 0.09
+              }
+            ],
+            "reason": "only_initial",
+            "selected": "initial"
+          },
+          "supplement_gap": {
+            "carbs": 143.2,
+            "fat": 43.2,
+            "kcal": 1315.6,
+            "protein": 87.8
+          },
+          "targets": {
+            "carbs": 250,
+            "fat": 70,
+            "kcal": 2230,
+            "protein": 150
+          },
+          "tolerance_kcal": 200.0,
+          "total": {
+            "carbs": 239.6,
+            "fat": 71.6,
+            "kcal": 2143.4,
+            "protein": 136.5
+          },
+          "unfinished": [],
+          "within_tolerance": true
+        },
+        "constraints": [
+          "每天两顿沙县小吃鸭腿饭各一份为固定餐，只按白米饭和鸭腿组成，不加卤蛋",
+          "补充食材须微波炉易加工",
+          "单项食物份量不宜过多",
+          "补充蛋白以鸡蛋为主"
+        ],
+        "date": "2026-11-04",
+        "draft_id": "draft:826522861416f63146810a8a",
+        "items": [
+          {
+            "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+            "fixed": true,
+            "food_query": "米饭",
+            "grams": 200.0,
+            "group": "午餐",
+            "item_id": "l-rice",
+            "portion_basis": "assumed_takeout",
+            "servings": 1.0,
+            "source_ref": "food:5077a76425e6e86fa57f9755"
+          },
+          {
+            "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+            "fixed": true,
+            "food_query": "盒马鸭腿",
+            "grams": 100.0,
+            "group": "午餐",
+            "item_id": "l-duck",
+            "portion_basis": "assumed_takeout",
+            "servings": 1.0,
+            "source_ref": "food:b50cbb257a5800f1d8111451"
+          },
+          {
+            "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+            "fixed": true,
+            "food_query": "米饭",
+            "grams": 200.0,
+            "group": "晚餐",
+            "item_id": "d-rice",
+            "portion_basis": "assumed_takeout",
+            "servings": 1.0,
+            "source_ref": "food:5077a76425e6e86fa57f9755"
+          },
+          {
+            "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+            "fixed": true,
+            "food_query": "盒马鸭腿",
+            "grams": 100.0,
+            "group": "晚餐",
+            "item_id": "d-duck",
+            "portion_basis": "assumed_takeout",
+            "servings": 1.0,
+            "source_ref": "food:b50cbb257a5800f1d8111451"
+          },
+          {
+            "assumption": "水煮或微波加热",
+            "food_query": "鸡蛋",
+            "grams": 200.0,
+            "group": "早餐",
+            "item_id": "b-egg",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:c692d91b0ccfdcc2d947e747"
+          },
+          {
+            "assumption": "水煮或蒸玉米粒，微波加热即可",
+            "food_query": "玉米粒",
+            "grams": 250.0,
+            "group": "早餐",
+            "item_id": "b-corn",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:fc72f09dc7d77bc3c6692bff"
+          },
+          {
+            "assumption": "水煮后微波加热",
+            "food_query": "鸡蛋",
+            "grams": 100.0,
+            "group": "上午加餐",
+            "item_id": "s1-egg",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:c692d91b0ccfdcc2d947e747"
+          },
+          {
+            "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+            "food_query": "土豆泥",
+            "grams": 400.0,
+            "group": "下午加餐",
+            "item_id": "s2-potato",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:3feb2fc96a969f4ce5f7c141"
+          },
+          {
+            "assumption": "水煮后微波加热",
+            "food_query": "鸡蛋",
+            "grams": 150.0,
+            "group": "晚间加餐",
+            "item_id": "s3-egg",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:c692d91b0ccfdcc2d947e747"
+          }
+        ],
+        "message_id": "menu-r8-20261104-prepared-r10-plan",
+        "portion_preference": "smaller_portions",
+        "scope": "daily",
+        "tolerance_kcal": 200.0,
+        "unfinished": []
+      },
+      "messages": [
+        {
+          "data": {
+            "additional_kwargs": {},
+            "content": "根据每日热量目标与碳蛋脂摄入量帮我安排饮食计划。当前每天固定两顿沙县小吃鸭腿饭(没有卤蛋)，缺口优先使用包括但不限于玉米，土豆，鸡蛋，鸡胸肉这类微波炉易加工的食物。单项食物不宜过多。\n不必为了达到目标强行精确，初版方案接受200千卡误差",
+            "id": "calorie-user:menu-r8-20261104-prepared-r10-plan",
+            "name": null,
+            "response_metadata": {},
+            "type": "human"
+          },
+          "type": "human"
+        },
+        {
+          "data": {
+            "additional_kwargs": {
+              "fact_scope": "historical"
+            },
+            "content": "{\"tool\": \"calculate_meal\", \"call_id\": \"call_00_i1uIsSshNGlR0WEHheQI5260\", \"status\": \"historical\", \"data\": {\"references\": []}}",
+            "id": null,
+            "invalid_tool_calls": [],
+            "name": null,
+            "response_metadata": {},
+            "tool_calls": [],
+            "type": "ai",
+            "usage_metadata": null
+          },
+          "type": "ai"
+        },
+        {
+          "data": {
+            "additional_kwargs": {},
+            "content": "把鸡胸换成鸡蛋",
+            "id": "calorie-user:menu-r8-20261104-prepared-r10-replace",
+            "name": null,
+            "response_metadata": {},
+            "type": "human"
+          },
+          "type": "human"
+        }
+      ],
+      "refs": [
+        "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+        "b1ea74ac-d942-4ff8-8afc-0112e4dc051c"
+      ],
+      "unfinished": {}
+    },
+    "settings": {
+      "daily_targets": {
+        "2026-11-04": {
+          "carbs": 180,
+          "fat": 60,
+          "kcal": 1800,
+          "protein": 120
+        }
+      },
+      "feishu_chat_id": "<owner-chat>",
+      "targets": {
+        "carbs": 250,
+        "fat": 70,
+        "kcal": 2230,
+        "protein": 150
+      }
+    },
+    "food_sources_sha256": "3c414dcacca59f04cab35a843fbf7f6fa1aac577c5b3f7c02c3c8ce53b869ecb",
+    "food_sources": 125,
+    "planning_reexecuted": false,
+    "source_archive": {
+      "archive_file": "full-evidence.json",
+      "sha256": "8191d889b741249cb2e900374f90659d038cd4ce1c8f1bc507732c4edbce2627",
+      "bytes": 1032497,
+      "archive_root": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r11-cloud-20261104",
+      "path": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r11-cloud-20261104\\full-evidence.json"
+    },
+    "delivery_provenance": [
+      {
+        "receipt_id": "61728af7a9431e7b600f946bd83dfd1a705c1f00e324d0bb0a64d94da4d116ae",
+        "message_id": "menu-r8-20261104-prepared-r10-plan",
+        "state_sha256": "5532ab32a36d0aaf5ff61abdf5c2f33055b392dcccc8e2cf3bb6069ff61774c1"
+      },
+      {
+        "receipt_id": "cea1f3cf33d4fdef03377a1e798c5f0c15a7595b444b7a75b71859f857c1dd54",
+        "message_id": "menu-r8-20261104-prepared-r10-replace",
+        "state_sha256": "e3908983128761005a22ac8623868fe2530cace6247488975ae24a1e476b02f1"
+      }
+    ]
+  },
+  "only_one_record_attempt": true,
+  "attempt_counts": {
+    "started_at": 1793807805.5109627,
+    "record_attempts": 1,
+    "prewarm_attempts": 1
+  },
+  "samples": [
+    {
+      "step": "prewarm",
+      "message_id": "r15-supplement-20261104-readonly-prewarm-once",
+      "receipt_id": "32c5b3b7d19390ee9defdc6f9ba55822176e85619a2ed81cf4b81a5fe2ba5f85",
+      "planned_message": {
+        "step": "prewarm",
+        "message_id": "r15-supplement-20261104-readonly-prewarm-once",
+        "text": "我今天一共吃了多少千卡？",
+        "driver_create_time_ms": 1793807810585
+      },
+      "ack_elapsed_ms": 3044.942,
+      "t_service_ms": 7561.312,
+      "warmth": {
+        "classification": "unknown",
+        "instance_id": "9eb0947d951e439cb7a28237374db2a6",
+        "prior_completed_business_message_id": null,
+        "platform_cold_start": null
+      },
+      "raw_intake": {
+        "revision": 26,
+        "commit_key": "cos-probe/production-candidate/r15-supplement-20261104/message/commits/000000000026.json",
+        "items": [],
+        "item_refs": {
+          "item:b1ea74ac-d942-4ff8-8afc-0112e4dc051c": "9e4e3b149802869253c3c128fe81738bc855ac1b7fd060258b02e21afecd6b99",
+          "item:ffc8fa64-e9c7-418a-ba30-56d2795ac197": "ea009761c5e59b9d2592f69b995986efd323357195a29b85bd4db8a90e38ff22"
+        }
+      },
+      "actual_feishu_body": "2026-11-04未记录。",
+      "saved_reply_equals_actual_api_body": true,
+      "feishu_message_id": "om_x100b61811278e4a0cebe2a2ba343fe6",
+      "model_calls": 1,
+      "native_calls": [
+        {
+          "action_id": "r15-supplement-20261104-readonly-prewarm-once:agent:1",
+          "action_note": null,
+          "args": {
+            "detail": "calories"
+          },
+          "batch_id": "r15-supplement-20261104-readonly-prewarm-once:model:1",
+          "call_id": "call_00_XTC6x8awvPdfKxBsboUa8875",
+          "finish_after_tools": true,
+          "index": 1,
+          "tool": "query_today"
+        }
+      ],
+      "tool_results": [
+        {
+          "action_id": "r15-supplement-20261104-readonly-prewarm-once:agent:1",
+          "call_id": "call_00_XTC6x8awvPdfKxBsboUa8875",
+          "data": {
+            "count": 0,
+            "date": "2026-11-04",
+            "detail": "calories",
+            "estimated": false,
+            "items": [],
+            "total": {
+              "kcal": 0.0
+            }
+          },
+          "status": "ok",
+          "tool": "query_today"
+        }
+      ],
+      "reply_source": "tool_facts",
+      "model_reply": "",
+      "main_worker": {
+        "instance_id": "9eb0947d951e439cb7a28237374db2a6",
+        "actual_model_events": [
+          {
+            "attempt": 1,
+            "completed_ms": 1161.443,
+            "duration_ms": 1161.444,
+            "encoding": "deepseek-v4-official-20261103",
+            "ended_at": 1793807817.8741179,
+            "finish_reason": "tool_calls",
+            "first_nonempty_response_byte_ms": 1160.958,
+            "hard_input_limit": 1038336,
+            "id": "bef24a989a56",
+            "input_target": 16000,
+            "input_tokens": 9271,
+            "instance_id": "9eb0947d951e439cb7a28237374db2a6",
+            "kind": "model_http",
+            "message_id": "r15-supplement-20261104-readonly-prewarm-once",
+            "model": "deepseek-v4-flash",
+            "outcome": "ok",
+            "output_reserve": 8192,
+            "parent": "1b8221c1e258",
+            "parts": {
+              "calls": 0,
+              "current": 7,
+              "history": 0,
+              "protocol": 116,
+              "reasoning": 0,
+              "state": 153,
+              "summary": 0,
+              "system": 2050,
+              "tools": 6945
+            },
+            "protocol_margin": 2048,
+            "provider_request_id": null,
+            "purpose": "main",
+            "reserved_at": 1793807816.5737917,
+            "response_headers_ms": 171.916,
+            "started_at": 1793807816.7126749,
+            "started_epoch_ms": 1793807816712.6826,
+            "started_monotonic": 65.003600634,
+            "state": "succeeded",
+            "status_code": 200,
+            "usage": {
+              "completion_tokens": 80,
+              "completion_tokens_details": {
+                "reasoning_tokens": 19
+              },
+              "prompt_cache_hit_tokens": 10240,
+              "prompt_cache_miss_tokens": 243,
+              "prompt_tokens": 10483,
+              "prompt_tokens_details": {
+                "cached_tokens": 10240
+              },
+              "total_tokens": 10563
+            },
+            "wire_encoding": "json-wire-v1"
+          }
+        ]
+      },
+      "server_received_at": 1793807811.9646285,
+      "completed_at": 1793807819.6276062,
+      "final_sent_at": 1793807819.5259402,
+      "received_beijing": "2026-11-04T23:56:51.964628+08:00",
+      "sent_beijing": "2026-11-04T23:56:59.525940+08:00",
+      "independent_ledger_audit": null,
+      "draft_after": null,
+      "settings_after": {
+        "daily_targets": {
+          "2026-11-04": {
+            "carbs": 180,
+            "fat": 60,
+            "kcal": 1800,
+            "protein": 120
+          }
+        },
+        "feishu_chat_id": "<owner-chat>",
+        "targets": {
+          "carbs": 250,
+          "fat": 70,
+          "kcal": 2230,
+          "protein": 150
+        }
+      }
+    },
+    {
+      "step": "record",
+      "message_id": "r15-supplement-20261104-record-once",
+      "receipt_id": "5f37f77af46417ac13b13496c051fc0f3029121d5c79da2126d357bab265a58c",
+      "planned_message": {
+        "step": "record",
+        "message_id": "r15-supplement-20261104-record-once",
+        "text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "driver_create_time_ms": 1793807959387
+      },
+      "ack_elapsed_ms": 2428.891,
+      "t_service_ms": 7743.893,
+      "warmth": {
+        "classification": "warm",
+        "instance_id": "9eb0947d951e439cb7a28237374db2a6",
+        "prior_completed_business_message_id": "r15-supplement-20261104-readonly-prewarm-once",
+        "platform_cold_start": null
+      },
+      "raw_intake": {
+        "revision": 48,
+        "commit_key": "cos-probe/production-candidate/r15-supplement-20261104/message/commits/000000000048.json",
+        "items": [
+          {
+            "agent_revision": 1,
+            "created_at": 1793789238784,
+            "date": "2026-11-04",
+            "food_id": "food_egg",
+            "food_name": "鸡蛋",
+            "grams": 100.0,
+            "meal_type": "breakfast",
+            "message_id": "menu-r8-20261104-prepared-record:agent:1",
+            "nutrition": {
+              "carbs": 2.4,
+              "fat": 8.6,
+              "kcal": 139.0,
+              "protein": 13.1
+            },
+            "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+            "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+            "snapshot": {
+              "basis": "user_edible_grams",
+              "estimated": false,
+              "food": {
+                "aliases": [],
+                "boohee_id": "jidan_junzhi",
+                "carbs_per_100g": 2.4,
+                "detail_loaded": true,
+                "fat_per_100g": 8.6,
+                "food_id": "food_egg",
+                "kcal_per_100g": 139.0,
+                "name": "鸡蛋",
+                "protein_per_100g": 13.1,
+                "source": "boohee",
+                "units": [
+                  {
+                    "eat_weight": "1.00",
+                    "unit_id": 0,
+                    "unit_name": "克",
+                    "weight": "1.00"
+                  },
+                  {
+                    "eat_weight": "52.80",
+                    "unit_id": 34,
+                    "unit_name": "只(中)",
+                    "weight": "60.00"
+                  },
+                  {
+                    "eat_weight": "61.60",
+                    "unit_id": 210,
+                    "unit_name": "只(大)",
+                    "weight": "70.00"
+                  }
+                ]
+              },
+              "kcal_source": "source",
+              "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+              "quantity": null,
+              "quantity_text": "",
+              "unit": ""
+            },
+            "status": "valid",
+            "user_id": "r15-supplement-20261104"
+          },
+          {
+            "agent_revision": 1,
+            "created_at": 1793789238783,
+            "date": "2026-11-04",
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "food_name": "米饭",
+            "grams": 100.0,
+            "meal_type": "breakfast",
+            "message_id": "menu-r8-20261104-prepared-record:agent:1",
+            "nutrition": {
+              "carbs": 25.9,
+              "fat": 0.3,
+              "kcal": 116.0,
+              "protein": 2.6
+            },
+            "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+            "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+            "snapshot": {
+              "basis": "user_edible_grams",
+              "estimated": false,
+              "food": {
+                "aliases": [],
+                "boohee_id": "mifan_zheng",
+                "carbs_per_100g": 25.9,
+                "detail_loaded": true,
+                "fat_per_100g": 0.3,
+                "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                "kcal_per_100g": 116.0,
+                "name": "米饭",
+                "protein_per_100g": 2.6,
+                "source": "boohee",
+                "units": [
+                  {
+                    "eat_weight": "1.00",
+                    "unit_id": 0,
+                    "unit_name": "克",
+                    "weight": "1.00"
+                  },
+                  {
+                    "eat_weight": "40.00",
+                    "unit_id": 233,
+                    "unit_name": "勺",
+                    "weight": "40.00"
+                  },
+                  {
+                    "eat_weight": "20.00",
+                    "unit_id": 587542,
+                    "unit_name": "口",
+                    "weight": "20.00"
+                  },
+                  {
+                    "eat_weight": "150.00",
+                    "unit_id": 132,
+                    "unit_name": "小碗",
+                    "weight": "150.00"
+                  },
+                  {
+                    "eat_weight": "180.00",
+                    "unit_id": 980,
+                    "unit_name": "碗",
+                    "weight": "180.00"
+                  }
+                ]
+              },
+              "kcal_source": "source",
+              "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+              "quantity": null,
+              "quantity_text": "",
+              "unit": ""
+            },
+            "status": "valid",
+            "user_id": "r15-supplement-20261104"
+          },
+          {
+            "agent_revision": 1,
+            "created_at": 1793807966832,
+            "date": "2026-11-04",
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "food_name": "米饭",
+            "grams": 100.0,
+            "meal_type": "breakfast",
+            "message_id": "r15-supplement-20261104-record-once:agent:1",
+            "nutrition": {
+              "carbs": 25.9,
+              "fat": 0.3,
+              "kcal": 116.0,
+              "protein": 2.6
+            },
+            "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+            "record_id": "05bb1835-6bbc-4395-b326-79c68ba1be01",
+            "snapshot": {
+              "basis": "user_edible_grams",
+              "estimated": false,
+              "food": {
+                "aliases": [],
+                "boohee_id": "mifan_zheng",
+                "carbs_per_100g": 25.9,
+                "detail_loaded": true,
+                "fat_per_100g": 0.3,
+                "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                "kcal_per_100g": 116.0,
+                "name": "米饭",
+                "protein_per_100g": 2.6,
+                "source": "boohee",
+                "units": [
+                  {
+                    "eat_weight": "1.00",
+                    "unit_id": 0,
+                    "unit_name": "克",
+                    "weight": "1.00"
+                  },
+                  {
+                    "eat_weight": "40.00",
+                    "unit_id": 233,
+                    "unit_name": "勺",
+                    "weight": "40.00"
+                  },
+                  {
+                    "eat_weight": "20.00",
+                    "unit_id": 587542,
+                    "unit_name": "口",
+                    "weight": "20.00"
+                  },
+                  {
+                    "eat_weight": "150.00",
+                    "unit_id": 132,
+                    "unit_name": "小碗",
+                    "weight": "150.00"
+                  },
+                  {
+                    "eat_weight": "180.00",
+                    "unit_id": 980,
+                    "unit_name": "碗",
+                    "weight": "180.00"
+                  }
+                ]
+              },
+              "kcal_source": "source",
+              "meal_id": "r15-supplement-20261104-record-once:agent:1",
+              "quantity": null,
+              "quantity_text": "",
+              "unit": ""
+            },
+            "status": "valid",
+            "user_id": "r15-supplement-20261104"
+          },
+          {
+            "agent_revision": 1,
+            "created_at": 1793807966876,
+            "date": "2026-11-04",
+            "food_id": "food_egg",
+            "food_name": "鸡蛋",
+            "grams": 100.0,
+            "meal_type": "breakfast",
+            "message_id": "r15-supplement-20261104-record-once:agent:1",
+            "nutrition": {
+              "carbs": 2.4,
+              "fat": 8.6,
+              "kcal": 139.0,
+              "protein": 13.1
+            },
+            "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+            "record_id": "3cc9da20-c911-437d-b94f-600d84710ca0",
+            "snapshot": {
+              "basis": "user_edible_grams",
+              "estimated": false,
+              "food": {
+                "aliases": [],
+                "boohee_id": "jidan_junzhi",
+                "carbs_per_100g": 2.4,
+                "detail_loaded": true,
+                "fat_per_100g": 8.6,
+                "food_id": "food_egg",
+                "kcal_per_100g": 139.0,
+                "name": "鸡蛋",
+                "protein_per_100g": 13.1,
+                "source": "boohee",
+                "units": [
+                  {
+                    "eat_weight": "1.00",
+                    "unit_id": 0,
+                    "unit_name": "克",
+                    "weight": "1.00"
+                  },
+                  {
+                    "eat_weight": "52.80",
+                    "unit_id": 34,
+                    "unit_name": "只(中)",
+                    "weight": "60.00"
+                  },
+                  {
+                    "eat_weight": "61.60",
+                    "unit_id": 210,
+                    "unit_name": "只(大)",
+                    "weight": "70.00"
+                  }
+                ]
+              },
+              "kcal_source": "source",
+              "meal_id": "r15-supplement-20261104-record-once:agent:1",
+              "quantity": null,
+              "quantity_text": "",
+              "unit": ""
+            },
+            "status": "valid",
+            "user_id": "r15-supplement-20261104"
+          }
+        ],
+        "item_refs": {
+          "item:b1ea74ac-d942-4ff8-8afc-0112e4dc051c": "9e4e3b149802869253c3c128fe81738bc855ac1b7fd060258b02e21afecd6b99",
+          "item:ffc8fa64-e9c7-418a-ba30-56d2795ac197": "ea009761c5e59b9d2592f69b995986efd323357195a29b85bd4db8a90e38ff22",
+          "item:05bb1835-6bbc-4395-b326-79c68ba1be01": "e1d5366b311a5ffa08a1f1ac4788906617d5117bb7c04f1bf923791933588562",
+          "item:3cc9da20-c911-437d-b94f-600d84710ca0": "175af9943ffe9838ef8e2206a31735499686ce5a71c3fc03e16cf83f36aff651"
+        }
+      },
+      "actual_feishu_body": "已记录：2026-11-04早餐 米饭（100克）、2026-11-04早餐 鸡蛋（100克）。\n2026-11-04早餐这餐当前合计255千卡。",
+      "saved_reply_equals_actual_api_body": true,
+      "feishu_message_id": "om_x100b618128cf7ca4b4c3a4a536ab16a",
+      "model_calls": 1,
+      "native_calls": [
+        {
+          "action_id": "r15-supplement-20261104-record-once:agent:1",
+          "action_note": null,
+          "args": {
+            "date": "2026-11-04",
+            "items": [
+              {
+                "food_query": "米饭",
+                "grams": 100
+              },
+              {
+                "food_query": "鸡蛋",
+                "grams": 100
+              }
+            ],
+            "meal_type": "breakfast",
+            "mode": "execute"
+          },
+          "batch_id": "r15-supplement-20261104-record-once:model:1",
+          "call_id": "call_00_GybTx7So0Iu2os9bEEMO0732",
+          "finish_after_tools": true,
+          "index": 1,
+          "tool": "record_meal"
+        }
+      ],
+      "tool_results": [
+        {
+          "action_id": "r15-supplement-20261104-record-once:agent:1",
+          "call_id": "call_00_GybTx7So0Iu2os9bEEMO0732",
+          "data": {
+            "cancelled": [],
+            "cancelled_items": [],
+            "completed_count": 2,
+            "items": [
+              {
+                "date": "2026-11-04",
+                "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                "grams": 100.0,
+                "matched_name": "米饭",
+                "meal_type": "breakfast",
+                "message_id": "r15-supplement-20261104-record-once:agent:1",
+                "nutrition": {
+                  "carbs": 25.9,
+                  "fat": 0.3,
+                  "kcal": 116.0,
+                  "protein": 2.6
+                },
+                "record_id": "05bb1835-6bbc-4395-b326-79c68ba1be01",
+                "snapshot": {
+                  "basis": "user_edible_grams",
+                  "estimated": false,
+                  "food": {
+                    "aliases": [],
+                    "boohee_id": "mifan_zheng",
+                    "carbs_per_100g": 25.9,
+                    "detail_loaded": true,
+                    "fat_per_100g": 0.3,
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "kcal_per_100g": 116.0,
+                    "name": "米饭",
+                    "protein_per_100g": 2.6,
+                    "source": "boohee",
+                    "units": [
+                      {
+                        "eat_weight": "1.00",
+                        "unit_id": 0,
+                        "unit_name": "克",
+                        "weight": "1.00"
+                      },
+                      {
+                        "eat_weight": "40.00",
+                        "unit_id": 233,
+                        "unit_name": "勺",
+                        "weight": "40.00"
+                      },
+                      {
+                        "eat_weight": "20.00",
+                        "unit_id": 587542,
+                        "unit_name": "口",
+                        "weight": "20.00"
+                      },
+                      {
+                        "eat_weight": "150.00",
+                        "unit_id": 132,
+                        "unit_name": "小碗",
+                        "weight": "150.00"
+                      },
+                      {
+                        "eat_weight": "180.00",
+                        "unit_id": 980,
+                        "unit_name": "碗",
+                        "weight": "180.00"
+                      }
+                    ]
+                  },
+                  "kcal_source": "source",
+                  "meal_id": "r15-supplement-20261104-record-once:agent:1",
+                  "quantity": null,
+                  "quantity_text": "",
+                  "unit": ""
+                }
+              },
+              {
+                "date": "2026-11-04",
+                "food_id": "food_egg",
+                "grams": 100.0,
+                "matched_name": "鸡蛋",
+                "meal_type": "breakfast",
+                "message_id": "r15-supplement-20261104-record-once:agent:1",
+                "nutrition": {
+                  "carbs": 2.4,
+                  "fat": 8.6,
+                  "kcal": 139.0,
+                  "protein": 13.1
+                },
+                "record_id": "3cc9da20-c911-437d-b94f-600d84710ca0",
+                "snapshot": {
+                  "basis": "user_edible_grams",
+                  "estimated": false,
+                  "food": {
+                    "aliases": [],
+                    "boohee_id": "jidan_junzhi",
+                    "carbs_per_100g": 2.4,
+                    "detail_loaded": true,
+                    "fat_per_100g": 8.6,
+                    "food_id": "food_egg",
+                    "kcal_per_100g": 139.0,
+                    "name": "鸡蛋",
+                    "protein_per_100g": 13.1,
+                    "source": "boohee",
+                    "units": [
+                      {
+                        "eat_weight": "1.00",
+                        "unit_id": 0,
+                        "unit_name": "克",
+                        "weight": "1.00"
+                      },
+                      {
+                        "eat_weight": "52.80",
+                        "unit_id": 34,
+                        "unit_name": "只(中)",
+                        "weight": "60.00"
+                      },
+                      {
+                        "eat_weight": "61.60",
+                        "unit_id": 210,
+                        "unit_name": "只(大)",
+                        "weight": "70.00"
+                      }
+                    ]
+                  },
+                  "kcal_source": "source",
+                  "meal_id": "r15-supplement-20261104-record-once:agent:1",
+                  "quantity": null,
+                  "quantity_text": "",
+                  "unit": ""
+                }
+              }
+            ],
+            "meal_totals": [
+              {
+                "count": 2,
+                "date": "2026-11-04",
+                "estimated": false,
+                "meal_id": "r15-supplement-20261104-record-once:agent:1",
+                "meal_type": "breakfast",
+                "total": {
+                  "carbs": 28.3,
+                  "fat": 8.9,
+                  "kcal": 255.0,
+                  "protein": 15.7
+                }
+              }
+            ],
+            "total": {
+              "carbs": 28.3,
+              "fat": 8.9,
+              "kcal": 255.0,
+              "protein": 15.7
+            },
+            "unfinished": [],
+            "write_status": "created"
+          },
+          "status": "ok",
+          "tool": "record_meal"
+        }
+      ],
+      "reply_source": "tool_facts",
+      "model_reply": "",
+      "main_worker": {
+        "instance_id": "9eb0947d951e439cb7a28237374db2a6",
+        "actual_model_events": [
+          {
+            "attempt": 1,
+            "completed_ms": 1807.437,
+            "duration_ms": 1807.437,
+            "encoding": "deepseek-v4-official-20261103",
+            "ended_at": 1793807966.2965834,
+            "finish_reason": "tool_calls",
+            "first_nonempty_response_byte_ms": 1806.947,
+            "hard_input_limit": 1038336,
+            "id": "bde4035f20ce",
+            "input_target": 16000,
+            "input_tokens": 11310,
+            "instance_id": "9eb0947d951e439cb7a28237374db2a6",
+            "kind": "model_http",
+            "message_id": "r15-supplement-20261104-record-once",
+            "model": "deepseek-v4-flash",
+            "outcome": "ok",
+            "output_reserve": 8192,
+            "parent": "6bf38f38152a",
+            "parts": {
+              "calls": 0,
+              "current": 18,
+              "history": 577,
+              "protocol": 195,
+              "reasoning": 0,
+              "state": 1525,
+              "summary": 0,
+              "system": 2050,
+              "tools": 6945
+            },
+            "protocol_margin": 2048,
+            "provider_request_id": null,
+            "purpose": "main",
+            "reserved_at": 1793807964.315379,
+            "response_headers_ms": 316.45,
+            "started_at": 1793807964.4891477,
+            "started_epoch_ms": 1793807964489.1553,
+            "started_monotonic": 212.780073238,
+            "state": "succeeded",
+            "status_code": 200,
+            "usage": {
+              "completion_tokens": 248,
+              "completion_tokens_details": {
+                "reasoning_tokens": 107
+              },
+              "prompt_cache_hit_tokens": 12288,
+              "prompt_cache_miss_tokens": 157,
+              "prompt_tokens": 12445,
+              "prompt_tokens_details": {
+                "cached_tokens": 12288
+              },
+              "total_tokens": 12693
+            },
+            "wire_encoding": "json-wire-v1"
+          }
+        ]
+      },
+      "server_received_at": 1793807960.6444716,
+      "completed_at": 1793807968.4832625,
+      "final_sent_at": 1793807968.3883643,
+      "received_beijing": "2026-11-04T23:59:20.644472+08:00",
+      "sent_beijing": "2026-11-04T23:59:28.388364+08:00",
+      "independent_ledger_audit": {
+        "rows": [
+          {
+            "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+            "food_id": "food_egg",
+            "food_name": "鸡蛋",
+            "date": "2026-11-04",
+            "meal_type": "breakfast",
+            "grams": 100.0,
+            "status": "valid",
+            "agent_revision": 1,
+            "expected": {
+              "carbs": 2.4,
+              "protein": 13.1,
+              "fat": 8.6,
+              "kcal": 139.0
+            },
+            "actual": {
+              "carbs": 2.4,
+              "fat": 8.6,
+              "kcal": 139.0,
+              "protein": 13.1
+            },
+            "passed": true
+          },
+          {
+            "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "food_name": "米饭",
+            "date": "2026-11-04",
+            "meal_type": "breakfast",
+            "grams": 100.0,
+            "status": "valid",
+            "agent_revision": 1,
+            "expected": {
+              "carbs": 25.9,
+              "protein": 2.6,
+              "fat": 0.3,
+              "kcal": 116.0
+            },
+            "actual": {
+              "carbs": 25.9,
+              "fat": 0.3,
+              "kcal": 116.0,
+              "protein": 2.6
+            },
+            "passed": true
+          },
+          {
+            "record_id": "05bb1835-6bbc-4395-b326-79c68ba1be01",
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "food_name": "米饭",
+            "date": "2026-11-04",
+            "meal_type": "breakfast",
+            "grams": 100.0,
+            "status": "valid",
+            "agent_revision": 1,
+            "expected": {
+              "carbs": 25.9,
+              "protein": 2.6,
+              "fat": 0.3,
+              "kcal": 116.0
+            },
+            "actual": {
+              "carbs": 25.9,
+              "fat": 0.3,
+              "kcal": 116.0,
+              "protein": 2.6
+            },
+            "passed": true
+          },
+          {
+            "record_id": "3cc9da20-c911-437d-b94f-600d84710ca0",
+            "food_id": "food_egg",
+            "food_name": "鸡蛋",
+            "date": "2026-11-04",
+            "meal_type": "breakfast",
+            "grams": 100.0,
+            "status": "valid",
+            "agent_revision": 1,
+            "expected": {
+              "carbs": 2.4,
+              "protein": 13.1,
+              "fat": 8.6,
+              "kcal": 139.0
+            },
+            "actual": {
+              "carbs": 2.4,
+              "fat": 8.6,
+              "kcal": 139.0,
+              "protein": 13.1
+            },
+            "passed": true
+          }
+        ],
+        "total": {
+          "kcal": 510.0,
+          "carbs": 56.6,
+          "protein": 31.4,
+          "fat": 17.8
+        },
+        "row_count": 4,
+        "all_rows_passed": true,
+        "unique_ids": true,
+        "ledger_sha256": "df960d139b6bdf2fb7eb49fdda5b6182f373fe6b8fff61561a78d61c5c49e999",
+        "versions": {
+          "b1ea74ac-d942-4ff8-8afc-0112e4dc051c": 1,
+          "ffc8fa64-e9c7-418a-ba30-56d2795ac197": 1,
+          "05bb1835-6bbc-4395-b326-79c68ba1be01": 1,
+          "3cc9da20-c911-437d-b94f-600d84710ca0": 1
+        }
+      },
+      "draft_after": {
+        "calculation": {
+          "budget_difference": {
+            "carbs": 10.4,
+            "fat": -1.6,
+            "kcal": 86.6,
+            "protein": 13.5
+          },
+          "complete": true,
+          "constraints": [
+            "每天两顿沙县小吃鸭腿饭各一份为固定餐，只按白米饭和鸭腿组成，不加卤蛋",
+            "补充食材须微波炉易加工",
+            "单项食物份量不宜过多",
+            "补充蛋白以鸡蛋为主"
+          ],
+          "consumed": {
+            "carbs": 0.0,
+            "fat": 0.0,
+            "kcal": 0.0,
+            "protein": 0.0
+          },
+          "consumed_count": 0,
+          "consumed_scope": {
+            "date": "2026-11-04",
+            "included": false,
+            "record_ids": []
+          },
+          "date": "2026-11-04",
+          "draft_id": "draft:826522861416f63146810a8a",
+          "estimated": true,
+          "fixed_complete": true,
+          "fixed_subtotal": {
+            "carbs": 106.8,
+            "fat": 26.8,
+            "kcal": 914.4,
+            "protein": 62.2
+          },
+          "items": [
+            {
+              "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+              "fixed": true,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "grams": 200.0,
+              "group": "午餐",
+              "item_id": "l-rice",
+              "matched_name": "米饭",
+              "nutrition": {
+                "carbs": 51.8,
+                "fat": 0.6,
+                "kcal": 232.0,
+                "protein": 5.2
+              },
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 51.8,
+                  "fat": 0.6,
+                  "kcal": 232.0,
+                  "protein": 5.2
+                }
+              },
+              "portion_basis": "assumed_takeout",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "mifan_zheng",
+                  "carbs_per_100g": 25.9,
+                  "detail_loaded": true,
+                  "fat_per_100g": 0.3,
+                  "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                  "kcal_per_100g": 116.0,
+                  "name": "米饭",
+                  "protein_per_100g": 2.6,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "40.00",
+                      "unit_id": 233,
+                      "unit_name": "勺",
+                      "weight": "40.00"
+                    },
+                    {
+                      "eat_weight": "20.00",
+                      "unit_id": 587542,
+                      "unit_name": "口",
+                      "weight": "20.00"
+                    },
+                    {
+                      "eat_weight": "150.00",
+                      "unit_id": 132,
+                      "unit_name": "小碗",
+                      "weight": "150.00"
+                    },
+                    {
+                      "eat_weight": "180.00",
+                      "unit_id": 980,
+                      "unit_name": "碗",
+                      "weight": "180.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "assumed_takeout",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:5077a76425e6e86fa57f9755"
+            },
+            {
+              "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+              "fixed": true,
+              "food_id": "food_hyatui",
+              "grams": 100.0,
+              "group": "午餐",
+              "item_id": "l-duck",
+              "matched_name": "盒马鸭腿",
+              "nutrition": {
+                "carbs": 1.6,
+                "fat": 12.8,
+                "kcal": 225.2,
+                "protein": 25.9
+              },
+              "per_serving": {
+                "grams": 100.0,
+                "nutrition": {
+                  "carbs": 1.6,
+                  "fat": 12.8,
+                  "kcal": 225.2,
+                  "protein": 25.9
+                }
+              },
+              "portion_basis": "assumed_takeout",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "",
+                  "carbs_per_100g": 1.6,
+                  "detail_loaded": false,
+                  "fat_per_100g": 12.8,
+                  "food_id": "food_hyatui",
+                  "kcal_per_100g": null,
+                  "name": "盒马鸭腿",
+                  "protein_per_100g": 25.9,
+                  "source": "",
+                  "units": []
+                },
+                "kcal_source": "macro_formula",
+                "portion_basis": "assumed_takeout",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:b50cbb257a5800f1d8111451"
+            },
+            {
+              "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+              "fixed": true,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "grams": 200.0,
+              "group": "晚餐",
+              "item_id": "d-rice",
+              "matched_name": "米饭",
+              "nutrition": {
+                "carbs": 51.8,
+                "fat": 0.6,
+                "kcal": 232.0,
+                "protein": 5.2
+              },
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 51.8,
+                  "fat": 0.6,
+                  "kcal": 232.0,
+                  "protein": 5.2
+                }
+              },
+              "portion_basis": "assumed_takeout",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "mifan_zheng",
+                  "carbs_per_100g": 25.9,
+                  "detail_loaded": true,
+                  "fat_per_100g": 0.3,
+                  "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                  "kcal_per_100g": 116.0,
+                  "name": "米饭",
+                  "protein_per_100g": 2.6,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "40.00",
+                      "unit_id": 233,
+                      "unit_name": "勺",
+                      "weight": "40.00"
+                    },
+                    {
+                      "eat_weight": "20.00",
+                      "unit_id": 587542,
+                      "unit_name": "口",
+                      "weight": "20.00"
+                    },
+                    {
+                      "eat_weight": "150.00",
+                      "unit_id": 132,
+                      "unit_name": "小碗",
+                      "weight": "150.00"
+                    },
+                    {
+                      "eat_weight": "180.00",
+                      "unit_id": 980,
+                      "unit_name": "碗",
+                      "weight": "180.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "assumed_takeout",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:5077a76425e6e86fa57f9755"
+            },
+            {
+              "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+              "fixed": true,
+              "food_id": "food_hyatui",
+              "grams": 100.0,
+              "group": "晚餐",
+              "item_id": "d-duck",
+              "matched_name": "盒马鸭腿",
+              "nutrition": {
+                "carbs": 1.6,
+                "fat": 12.8,
+                "kcal": 225.2,
+                "protein": 25.9
+              },
+              "per_serving": {
+                "grams": 100.0,
+                "nutrition": {
+                  "carbs": 1.6,
+                  "fat": 12.8,
+                  "kcal": 225.2,
+                  "protein": 25.9
+                }
+              },
+              "portion_basis": "assumed_takeout",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "",
+                  "carbs_per_100g": 1.6,
+                  "detail_loaded": false,
+                  "fat_per_100g": 12.8,
+                  "food_id": "food_hyatui",
+                  "kcal_per_100g": null,
+                  "name": "盒马鸭腿",
+                  "protein_per_100g": 25.9,
+                  "source": "",
+                  "units": []
+                },
+                "kcal_source": "macro_formula",
+                "portion_basis": "assumed_takeout",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:b50cbb257a5800f1d8111451"
+            },
+            {
+              "assumption": "水煮或微波加热",
+              "fixed": false,
+              "food_id": "food_egg",
+              "grams": 200.0,
+              "group": "早餐",
+              "item_id": "b-egg",
+              "matched_name": "鸡蛋",
+              "nutrition": {
+                "carbs": 4.8,
+                "fat": 17.2,
+                "kcal": 278.0,
+                "protein": 26.2
+              },
+              "per_serving": {
+                "grams": 200.0,
+                "nutrition": {
+                  "carbs": 4.8,
+                  "fat": 17.2,
+                  "kcal": 278.0,
+                  "protein": 26.2
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "水煮或微波加热",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "jidan_junzhi",
+                  "carbs_per_100g": 2.4,
+                  "detail_loaded": true,
+                  "fat_per_100g": 8.6,
+                  "food_id": "food_egg",
+                  "kcal_per_100g": 139.0,
+                  "name": "鸡蛋",
+                  "protein_per_100g": 13.1,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:c692d91b0ccfdcc2d947e747"
+            },
+            {
+              "assumption": "水煮或蒸玉米粒，微波加热即可",
+              "fixed": false,
+              "food_id": "food_corn",
+              "grams": 250.0,
+              "group": "早餐",
+              "item_id": "b-corn",
+              "matched_name": "玉米粒",
+              "nutrition": {
+                "carbs": 42.0,
+                "fat": 5.3,
+                "kcal": 244.3,
+                "protein": 7.3
+              },
+              "per_serving": {
+                "grams": 250.0,
+                "nutrition": {
+                  "carbs": 42.0,
+                  "fat": 5.3,
+                  "kcal": 244.3,
+                  "protein": 7.3
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "水煮或蒸玉米粒，微波加热即可",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "",
+                  "carbs_per_100g": 16.8,
+                  "detail_loaded": false,
+                  "fat_per_100g": 2.1,
+                  "food_id": "food_corn",
+                  "kcal_per_100g": null,
+                  "name": "玉米粒",
+                  "protein_per_100g": 2.9,
+                  "source": "",
+                  "units": []
+                },
+                "kcal_source": "macro_formula",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:fc72f09dc7d77bc3c6692bff"
+            },
+            {
+              "assumption": "水煮后微波加热",
+              "fixed": false,
+              "food_id": "food_egg",
+              "grams": 100.0,
+              "group": "上午加餐",
+              "item_id": "s1-egg",
+              "matched_name": "鸡蛋",
+              "nutrition": {
+                "carbs": 2.4,
+                "fat": 8.6,
+                "kcal": 139.0,
+                "protein": 13.1
+              },
+              "per_serving": {
+                "grams": 100.0,
+                "nutrition": {
+                  "carbs": 2.4,
+                  "fat": 8.6,
+                  "kcal": 139.0,
+                  "protein": 13.1
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "水煮后微波加热",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "jidan_junzhi",
+                  "carbs_per_100g": 2.4,
+                  "detail_loaded": true,
+                  "fat_per_100g": 8.6,
+                  "food_id": "food_egg",
+                  "kcal_per_100g": 139.0,
+                  "name": "鸡蛋",
+                  "protein_per_100g": 13.1,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:c692d91b0ccfdcc2d947e747"
+            },
+            {
+              "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+              "fixed": false,
+              "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+              "grams": 400.0,
+              "group": "下午加餐",
+              "item_id": "s2-potato",
+              "matched_name": "土豆泥",
+              "nutrition": {
+                "carbs": 80.0,
+                "fat": 0.8,
+                "kcal": 359.2,
+                "protein": 8.0
+              },
+              "per_serving": {
+                "grams": 400.0,
+                "nutrition": {
+                  "carbs": 80.0,
+                  "fat": 0.8,
+                  "kcal": 359.2,
+                  "protein": 8.0
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "",
+                  "carbs_per_100g": 20.0,
+                  "detail_loaded": false,
+                  "fat_per_100g": 0.2,
+                  "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+                  "kcal_per_100g": null,
+                  "name": "土豆泥",
+                  "protein_per_100g": 2.0,
+                  "source": "",
+                  "units": []
+                },
+                "kcal_source": "macro_formula",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:3feb2fc96a969f4ce5f7c141"
+            },
+            {
+              "assumption": "水煮后微波加热",
+              "fixed": false,
+              "food_id": "food_egg",
+              "grams": 150.0,
+              "group": "晚间加餐",
+              "item_id": "s3-egg",
+              "matched_name": "鸡蛋",
+              "nutrition": {
+                "carbs": 3.6,
+                "fat": 12.9,
+                "kcal": 208.5,
+                "protein": 19.7
+              },
+              "per_serving": {
+                "grams": 150.0,
+                "nutrition": {
+                  "carbs": 3.6,
+                  "fat": 12.9,
+                  "kcal": 208.5,
+                  "protein": 19.7
+                }
+              },
+              "portion_basis": "suggested",
+              "servings": 1.0,
+              "snapshot": {
+                "assumption": "水煮后微波加热",
+                "basis": "user_edible_grams",
+                "estimated": true,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "jidan_junzhi",
+                  "carbs_per_100g": 2.4,
+                  "detail_loaded": true,
+                  "fat_per_100g": 8.6,
+                  "food_id": "food_egg",
+                  "kcal_per_100g": 139.0,
+                  "name": "鸡蛋",
+                  "protein_per_100g": 13.1,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "portion_basis": "suggested",
+                "quantity": null,
+                "quantity_text": "",
+                "reuse_ratio": 1.0,
+                "unit": ""
+              },
+              "source_ref": "food:c692d91b0ccfdcc2d947e747"
+            }
+          ],
+          "scope": "daily",
+          "selection": {
+            "calibration": {
+              "status": "already_within_tolerance"
+            },
+            "candidates": [
+              {
+                "budget_difference": {
+                  "carbs": 10.4,
+                  "fat": -1.6,
+                  "kcal": 86.6,
+                  "protein": 13.5
+                },
+                "complete": true,
+                "items": [
+                  {
+                    "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                    "fixed": true,
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "grams": 200.0,
+                    "group": "午餐",
+                    "item_id": "l-rice",
+                    "matched_name": "米饭",
+                    "nutrition": {
+                      "carbs": 51.8,
+                      "fat": 0.6,
+                      "kcal": 232.0,
+                      "protein": 5.2
+                    },
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 51.8,
+                        "fat": 0.6,
+                        "kcal": 232.0,
+                        "protein": 5.2
+                      }
+                    },
+                    "portion_basis": "assumed_takeout",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "mifan_zheng",
+                        "carbs_per_100g": 25.9,
+                        "detail_loaded": true,
+                        "fat_per_100g": 0.3,
+                        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                        "kcal_per_100g": 116.0,
+                        "name": "米饭",
+                        "protein_per_100g": 2.6,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "40.00",
+                            "unit_id": 233,
+                            "unit_name": "勺",
+                            "weight": "40.00"
+                          },
+                          {
+                            "eat_weight": "20.00",
+                            "unit_id": 587542,
+                            "unit_name": "口",
+                            "weight": "20.00"
+                          },
+                          {
+                            "eat_weight": "150.00",
+                            "unit_id": 132,
+                            "unit_name": "小碗",
+                            "weight": "150.00"
+                          },
+                          {
+                            "eat_weight": "180.00",
+                            "unit_id": 980,
+                            "unit_name": "碗",
+                            "weight": "180.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "assumed_takeout",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:5077a76425e6e86fa57f9755"
+                  },
+                  {
+                    "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                    "fixed": true,
+                    "food_id": "food_hyatui",
+                    "grams": 100.0,
+                    "group": "午餐",
+                    "item_id": "l-duck",
+                    "matched_name": "盒马鸭腿",
+                    "nutrition": {
+                      "carbs": 1.6,
+                      "fat": 12.8,
+                      "kcal": 225.2,
+                      "protein": 25.9
+                    },
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 1.6,
+                        "fat": 12.8,
+                        "kcal": 225.2,
+                        "protein": 25.9
+                      }
+                    },
+                    "portion_basis": "assumed_takeout",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "",
+                        "carbs_per_100g": 1.6,
+                        "detail_loaded": false,
+                        "fat_per_100g": 12.8,
+                        "food_id": "food_hyatui",
+                        "kcal_per_100g": null,
+                        "name": "盒马鸭腿",
+                        "protein_per_100g": 25.9,
+                        "source": "",
+                        "units": []
+                      },
+                      "kcal_source": "macro_formula",
+                      "portion_basis": "assumed_takeout",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:b50cbb257a5800f1d8111451"
+                  },
+                  {
+                    "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                    "fixed": true,
+                    "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                    "grams": 200.0,
+                    "group": "晚餐",
+                    "item_id": "d-rice",
+                    "matched_name": "米饭",
+                    "nutrition": {
+                      "carbs": 51.8,
+                      "fat": 0.6,
+                      "kcal": 232.0,
+                      "protein": 5.2
+                    },
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 51.8,
+                        "fat": 0.6,
+                        "kcal": 232.0,
+                        "protein": 5.2
+                      }
+                    },
+                    "portion_basis": "assumed_takeout",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "mifan_zheng",
+                        "carbs_per_100g": 25.9,
+                        "detail_loaded": true,
+                        "fat_per_100g": 0.3,
+                        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                        "kcal_per_100g": 116.0,
+                        "name": "米饭",
+                        "protein_per_100g": 2.6,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "40.00",
+                            "unit_id": 233,
+                            "unit_name": "勺",
+                            "weight": "40.00"
+                          },
+                          {
+                            "eat_weight": "20.00",
+                            "unit_id": 587542,
+                            "unit_name": "口",
+                            "weight": "20.00"
+                          },
+                          {
+                            "eat_weight": "150.00",
+                            "unit_id": 132,
+                            "unit_name": "小碗",
+                            "weight": "150.00"
+                          },
+                          {
+                            "eat_weight": "180.00",
+                            "unit_id": 980,
+                            "unit_name": "碗",
+                            "weight": "180.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "assumed_takeout",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:5077a76425e6e86fa57f9755"
+                  },
+                  {
+                    "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                    "fixed": true,
+                    "food_id": "food_hyatui",
+                    "grams": 100.0,
+                    "group": "晚餐",
+                    "item_id": "d-duck",
+                    "matched_name": "盒马鸭腿",
+                    "nutrition": {
+                      "carbs": 1.6,
+                      "fat": 12.8,
+                      "kcal": 225.2,
+                      "protein": 25.9
+                    },
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 1.6,
+                        "fat": 12.8,
+                        "kcal": 225.2,
+                        "protein": 25.9
+                      }
+                    },
+                    "portion_basis": "assumed_takeout",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "",
+                        "carbs_per_100g": 1.6,
+                        "detail_loaded": false,
+                        "fat_per_100g": 12.8,
+                        "food_id": "food_hyatui",
+                        "kcal_per_100g": null,
+                        "name": "盒马鸭腿",
+                        "protein_per_100g": 25.9,
+                        "source": "",
+                        "units": []
+                      },
+                      "kcal_source": "macro_formula",
+                      "portion_basis": "assumed_takeout",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:b50cbb257a5800f1d8111451"
+                  },
+                  {
+                    "assumption": "水煮或微波加热",
+                    "fixed": false,
+                    "food_id": "food_egg",
+                    "grams": 200.0,
+                    "group": "早餐",
+                    "item_id": "b-egg",
+                    "matched_name": "鸡蛋",
+                    "nutrition": {
+                      "carbs": 4.8,
+                      "fat": 17.2,
+                      "kcal": 278.0,
+                      "protein": 26.2
+                    },
+                    "per_serving": {
+                      "grams": 200.0,
+                      "nutrition": {
+                        "carbs": 4.8,
+                        "fat": 17.2,
+                        "kcal": 278.0,
+                        "protein": 26.2
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "水煮或微波加热",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "jidan_junzhi",
+                        "carbs_per_100g": 2.4,
+                        "detail_loaded": true,
+                        "fat_per_100g": 8.6,
+                        "food_id": "food_egg",
+                        "kcal_per_100g": 139.0,
+                        "name": "鸡蛋",
+                        "protein_per_100g": 13.1,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:c692d91b0ccfdcc2d947e747"
+                  },
+                  {
+                    "assumption": "水煮或蒸玉米粒，微波加热即可",
+                    "fixed": false,
+                    "food_id": "food_corn",
+                    "grams": 250.0,
+                    "group": "早餐",
+                    "item_id": "b-corn",
+                    "matched_name": "玉米粒",
+                    "nutrition": {
+                      "carbs": 42.0,
+                      "fat": 5.3,
+                      "kcal": 244.3,
+                      "protein": 7.3
+                    },
+                    "per_serving": {
+                      "grams": 250.0,
+                      "nutrition": {
+                        "carbs": 42.0,
+                        "fat": 5.3,
+                        "kcal": 244.3,
+                        "protein": 7.3
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "水煮或蒸玉米粒，微波加热即可",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "",
+                        "carbs_per_100g": 16.8,
+                        "detail_loaded": false,
+                        "fat_per_100g": 2.1,
+                        "food_id": "food_corn",
+                        "kcal_per_100g": null,
+                        "name": "玉米粒",
+                        "protein_per_100g": 2.9,
+                        "source": "",
+                        "units": []
+                      },
+                      "kcal_source": "macro_formula",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:fc72f09dc7d77bc3c6692bff"
+                  },
+                  {
+                    "assumption": "水煮后微波加热",
+                    "fixed": false,
+                    "food_id": "food_egg",
+                    "grams": 100.0,
+                    "group": "上午加餐",
+                    "item_id": "s1-egg",
+                    "matched_name": "鸡蛋",
+                    "nutrition": {
+                      "carbs": 2.4,
+                      "fat": 8.6,
+                      "kcal": 139.0,
+                      "protein": 13.1
+                    },
+                    "per_serving": {
+                      "grams": 100.0,
+                      "nutrition": {
+                        "carbs": 2.4,
+                        "fat": 8.6,
+                        "kcal": 139.0,
+                        "protein": 13.1
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "水煮后微波加热",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "jidan_junzhi",
+                        "carbs_per_100g": 2.4,
+                        "detail_loaded": true,
+                        "fat_per_100g": 8.6,
+                        "food_id": "food_egg",
+                        "kcal_per_100g": 139.0,
+                        "name": "鸡蛋",
+                        "protein_per_100g": 13.1,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:c692d91b0ccfdcc2d947e747"
+                  },
+                  {
+                    "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+                    "fixed": false,
+                    "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+                    "grams": 400.0,
+                    "group": "下午加餐",
+                    "item_id": "s2-potato",
+                    "matched_name": "土豆泥",
+                    "nutrition": {
+                      "carbs": 80.0,
+                      "fat": 0.8,
+                      "kcal": 359.2,
+                      "protein": 8.0
+                    },
+                    "per_serving": {
+                      "grams": 400.0,
+                      "nutrition": {
+                        "carbs": 80.0,
+                        "fat": 0.8,
+                        "kcal": 359.2,
+                        "protein": 8.0
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "",
+                        "carbs_per_100g": 20.0,
+                        "detail_loaded": false,
+                        "fat_per_100g": 0.2,
+                        "food_id": "2dbd49f4-f2c0-4344-bcb8-9ac46f369798",
+                        "kcal_per_100g": null,
+                        "name": "土豆泥",
+                        "protein_per_100g": 2.0,
+                        "source": "",
+                        "units": []
+                      },
+                      "kcal_source": "macro_formula",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:3feb2fc96a969f4ce5f7c141"
+                  },
+                  {
+                    "assumption": "水煮后微波加热",
+                    "fixed": false,
+                    "food_id": "food_egg",
+                    "grams": 150.0,
+                    "group": "晚间加餐",
+                    "item_id": "s3-egg",
+                    "matched_name": "鸡蛋",
+                    "nutrition": {
+                      "carbs": 3.6,
+                      "fat": 12.9,
+                      "kcal": 208.5,
+                      "protein": 19.7
+                    },
+                    "per_serving": {
+                      "grams": 150.0,
+                      "nutrition": {
+                        "carbs": 3.6,
+                        "fat": 12.9,
+                        "kcal": 208.5,
+                        "protein": 19.7
+                      }
+                    },
+                    "portion_basis": "suggested",
+                    "servings": 1.0,
+                    "snapshot": {
+                      "assumption": "水煮后微波加热",
+                      "basis": "user_edible_grams",
+                      "estimated": true,
+                      "food": {
+                        "aliases": [],
+                        "boohee_id": "jidan_junzhi",
+                        "carbs_per_100g": 2.4,
+                        "detail_loaded": true,
+                        "fat_per_100g": 8.6,
+                        "food_id": "food_egg",
+                        "kcal_per_100g": 139.0,
+                        "name": "鸡蛋",
+                        "protein_per_100g": 13.1,
+                        "source": "boohee",
+                        "units": [
+                          {
+                            "eat_weight": "1.00",
+                            "unit_id": 0,
+                            "unit_name": "克",
+                            "weight": "1.00"
+                          },
+                          {
+                            "eat_weight": "52.80",
+                            "unit_id": 34,
+                            "unit_name": "只(中)",
+                            "weight": "60.00"
+                          },
+                          {
+                            "eat_weight": "61.60",
+                            "unit_id": 210,
+                            "unit_name": "只(大)",
+                            "weight": "70.00"
+                          }
+                        ]
+                      },
+                      "kcal_source": "source",
+                      "portion_basis": "suggested",
+                      "quantity": null,
+                      "quantity_text": "",
+                      "reuse_ratio": 1.0,
+                      "unit": ""
+                    },
+                    "source_ref": "food:c692d91b0ccfdcc2d947e747"
+                  }
+                ],
+                "macro_relative_deviation": {
+                  "carbs": 0.0416,
+                  "fat": 0.022857142857142857,
+                  "protein": 0.09
+                },
+                "portion_preference": [
+                  400.0,
+                  5
+                ],
+                "total": {
+                  "carbs": 239.6,
+                  "fat": 71.6,
+                  "kcal": 2143.4,
+                  "protein": 136.5
+                },
+                "unfinished": [],
+                "variant": "initial",
+                "within_tolerance": true,
+                "worst_macro_relative_deviation": 0.09
+              }
+            ],
+            "reason": "only_initial",
+            "selected": "initial"
+          },
+          "supplement_gap": {
+            "carbs": 143.2,
+            "fat": 43.2,
+            "kcal": 1315.6,
+            "protein": 87.8
+          },
+          "targets": {
+            "carbs": 250,
+            "fat": 70,
+            "kcal": 2230,
+            "protein": 150
+          },
+          "tolerance_kcal": 200.0,
+          "total": {
+            "carbs": 239.6,
+            "fat": 71.6,
+            "kcal": 2143.4,
+            "protein": 136.5
+          },
+          "unfinished": [],
+          "within_tolerance": true
+        },
+        "constraints": [
+          "每天两顿沙县小吃鸭腿饭各一份为固定餐，只按白米饭和鸭腿组成，不加卤蛋",
+          "补充食材须微波炉易加工",
+          "单项食物份量不宜过多",
+          "补充蛋白以鸡蛋为主"
+        ],
+        "date": "2026-11-04",
+        "draft_id": "draft:826522861416f63146810a8a",
+        "items": [
+          {
+            "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+            "fixed": true,
+            "food_query": "米饭",
+            "grams": 200.0,
+            "group": "午餐",
+            "item_id": "l-rice",
+            "portion_basis": "assumed_takeout",
+            "servings": 1.0,
+            "source_ref": "food:5077a76425e6e86fa57f9755"
+          },
+          {
+            "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+            "fixed": true,
+            "food_query": "盒马鸭腿",
+            "grams": 100.0,
+            "group": "午餐",
+            "item_id": "l-duck",
+            "portion_basis": "assumed_takeout",
+            "servings": 1.0,
+            "source_ref": "food:b50cbb257a5800f1d8111451"
+          },
+          {
+            "assumption": "沙县鸭腿饭一份中的白米饭，不加卤蛋",
+            "fixed": true,
+            "food_query": "米饭",
+            "grams": 200.0,
+            "group": "晚餐",
+            "item_id": "d-rice",
+            "portion_basis": "assumed_takeout",
+            "servings": 1.0,
+            "source_ref": "food:5077a76425e6e86fa57f9755"
+          },
+          {
+            "assumption": "按一份含一只去骨鸭腿肉估算，不含卤蛋",
+            "fixed": true,
+            "food_query": "盒马鸭腿",
+            "grams": 100.0,
+            "group": "晚餐",
+            "item_id": "d-duck",
+            "portion_basis": "assumed_takeout",
+            "servings": 1.0,
+            "source_ref": "food:b50cbb257a5800f1d8111451"
+          },
+          {
+            "assumption": "水煮或微波加热",
+            "food_query": "鸡蛋",
+            "grams": 200.0,
+            "group": "早餐",
+            "item_id": "b-egg",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:c692d91b0ccfdcc2d947e747"
+          },
+          {
+            "assumption": "水煮或蒸玉米粒，微波加热即可",
+            "food_query": "玉米粒",
+            "grams": 250.0,
+            "group": "早餐",
+            "item_id": "b-corn",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:fc72f09dc7d77bc3c6692bff"
+          },
+          {
+            "assumption": "水煮后微波加热",
+            "food_query": "鸡蛋",
+            "grams": 100.0,
+            "group": "上午加餐",
+            "item_id": "s1-egg",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:c692d91b0ccfdcc2d947e747"
+          },
+          {
+            "assumption": "即食土豆泥冲泡或蒸土豆捣碎，微波加热",
+            "food_query": "土豆泥",
+            "grams": 400.0,
+            "group": "下午加餐",
+            "item_id": "s2-potato",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:3feb2fc96a969f4ce5f7c141"
+          },
+          {
+            "assumption": "水煮后微波加热",
+            "food_query": "鸡蛋",
+            "grams": 150.0,
+            "group": "晚间加餐",
+            "item_id": "s3-egg",
+            "portion_basis": "suggested",
+            "servings": 1.0,
+            "source_ref": "food:c692d91b0ccfdcc2d947e747"
+          }
+        ],
+        "message_id": "menu-r8-20261104-prepared-r10-plan",
+        "portion_preference": "smaller_portions",
+        "scope": "daily",
+        "tolerance_kcal": 200.0,
+        "unfinished": []
+      },
+      "settings_after": {
+        "daily_targets": {
+          "2026-11-04": {
+            "carbs": 180,
+            "fat": 60,
+            "kcal": 1800,
+            "protein": 120
+          }
+        },
+        "feishu_chat_id": "<owner-chat>",
+        "targets": {
+          "carbs": 250,
+          "fat": 70,
+          "kcal": 2230,
+          "protein": 150
+        }
+      }
+    }
+  ],
+  "warm_evidence": {
+    "message_id": "r15-supplement-20261104-readonly-prewarm-once",
+    "instance_id": "9eb0947d951e439cb7a28237374db2a6",
+    "completed_at": 1793807819.6276062,
+    "read_only": true,
+    "intake_rows": 0
+  },
+  "operator_recovery": {
+    "original_error": {
+      "error": "CommitUnavailable:writer changed; refresh and recover original action",
+      "stop_no_retry": true
+    },
+    "fixed_action": "refreshed current COS writer and restored same sampling alias; no prewarm/model replay",
+    "verified": true
+  },
+  "experience_differences": [
+    {
+      "category": "warm_record",
+      "t_service_ms": 7743.893,
+      "target_ms": 5000,
+      "over_ms": 2743.893,
+      "ack_ms": 2428.891,
+      "model_calls": 1
+    },
+    {
+      "category": "warm_revise",
+      "t_service_ms": 5434.809,
+      "target_ms": 5000,
+      "over_ms": 434.809,
+      "ack_ms": 1700.873,
+      "model_calls": 1
+    },
+    {
+      "category": "warm_today",
+      "t_service_ms": 5010.449,
+      "target_ms": 5000,
+      "over_ms": 10.449,
+      "ack_ms": 1813.703,
+      "model_calls": 1
+    },
+    {
+      "category": "knowledge",
+      "t_service_ms": 23717.412,
+      "target_ms": 10000,
+      "over_ms": 13717.412,
+      "ack_ms": 1541.355,
+      "model_calls": 2
+    }
+  ],
+  "knowledge_closing_exact": "至于你个人的摄入情况或目标设置，这条资料没有给出适用性判断方法，我不做评价；如需要，可以另查你今天实际吃了多少。",
+  "semantic_review": {
+    "reviewed_at": 1793808094.0176642,
+    "trial_decision": "补证齐全，待用户逐包裁定；未授权个人试用",
+    "package_unchanged": true,
+    "runtime_and_prompt_unchanged": true,
+    "warm_record_passed": true,
+    "record_attempts": 1,
+    "prewarm_read_only_attempts": 1,
+    "formal_deployed": false,
+    "trial_authorized": false,
+    "all_experience_gates_passed": false,
+    "reuse_original_evidence": "reports/knowledge-scope-cloud-r15-20261104.json",
+    "knowledge_closing_exact": "至于你个人的摄入情况或目标设置，这条资料没有给出适用性判断方法，我不做评价；如需要，可以另查你今天实际吃了多少。",
+    "experience_differences_ms": {
+      "warm_record_over_5000": 2743.893,
+      "warm_revise_over_5000": 434.809,
+      "warm_today_over_5000": 10.449,
+      "knowledge_over_10000": 13717.412
+    },
+    "original_cold_warm_unknown_record_retained": {
+      "t_service_ms": 9057.341,
+      "ack_ms": 2684.243
+    },
+    "business_facts": "Only one new meal of rice100g and egg100g,255kcal. Two original rows/versions unchanged, four rows510. Displayed draft and settings unchanged. Actual Feishu body equals saved tool-facts receipt.",
+    "note": "Original R15 unrequested query invitation remains a recorded wording failure; current spec6.3 delegates acceptance of that wording plus quantified speed exceptions to the user. No waiver or switch performed."
+  },
+  "cleanup": {
+    "started_at": 1793808095.4830968,
+    "prefix": "cos-probe/production-candidate/r15-supplement-20261104/",
+    "trigger_operations": [
+      {
+        "function": "calorie-cos-ingress-probe",
+        "action": "deleted",
+        "trigger": "1xg2fah6pi",
+        "request_id": "555a76da-9c41-489b-852f-544c991f0997"
+      },
+      {
+        "function": "calorie-cos-sync-probe",
+        "action": "disabled",
+        "trigger": "r15-supplement-20261104-five-minutes",
+        "request_id": "b29b0ee5-c7d5-450c-8b22-c9fce3639e60"
+      },
+      {
+        "function": "calorie-cos-sync-probe",
+        "action": "deleted",
+        "trigger": "r15-supplement-20261104-five-minutes",
+        "request_id": "f3a308a5-d037-4114-a485-11b0e9172bf1"
+      }
+    ],
+    "function_operations": [
+      {
+        "function": "calorie-cos-ingress-probe",
+        "request_id": "a4bf57a8-16e7-47ab-9cb8-259ac8703a3b"
+      },
+      {
+        "function": "calorie-cos-msg-probe",
+        "request_id": "e6a9e5f3-f394-4e75-9bd2-268639f33798"
+      },
+      {
+        "function": "calorie-cos-sync-probe",
+        "request_id": "8c252023-b4db-497e-98d0-ba8ce59a371f"
+      }
+    ],
+    "bitable_rows_deleted": [],
+    "tables_deleted": [
+      {
+        "kind": "intake",
+        "name": "r15-supplement-20261104-intake",
+        "table_id": "tblWHzJKKPBNuZkC",
+        "delete_code": 0
+      },
+      {
+        "kind": "food",
+        "name": "r15-supplement-20261104-food",
+        "table_id": "tblbjGujfFB7VUjX",
+        "delete_code": 0
+      },
+      {
+        "kind": "settings",
+        "name": "r15-supplement-20261104-settings",
+        "table_id": "tblIthKe3qYRT3KF",
+        "delete_code": 0
+      }
+    ],
+    "bot_messages_deleted": [
+      {
+        "message_id": "om_x100b61811278e4a0cebe2a2ba343fe6",
+        "delete_code": 0,
+        "independent_visible_readback": "unavailable: existing app has no message-read permission; prior evidence reused"
+      },
+      {
+        "message_id": "om_x100b618128cf7ca4b4c3a4a536ab16a",
+        "delete_code": 0,
+        "independent_visible_readback": "unavailable: existing app has no message-read permission; prior evidence reused"
+      }
+    ],
+    "cos_objects_deleted": 312,
+    "local_temp_removed": false,
+    "local_temp_dir": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r15-supplement-20261104",
+    "old_temp_cleanup_attempted": false,
+    "functions_remaining": [],
+    "table_contents_before_delete": {
+      "tblWHzJKKPBNuZkC": [
+        [
+          "reczz28Veu1ObhvL",
+          {
+            "agent_item_id": "05bb1835-6bbc-4395-b326-79c68ba1be01",
+            "agent_revision": "1",
+            "carbs": "25.9",
+            "created_at": "1793807966832",
+            "date": "1793721600000",
+            "fat": "0.3",
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "food_name_snapshot": "米饭",
+            "grams": "100",
+            "kcal": "116",
+            "meal_type": "breakfast",
+            "message_id": "r15-supplement-20261104-record-once:agent:1",
+            "protein": "2.6",
+            "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+            "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"mifan_zheng\", \"carbs_per_100g\": 25.9, \"detail_loaded\": true, \"fat_per_100g\": 0.3, \"food_id\": \"c98a3f0b-648d-4aee-ba48-a661789378fa\", \"kcal_per_100g\": 116.0, \"name\": \"米饭\", \"protein_per_100g\": 2.6, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"40.00\", \"unit_id\": 233, \"unit_name\": \"勺\", \"weight\": \"40.00\"}, {\"eat_weight\": \"20.00\", \"unit_id\": 587542, \"unit_name\": \"口\", \"weight\": \"20.00\"}, {\"eat_weight\": \"150.00\", \"unit_id\": 132, \"unit_name\": \"小碗\", \"weight\": \"150.00\"}, {\"eat_weight\": \"180.00\", \"unit_id\": 980, \"unit_name\": \"碗\", \"weight\": \"180.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"r15-supplement-20261104-record-once:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+            "status": "valid",
+            "user_id": "r15-supplement-20261104"
+          }
+        ],
+        [
+          "reczz28Veu9TJk8C",
+          {
+            "agent_item_id": "3cc9da20-c911-437d-b94f-600d84710ca0",
+            "agent_revision": "1",
+            "carbs": "2.4",
+            "created_at": "1793807966876",
+            "date": "1793721600000",
+            "fat": "8.6",
+            "food_id": "food_egg",
+            "food_name_snapshot": "鸡蛋",
+            "grams": "100",
+            "kcal": "139",
+            "meal_type": "breakfast",
+            "message_id": "r15-supplement-20261104-record-once:agent:1",
+            "protein": "13.1",
+            "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+            "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"jidan_junzhi\", \"carbs_per_100g\": 2.4, \"detail_loaded\": true, \"fat_per_100g\": 8.6, \"food_id\": \"food_egg\", \"kcal_per_100g\": 139.0, \"name\": \"鸡蛋\", \"protein_per_100g\": 13.1, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"52.80\", \"unit_id\": 34, \"unit_name\": \"只(中)\", \"weight\": \"60.00\"}, {\"eat_weight\": \"61.60\", \"unit_id\": 210, \"unit_name\": \"只(大)\", \"weight\": \"70.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"r15-supplement-20261104-record-once:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+            "status": "valid",
+            "user_id": "r15-supplement-20261104"
+          }
+        ],
+        [
+          "reczz28VeuGe4y1E",
+          {
+            "agent_item_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+            "agent_revision": "1",
+            "carbs": "2.4",
+            "created_at": "1793789238784",
+            "date": "1793721600000",
+            "fat": "8.6",
+            "food_id": "food_egg",
+            "food_name_snapshot": "鸡蛋",
+            "grams": "100",
+            "kcal": "139",
+            "meal_type": "breakfast",
+            "message_id": "menu-r8-20261104-prepared-record:agent:1",
+            "protein": "13.1",
+            "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+            "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"jidan_junzhi\", \"carbs_per_100g\": 2.4, \"detail_loaded\": true, \"fat_per_100g\": 8.6, \"food_id\": \"food_egg\", \"kcal_per_100g\": 139.0, \"name\": \"鸡蛋\", \"protein_per_100g\": 13.1, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"52.80\", \"unit_id\": 34, \"unit_name\": \"只(中)\", \"weight\": \"60.00\"}, {\"eat_weight\": \"61.60\", \"unit_id\": 210, \"unit_name\": \"只(大)\", \"weight\": \"70.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"menu-r8-20261104-prepared-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+            "status": "valid",
+            "user_id": "r15-supplement-20261104"
+          }
+        ],
+        [
+          "reczz28VeuORNw95",
+          {
+            "agent_item_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+            "agent_revision": "1",
+            "carbs": "25.9",
+            "created_at": "1793789238783",
+            "date": "1793721600000",
+            "fat": "0.3",
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "food_name_snapshot": "米饭",
+            "grams": "100",
+            "kcal": "116",
+            "meal_type": "breakfast",
+            "message_id": "menu-r8-20261104-prepared-record:agent:1",
+            "protein": "2.6",
+            "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+            "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"mifan_zheng\", \"carbs_per_100g\": 25.9, \"detail_loaded\": true, \"fat_per_100g\": 0.3, \"food_id\": \"c98a3f0b-648d-4aee-ba48-a661789378fa\", \"kcal_per_100g\": 116.0, \"name\": \"米饭\", \"protein_per_100g\": 2.6, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"40.00\", \"unit_id\": 233, \"unit_name\": \"勺\", \"weight\": \"40.00\"}, {\"eat_weight\": \"20.00\", \"unit_id\": 587542, \"unit_name\": \"口\", \"weight\": \"20.00\"}, {\"eat_weight\": \"150.00\", \"unit_id\": 132, \"unit_name\": \"小碗\", \"weight\": \"150.00\"}, {\"eat_weight\": \"180.00\", \"unit_id\": 980, \"unit_name\": \"碗\", \"weight\": \"180.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"menu-r8-20261104-prepared-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+            "status": "valid",
+            "user_id": "r15-supplement-20261104"
+          }
+        ]
+      ],
+      "tblbjGujfFB7VUjX": [],
+      "tblIthKe3qYRT3KF": [
+        [
+          "reczz28VeuWWw8Np",
+          {
+            "expires_at": "0",
+            "intent": "user_settings",
+            "meal_type": "unknown",
+            "payload": "{\"encoding\": \"zlib-base64\", \"data\": \"eJyrVkpJzMypjC9JLEpPLSlWslKoVjIyMDLTNTTUNTABc5MTi5JAEoYWBjoKSmmJJUC2GYiZnZyYAxEH8QqK8ktSM/NAAkYGtbVAEWQzYYYYmSIMMUcyxMjIGM0QU6AhALgwK4k=\"}",
+            "pending_id": "bade8a36-7455-4883-81a5-71931eee84de",
+            "source_message_id": "user_settings:r15-supplement-20261104:",
+            "status": "completed",
+            "user_id": "r15-supplement-20261104"
+          }
+        ],
+        [
+          "reczz28VeuceLStq",
+          {
+            "expires_at": "0",
+            "intent": "user_settings",
+            "meal_type": "unknown",
+            "payload": "{\"encoding\": \"zlib-base64\", \"data\": \"eJyrVkpJzMypjC9JLEpPLSlWslKoVjIyMDLTNTTUNTABc5MTi5JAEoYWBjoKSmmJJUC2GYiZnZyYAxEH8QqK8ktSM/NAAkYGtbVAEWQzYYYYmSIMMUcyxMjIGM0QU6AhALgwK4k=\"}",
+            "pending_id": "d811d271-cb52-4765-ae3f-647ec8cc7ba6",
+            "source_message_id": "user_settings:r15-supplement-20261104-prewarm:",
+            "status": "completed",
+            "user_id": "r15-supplement-20261104-prewarm"
+          }
+        ]
+      ]
+    },
+    "cos_objects_remaining": 0,
+    "new_tables_remaining": 0,
+    "candidate_intake_rows_remaining": 0,
+    "preexisting_test_rows_preserved": 8,
+    "production_configuration_unchanged": true,
+    "production_source_snapshot_unchanged": true,
+    "known_bot_message_delete_ack_count": 2,
+    "completed_at": 1793808120.6054096
+  },
+  "formal_switched": false,
+  "trial_authorized": false
+}
