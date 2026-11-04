@@ -1,0 +1,1973 @@
+{
+  "schema": "r11-cloud-ledger-readback.v1",
+  "source_commit": "2c35c716701c19d55b30d0997d494a819d565ca4",
+  "build": {
+    "source_commit": "2c35c716701c19d55b30d0997d494a819d565ca4",
+    "build_id": "cos-production-722fcb53dc88af23",
+    "sha256": "a978df5cf691ca0178115c4b621bd7b7cb8242619c1b310599e5affb1742350f",
+    "bytes": 22285589,
+    "package": "deploy/calorie-agent-r11-2c35c71.zip",
+    "runtime_members": 44,
+    "python310_syntax": true,
+    "linux_python": "3.10.22",
+    "file_hashes": {
+      "agent/__init__.py": "8cb8294807f27a80adf9e709e19070abb291399f0d05577320c5a8a9ba23e031",
+      "agent/config.py": "0949a3cf68330f642510c6a17d9e6ac086397d7482ba3feab87869bea3e45ae8",
+      "agent/context.py": "bc4734240f39efbac79af64c33b46c0bf6028a59edac9ccadba6d6e8d3124c3e",
+      "agent/encoding/deepseek-v4.json": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614",
+      "agent/encoding/version.json": "4aabc5e62430671d0662282cc93bb17d5d49ad53822a1381eeb23c4130986c9c",
+      "agent/evidence.py": "1ba03cf9e2915ac735eccc748812d109ab53f10b6a8c1bff46b1c2c437e9aebb",
+      "agent/graph.py": "cf980496d5a2ce41129a31c8362b27de0f1f877d9ee9f9e9b93bb238132d9b60",
+      "agent/model.py": "735ae98dceb23a1f71be1195280a266a5641e7d200ae6792d069b19e1929a780",
+      "agent/planning.py": "a1d1fb0319499e864273512668f9640156cdae87c92582c85a4d64e74fd6c689",
+      "agent/policy/__init__.py": "7b8341a80e97901e0ae8c8760c78b19c49044fc6f3c48f4417004ed39704fd58",
+      "agent/policy/presets.py": "82e5129d2be6ea1869b3e937b8688980df56b61d376e819e66c0c386f39fdc10",
+      "agent/replies.py": "e4679d04fd5f44164cd758fb94f7499bd2174dd7b58ee94a3a0019c43130bdb6",
+      "agent/storage/__init__.py": "04b4731e910bfacb69fc4d35b4e199accbbd28c18edf3607a87fecf687a2c188",
+      "agent/storage/bitable_adapter.py": "4034d1bb2b122e8a07558912bbafab664aee95ba2e3908b01ef7352f08ded5e0",
+      "agent/storage/boohee_client.py": "96769bacfa85ae592f96ec3cd38157420dc188a5d5110d48e5b09dae220368c1",
+      "agent/storage/conversation.py": "59548fdd0b342ceeb71120c36ba9ed6577d1858e11d3016779121fff44d4e308",
+      "agent/storage/cos_archive.py": "2b3bd7f9dd3ed20a2c7d8dbca37c3d2a7b73d28ce7a1387ee3fd3bbebefd09df",
+      "agent/storage/cos_journal.py": "1ce23c466f9d3a77ffaf7cca99851db0e6ec89ff74ed6aef9f31ea8831d1cce5",
+      "agent/storage/cos_store.py": "e36075e014665a6ca2d586fb1f27a793efe0583531051a60fc415297b53ca859",
+      "agent/storage/cos_transport.py": "70c31de2bfa66dd84e1eb2c67b51acb8e9e0d99d86465a5bfeb223e499cd0099",
+      "agent/storage/execution_pipeline.py": "fd5d04d31c1f44f029ca9287415c4951d13f90e2c06a49795a1aba9a2ff8255d",
+      "agent/storage/fake_store.py": "b0a69a68bc785b5aa78888facdbf43d582f2b5dcc38b1ea5864a8cc9092b1742",
+      "agent/storage/feishu_client.py": "cfef7c4753850505344b620bf05068e52516bb31a9aa39fef2c5ac5fa089c2bb",
+      "agent/storage/food_match.py": "b9536e7a2950e358400ae8a04ce1cd96e9a64bb0ac3cca15a292c20955f228cd",
+      "agent/storage/knowledge_retriever.py": "f2770e84ff838c984ab14569c326cc7c5b8e0d4a2e853a62e12e176f3a0ef531",
+      "agent/storage/knowledge_seed.py": "c492f4a5618175404c6d63db518f6e6fa713b34ff0cd44ef6cfbb4a21215b8d5",
+      "agent/storage/live_client.py": "b289029f7e1dd457580b94c990e88eec4be9ab342e45d1048a808a3a11f6b8e4",
+      "agent/storage/migration.py": "d5e81829f765c30084a81b65e946ec179d7d728e6d99fb286a1867ef6ff7c74d",
+      "agent/storage/model_transport.py": "b36503a39a147c4b5291389a2876cc80a9741bdcc04ed879f9a88f8ef7ca311a",
+      "agent/storage/reminders.py": "58a1456aed9a41613775fbd331364949afec298fe728761165ee0e8594491670",
+      "agent/storage/scf_dispatch.py": "70dd06db4d7642cd9c60d1ff40b9ef281c966a713766c6fdcf4fbc4b49498bbf",
+      "agent/storage/state_store.py": "d5ffbce695cfb6f9ef627b5c32ed9df596cd4ea767e29de9b2918395a4e1ddf5",
+      "agent/storage/telemetry.py": "07494fe69f4b046d9250e83d842ed1f8240962a98e4a984f8a190e2c2fff9d9a",
+      "agent/storage/timeutil.py": "c581296a8e12ee93ecba825c1433dc1ca785ca7dbfe47ff44d43d5c1947738d0",
+      "agent/tools/__init__.py": "39c25ef1af152aab410e48aac72371fe5a3665f7d14474981d6788bb24961afa",
+      "agent/tools/base.py": "d260532e6d398a6ba0fe01883d23d0ab9a6a3e9b270c35e36ee918dbb7f82ff0",
+      "agent/tools/meals.py": "96cd71e2fe84695eaa91c0638e4a31227d452545797effeeeec4ee4b909f9740",
+      "agent/tools/reads.py": "65bd842bfdf983c30e058243dbb8667fabffef1b10a06830088acbb90ec1a654",
+      "agent/tools/registry.py": "d86f89a3f5477533ebfe920459e25f24bca4b79f7d86df2b7ec9293bd45112a8",
+      "agent/tools/settings.py": "ebb791a7c18d874add33c985a91fbb17b738f352fd0926908a130a46f6af5034",
+      "app.py": "dace842fbd7a74258abccb43b7576a707fc754cc12350b84cda3e84eb90d26a2",
+      "config.yaml": "17ac29b5371038735453b046699f91e5862cf543bde8ced3901804b9189b4666",
+      "requirements.txt": "c1731e79ab47d5263453fe5def86d847699a71cd0446771e038695bfdf52b71c",
+      "scf_bootstrap": "826588fa20062a8a28a9bd7074e97eaf9bbe49265feaafabe752f3fdf66fd141"
+    },
+    "pinned_linux_dependencies_reused_from_sha256": "63e1ac885237aebb8029ea8db583a4b2718cb1b9b49cdbee88af693e5b3ddaf3",
+    "requirements_same_pins": true,
+    "source_bytes_from_git_commit": true,
+    "zip": "D:\\项目\\LangGraph_Agent\\deploy\\calorie-agent-r11-2c35c71.zip",
+    "go": true,
+    "spec_sha256": "39c737e747ea9a8f9ad803808c6c97f54b09ddb20f3ca084b8c6d6705a049a94",
+    "linux_assembly": {
+      "python": "3.10.22",
+      "platform": "linux",
+      "health": {
+        "build_id": "cos-production-722fcb53dc88af23",
+        "model": "deepseek-v4-flash",
+        "retriever": "lightrag",
+        "status": "ok"
+      },
+      "native_agent_loaded": true,
+      "lightrag_loaded": true,
+      "cos_store_loaded": true,
+      "cos_transport_loaded": true,
+      "archive_entry_loaded": true,
+      "reminder_entry": "app.reminder_handler",
+      "build_id": "cos-production-722fcb53dc88af23",
+      "sha256": "a978df5cf691ca0178115c4b621bd7b7cb8242619c1b310599e5affb1742350f",
+      "bytes": 22285589,
+      "package": "/mnt/d/项目/calorie-agent/LangGraph_Agent/deploy/calorie-agent-r11-2c35c71.zip",
+      "layer": "/mnt/d/项目/calorie-agent/LangGraph_Agent/reports/production-candidate/knowledge-source-fix/rag-layer-sourcefix-20261102-69ca0bd3e30f6317.zip",
+      "layer_sha256": "3ac484a780b3adff15d2c2c625a67ac4fd05247994dc1ee6193071e9f7662936",
+      "index_version": "sourcefix-20261102-69ca0bd3e30f6317"
+    },
+    "authorization": "user explicitly authorized build from 2c35c71, isolated deployment and Feishu acceptance"
+  },
+  "raw_evidence": {
+    "archive_file": "full-evidence.json",
+    "sha256": "8191d889b741249cb2e900374f90659d038cd4ce1c8f1bc507732c4edbce2627",
+    "bytes": 1032497,
+    "archive_root": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r11-cloud-20261104",
+    "path": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r11-cloud-20261104\\full-evidence.json"
+  },
+  "production_preflight": {
+    "calorie-agent-api-v3-test": {
+      "env_sha256": "a6f96bd5e28ce30ab17d4c5b4b8f0ac51e4438e921359aa0c9798cec8355867a",
+      "Status": "Active",
+      "Type": "HTTP",
+      "Handler": "",
+      "Runtime": "Python3.10",
+      "Timeout": 120,
+      "MemorySize": 512,
+      "Role": "calorie-agent-cos-ingress-role",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 7,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "Calorie COS sourcefix sourcefix-20261102-69ca0bd3e30f6317",
+          "LicenseInfo": "",
+          "AddTime": "2026-11-02 01:57:55",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "ModTime": "2026-11-03 21:55:36"
+    },
+    "calorie-agent-reminder": {
+      "env_sha256": "73da75fd27ddb9e7404e026a8c757b31032cfa2664b623aa97f3eaf174a76b2c",
+      "Status": "Active",
+      "Type": "Event",
+      "Handler": "app.message_handler",
+      "Runtime": "Python3.10",
+      "Timeout": 120,
+      "MemorySize": 512,
+      "Role": "calorie-agent-cos-message-role",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 7,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "Calorie COS sourcefix sourcefix-20261102-69ca0bd3e30f6317",
+          "LicenseInfo": "",
+          "AddTime": "2026-11-02 01:57:55",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "ModTime": "2026-11-03 21:54:52"
+    },
+    "calorie-agent-archive": {
+      "env_sha256": "73da75fd27ddb9e7404e026a8c757b31032cfa2664b623aa97f3eaf174a76b2c",
+      "Status": "Active",
+      "Type": "Event",
+      "Handler": "app.maintenance_handler",
+      "Runtime": "Python3.10",
+      "Timeout": 120,
+      "MemorySize": 512,
+      "Role": "calorie-agent-cos-archive-role",
+      "Layers": [
+        {
+          "LayerName": "calorie-rag",
+          "LayerVersion": 7,
+          "CompatibleRuntimes": [
+            "Python3.10"
+          ],
+          "Description": "Calorie COS sourcefix sourcefix-20261102-69ca0bd3e30f6317",
+          "LicenseInfo": "",
+          "AddTime": "2026-11-02 01:57:55",
+          "Status": "Active",
+          "Src": "Default",
+          "Stamp": "default",
+          "Location": null,
+          "StatusDesc": "{}"
+        }
+      ],
+      "ModTime": "2026-11-03 21:55:20"
+    }
+  },
+  "formal_deployed": false,
+  "entry_mode": "synthetic Feishu webhook with actual model, tools and Feishu API delivery",
+  "resource_package_readbacks": [
+    {
+      "function": "calorie-cos-ingress-probe",
+      "sha256": "a978df5cf691ca0178115c4b621bd7b7cb8242619c1b310599e5affb1742350f",
+      "handler": "app.ingress_handler",
+      "runtime": "Python3.10",
+      "memory": 512,
+      "timeout": 120,
+      "role": "calorie-cos-probe-role",
+      "layers": [
+        [
+          "calorie-rag",
+          7
+        ]
+      ],
+      "request_id": "f0e6eb6f-4c8b-4df8-91bd-f76e921396b3"
+    },
+    {
+      "function": "calorie-cos-msg-probe",
+      "sha256": "a978df5cf691ca0178115c4b621bd7b7cb8242619c1b310599e5affb1742350f",
+      "handler": "app.message_handler",
+      "runtime": "Python3.10",
+      "memory": 512,
+      "timeout": 120,
+      "role": "calorie-cos-probe-role",
+      "layers": [
+        [
+          "calorie-rag",
+          7
+        ]
+      ],
+      "request_id": "7d805de6-a4ef-49f8-a5b5-fc97c9304816"
+    },
+    {
+      "function": "calorie-cos-sync-probe",
+      "sha256": "a978df5cf691ca0178115c4b621bd7b7cb8242619c1b310599e5affb1742350f",
+      "handler": "app.maintenance_handler",
+      "runtime": "Python3.10",
+      "memory": 512,
+      "timeout": 120,
+      "role": "calorie-cos-probe-role",
+      "layers": [
+        [
+          "calorie-rag",
+          7
+        ]
+      ],
+      "request_id": "5f241aa0-8320-447c-aae4-f678038d36fc"
+    }
+  ],
+  "archive_destinations": {
+    "BITABLE_AGENT_TRACE_TABLE_ID": "",
+    "BITABLE_ALIASES_TABLE_ID": "",
+    "BITABLE_ANOMALY_TABLE_ID": "",
+    "BITABLE_COMBO_TABLE_ID": "",
+    "BITABLE_FOOD_TABLE_ID": "tblC81sx7xBmsLWT",
+    "BITABLE_INTAKE_TABLE_ID": "tblvUjZuHWuwr0iO",
+    "BITABLE_KNOWLEDGE_TABLE_ID": "",
+    "BITABLE_MEMORY_TABLE_ID": "",
+    "BITABLE_PENDING_TABLE_ID": "tbl9pFfJkLEoHv40",
+    "BITABLE_PREFERENCE_TABLE_ID": "",
+    "BITABLE_REMINDER_EVENT_TABLE_ID": "",
+    "BITABLE_REMINDER_RULE_TABLE_ID": "",
+    "BITABLE_REPORT_TABLE_ID": "",
+    "BITABLE_STANDARD_TABLE_ID": "",
+    "BITABLE_USAGE_TABLE_ID": ""
+  },
+  "isolated_prefix": "cos-probe/production-candidate/r11-feishu-20261104/",
+  "source_food_count": 125,
+  "formal_food_source_sha256": "457c1ff3da5a9c14447a6a553dae1ac1b54e8b26ecc837359268a929c8f77f19",
+  "seed": {
+    "original_rows": [
+      {
+        "agent_revision": 1,
+        "created_at": 1793789238784,
+        "date": "2026-11-04",
+        "food_id": "food_egg",
+        "food_name": "鸡蛋",
+        "grams": 100.0,
+        "meal_type": "breakfast",
+        "message_id": "menu-r8-20261104-prepared-record:agent:1",
+        "nutrition": {
+          "carbs": 2.4,
+          "fat": 8.6,
+          "kcal": 139.0,
+          "protein": 13.1
+        },
+        "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+        "snapshot": {
+          "basis": "user_edible_grams",
+          "estimated": false,
+          "food": {
+            "aliases": [],
+            "boohee_id": "jidan_junzhi",
+            "carbs_per_100g": 2.4,
+            "detail_loaded": true,
+            "fat_per_100g": 8.6,
+            "food_id": "food_egg",
+            "kcal_per_100g": 139.0,
+            "name": "鸡蛋",
+            "protein_per_100g": 13.1,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "52.80",
+                "unit_id": 34,
+                "unit_name": "只(中)",
+                "weight": "60.00"
+              },
+              {
+                "eat_weight": "61.60",
+                "unit_id": 210,
+                "unit_name": "只(大)",
+                "weight": "70.00"
+              }
+            ]
+          },
+          "kcal_source": "source",
+          "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+          "quantity": null,
+          "quantity_text": "",
+          "unit": ""
+        },
+        "status": "valid",
+        "user_id": "menu-r8-20261104-prepared"
+      },
+      {
+        "agent_revision": 1,
+        "created_at": 1793789238783,
+        "date": "2026-11-04",
+        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+        "food_name": "米饭",
+        "grams": 100.0,
+        "meal_type": "breakfast",
+        "message_id": "menu-r8-20261104-prepared-record:agent:1",
+        "nutrition": {
+          "carbs": 25.9,
+          "fat": 0.3,
+          "kcal": 116.0,
+          "protein": 2.6
+        },
+        "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+        "snapshot": {
+          "basis": "user_edible_grams",
+          "estimated": false,
+          "food": {
+            "aliases": [],
+            "boohee_id": "mifan_zheng",
+            "carbs_per_100g": 25.9,
+            "detail_loaded": true,
+            "fat_per_100g": 0.3,
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "kcal_per_100g": 116.0,
+            "name": "米饭",
+            "protein_per_100g": 2.6,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "40.00",
+                "unit_id": 233,
+                "unit_name": "勺",
+                "weight": "40.00"
+              },
+              {
+                "eat_weight": "20.00",
+                "unit_id": 587542,
+                "unit_name": "口",
+                "weight": "20.00"
+              },
+              {
+                "eat_weight": "150.00",
+                "unit_id": 132,
+                "unit_name": "小碗",
+                "weight": "150.00"
+              },
+              {
+                "eat_weight": "180.00",
+                "unit_id": 980,
+                "unit_name": "碗",
+                "weight": "180.00"
+              }
+            ]
+          },
+          "kcal_source": "source",
+          "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+          "quantity": null,
+          "quantity_text": "",
+          "unit": ""
+        },
+        "status": "valid",
+        "user_id": "menu-r8-20261104-prepared"
+      }
+    ],
+    "isolated_rows": [
+      {
+        "agent_revision": 1,
+        "created_at": 1793789238784,
+        "date": "2026-11-04",
+        "food_id": "food_egg",
+        "food_name": "鸡蛋",
+        "grams": 100.0,
+        "meal_type": "breakfast",
+        "message_id": "menu-r8-20261104-prepared-record:agent:1",
+        "nutrition": {
+          "carbs": 2.4,
+          "fat": 8.6,
+          "kcal": 139.0,
+          "protein": 13.1
+        },
+        "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+        "snapshot": {
+          "basis": "user_edible_grams",
+          "estimated": false,
+          "food": {
+            "aliases": [],
+            "boohee_id": "jidan_junzhi",
+            "carbs_per_100g": 2.4,
+            "detail_loaded": true,
+            "fat_per_100g": 8.6,
+            "food_id": "food_egg",
+            "kcal_per_100g": 139.0,
+            "name": "鸡蛋",
+            "protein_per_100g": 13.1,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "52.80",
+                "unit_id": 34,
+                "unit_name": "只(中)",
+                "weight": "60.00"
+              },
+              {
+                "eat_weight": "61.60",
+                "unit_id": 210,
+                "unit_name": "只(大)",
+                "weight": "70.00"
+              }
+            ]
+          },
+          "kcal_source": "source",
+          "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+          "quantity": null,
+          "quantity_text": "",
+          "unit": ""
+        },
+        "status": "valid",
+        "user_id": "r11-feishu-20261104"
+      },
+      {
+        "agent_revision": 1,
+        "created_at": 1793789238783,
+        "date": "2026-11-04",
+        "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+        "food_name": "米饭",
+        "grams": 100.0,
+        "meal_type": "breakfast",
+        "message_id": "menu-r8-20261104-prepared-record:agent:1",
+        "nutrition": {
+          "carbs": 25.9,
+          "fat": 0.3,
+          "kcal": 116.0,
+          "protein": 2.6
+        },
+        "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+        "snapshot": {
+          "basis": "user_edible_grams",
+          "estimated": false,
+          "food": {
+            "aliases": [],
+            "boohee_id": "mifan_zheng",
+            "carbs_per_100g": 25.9,
+            "detail_loaded": true,
+            "fat_per_100g": 0.3,
+            "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+            "kcal_per_100g": 116.0,
+            "name": "米饭",
+            "protein_per_100g": 2.6,
+            "source": "boohee",
+            "units": [
+              {
+                "eat_weight": "1.00",
+                "unit_id": 0,
+                "unit_name": "克",
+                "weight": "1.00"
+              },
+              {
+                "eat_weight": "40.00",
+                "unit_id": 233,
+                "unit_name": "勺",
+                "weight": "40.00"
+              },
+              {
+                "eat_weight": "20.00",
+                "unit_id": 587542,
+                "unit_name": "口",
+                "weight": "20.00"
+              },
+              {
+                "eat_weight": "150.00",
+                "unit_id": 132,
+                "unit_name": "小碗",
+                "weight": "150.00"
+              },
+              {
+                "eat_weight": "180.00",
+                "unit_id": 980,
+                "unit_name": "碗",
+                "weight": "180.00"
+              }
+            ]
+          },
+          "kcal_source": "source",
+          "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+          "quantity": null,
+          "quantity_text": "",
+          "unit": ""
+        },
+        "status": "valid",
+        "user_id": "r11-feishu-20261104"
+      }
+    ],
+    "identity_remapping_only": true,
+    "settings": {
+      "daily_targets": {
+        "2026-11-04": {
+          "carbs": 180,
+          "fat": 60,
+          "kcal": 1800,
+          "protein": 120
+        }
+      },
+      "feishu_chat_id": "<owner-chat>",
+      "targets": {
+        "carbs": 250,
+        "fat": 70,
+        "kcal": 2230,
+        "protein": 150
+      }
+    },
+    "food_sources_sha256": "3c414dcacca59f04cab35a843fbf7f6fa1aac577c5b3f7c02c3c8ce53b869ecb",
+    "food_sources": 125,
+    "planning_reexecuted": false
+  },
+  "sample": {
+    "message_id": "r11-feishu-20261104-record",
+    "planned_message": {
+      "step": "record",
+      "message_id": "r11-feishu-20261104-record",
+      "text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+      "driver_create_time_ms": 1793796383666
+    },
+    "entry_mode": "synthetic_webhook",
+    "ack_http_status": 200,
+    "ack_elapsed_ms": 2820.392,
+    "original_received_at": 1793796384.3571923,
+    "raw_receipt": {
+      "intake_date": "2026-11-04",
+      "kind": "message",
+      "message": {
+        "chat_id": "<owner-chat>",
+        "create_time": "1793796383666",
+        "message_id": "r11-feishu-20261104-record",
+        "text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+        "user_id": "r11-feishu-20261104"
+      },
+      "receipt_id": "9068bd1a9a873cba68bf638ec9428c567a5d1c61a80a2955943e66bdca360d0e",
+      "received_at": 1793796384.3571923,
+      "reference": null,
+      "sequence": 1,
+      "source": "feishu"
+    },
+    "t_service_ms": 16754.775,
+    "warmth": {
+      "classification": "unknown",
+      "instance_id": "07b7ac76be7b4cf5b2da6806267f1f8b",
+      "prior_completed_business_message_id": null,
+      "platform_cold_start": null
+    },
+    "raw_intake": {
+      "revision": 29,
+      "commit_key": "cos-probe/production-candidate/r11-feishu-20261104/message/commits/000000000029.json",
+      "items": [
+        {
+          "agent_revision": 1,
+          "created_at": 1793789238784,
+          "date": "2026-11-04",
+          "food_id": "food_egg",
+          "food_name": "鸡蛋",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "nutrition": {
+            "carbs": 2.4,
+            "fat": 8.6,
+            "kcal": 139.0,
+            "protein": 13.1
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "jidan_junzhi",
+              "carbs_per_100g": 2.4,
+              "detail_loaded": true,
+              "fat_per_100g": 8.6,
+              "food_id": "food_egg",
+              "kcal_per_100g": 139.0,
+              "name": "鸡蛋",
+              "protein_per_100g": 13.1,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "52.80",
+                  "unit_id": 34,
+                  "unit_name": "只(中)",
+                  "weight": "60.00"
+                },
+                {
+                  "eat_weight": "61.60",
+                  "unit_id": 210,
+                  "unit_name": "只(大)",
+                  "weight": "70.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        },
+        {
+          "agent_revision": 1,
+          "created_at": 1793789238783,
+          "date": "2026-11-04",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name": "米饭",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "nutrition": {
+            "carbs": 25.9,
+            "fat": 0.3,
+            "kcal": 116.0,
+            "protein": 2.6
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "mifan_zheng",
+              "carbs_per_100g": 25.9,
+              "detail_loaded": true,
+              "fat_per_100g": 0.3,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "kcal_per_100g": 116.0,
+              "name": "米饭",
+              "protein_per_100g": 2.6,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "40.00",
+                  "unit_id": 233,
+                  "unit_name": "勺",
+                  "weight": "40.00"
+                },
+                {
+                  "eat_weight": "20.00",
+                  "unit_id": 587542,
+                  "unit_name": "口",
+                  "weight": "20.00"
+                },
+                {
+                  "eat_weight": "150.00",
+                  "unit_id": 132,
+                  "unit_name": "小碗",
+                  "weight": "150.00"
+                },
+                {
+                  "eat_weight": "180.00",
+                  "unit_id": 980,
+                  "unit_name": "碗",
+                  "weight": "180.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        },
+        {
+          "agent_revision": 1,
+          "created_at": 1793796396065,
+          "date": "2026-11-04",
+          "food_id": "food_egg",
+          "food_name": "鸡蛋",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "r11-feishu-20261104-record:agent:1",
+          "nutrition": {
+            "carbs": 2.4,
+            "fat": 8.6,
+            "kcal": 139.0,
+            "protein": 13.1
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "9446294e-9534-4c8d-b0bb-42d216c06a49",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "jidan_junzhi",
+              "carbs_per_100g": 2.4,
+              "detail_loaded": true,
+              "fat_per_100g": 8.6,
+              "food_id": "food_egg",
+              "kcal_per_100g": 139.0,
+              "name": "鸡蛋",
+              "protein_per_100g": 13.1,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "52.80",
+                  "unit_id": 34,
+                  "unit_name": "只(中)",
+                  "weight": "60.00"
+                },
+                {
+                  "eat_weight": "61.60",
+                  "unit_id": 210,
+                  "unit_name": "只(大)",
+                  "weight": "70.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "r11-feishu-20261104-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        },
+        {
+          "agent_revision": 1,
+          "created_at": 1793796396026,
+          "date": "2026-11-04",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name": "米饭",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "r11-feishu-20261104-record:agent:1",
+          "nutrition": {
+            "carbs": 25.9,
+            "fat": 0.3,
+            "kcal": 116.0,
+            "protein": 2.6
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "aaaeae8c-3f32-4d12-b87c-be4b4c065e58",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "mifan_zheng",
+              "carbs_per_100g": 25.9,
+              "detail_loaded": true,
+              "fat_per_100g": 0.3,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "kcal_per_100g": 116.0,
+              "name": "米饭",
+              "protein_per_100g": 2.6,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "40.00",
+                  "unit_id": 233,
+                  "unit_name": "勺",
+                  "weight": "40.00"
+                },
+                {
+                  "eat_weight": "20.00",
+                  "unit_id": 587542,
+                  "unit_name": "口",
+                  "weight": "20.00"
+                },
+                {
+                  "eat_weight": "150.00",
+                  "unit_id": 132,
+                  "unit_name": "小碗",
+                  "weight": "150.00"
+                },
+                {
+                  "eat_weight": "180.00",
+                  "unit_id": 980,
+                  "unit_name": "碗",
+                  "weight": "180.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "r11-feishu-20261104-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ],
+      "item_refs": {
+        "item:b1ea74ac-d942-4ff8-8afc-0112e4dc051c": "4005def585851e251a9df4c5bc79d280749415e3f5ded5daafff3cd1fb063cda",
+        "item:ffc8fa64-e9c7-418a-ba30-56d2795ac197": "643cd90177024d9a25bb24f203100f9a74f3fbfb806b1d24cf34b545075a9308",
+        "item:9446294e-9534-4c8d-b0bb-42d216c06a49": "9170c2b4209ab00f4387be93a12183a562557fd2b966032a25444664a4a655b3",
+        "item:aaaeae8c-3f32-4d12-b87c-be4b4c065e58": "fb127996787c92e51434122457e799f258845793e5a0b7cc4ca70c968d58682b"
+      }
+    },
+    "independent_ledger_audit": {
+      "rows": [
+        {
+          "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+          "food_id": "food_egg",
+          "food_name": "鸡蛋",
+          "date": "2026-11-04",
+          "meal_type": "breakfast",
+          "grams": 100.0,
+          "status": "valid",
+          "agent_revision": 1,
+          "expected": {
+            "carbs": 2.4,
+            "protein": 13.1,
+            "fat": 8.6,
+            "kcal": 139.0
+          },
+          "actual": {
+            "carbs": 2.4,
+            "fat": 8.6,
+            "kcal": 139.0,
+            "protein": 13.1
+          },
+          "passed": true
+        },
+        {
+          "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name": "米饭",
+          "date": "2026-11-04",
+          "meal_type": "breakfast",
+          "grams": 100.0,
+          "status": "valid",
+          "agent_revision": 1,
+          "expected": {
+            "carbs": 25.9,
+            "protein": 2.6,
+            "fat": 0.3,
+            "kcal": 116.0
+          },
+          "actual": {
+            "carbs": 25.9,
+            "fat": 0.3,
+            "kcal": 116.0,
+            "protein": 2.6
+          },
+          "passed": true
+        },
+        {
+          "record_id": "9446294e-9534-4c8d-b0bb-42d216c06a49",
+          "food_id": "food_egg",
+          "food_name": "鸡蛋",
+          "date": "2026-11-04",
+          "meal_type": "breakfast",
+          "grams": 100.0,
+          "status": "valid",
+          "agent_revision": 1,
+          "expected": {
+            "carbs": 2.4,
+            "protein": 13.1,
+            "fat": 8.6,
+            "kcal": 139.0
+          },
+          "actual": {
+            "carbs": 2.4,
+            "fat": 8.6,
+            "kcal": 139.0,
+            "protein": 13.1
+          },
+          "passed": true
+        },
+        {
+          "record_id": "aaaeae8c-3f32-4d12-b87c-be4b4c065e58",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name": "米饭",
+          "date": "2026-11-04",
+          "meal_type": "breakfast",
+          "grams": 100.0,
+          "status": "valid",
+          "agent_revision": 1,
+          "expected": {
+            "carbs": 25.9,
+            "protein": 2.6,
+            "fat": 0.3,
+            "kcal": 116.0
+          },
+          "actual": {
+            "carbs": 25.9,
+            "fat": 0.3,
+            "kcal": 116.0,
+            "protein": 2.6
+          },
+          "passed": true
+        }
+      ],
+      "total": {
+        "kcal": 510.0,
+        "carbs": 56.6,
+        "protein": 31.4,
+        "fat": 17.8
+      },
+      "row_count": 4,
+      "all_rows_passed": true,
+      "unique_ids": true,
+      "ledger_sha256": "5210b31a31ec49de94f9afbafcdbd7098d0f67c89244b4990f9ef0a0502430c3",
+      "versions": {
+        "b1ea74ac-d942-4ff8-8afc-0112e4dc051c": 1,
+        "ffc8fa64-e9c7-418a-ba30-56d2795ac197": 1,
+        "9446294e-9534-4c8d-b0bb-42d216c06a49": 1,
+        "aaaeae8c-3f32-4d12-b87c-be4b4c065e58": 1
+      }
+    },
+    "fact_receipt_check": {
+      "tool_facts": false,
+      "no_model_reply": false,
+      "one_main_decision": false
+    }
+  },
+  "baseline_rows": [
+    {
+      "agent_revision": 1,
+      "created_at": 1793789238784,
+      "date": "2026-11-04",
+      "food_id": "food_egg",
+      "food_name": "鸡蛋",
+      "grams": 100.0,
+      "meal_type": "breakfast",
+      "message_id": "menu-r8-20261104-prepared-record:agent:1",
+      "nutrition": {
+        "carbs": 2.4,
+        "fat": 8.6,
+        "kcal": 139.0,
+        "protein": 13.1
+      },
+      "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+      "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+      "snapshot": {
+        "basis": "user_edible_grams",
+        "estimated": false,
+        "food": {
+          "aliases": [],
+          "boohee_id": "jidan_junzhi",
+          "carbs_per_100g": 2.4,
+          "detail_loaded": true,
+          "fat_per_100g": 8.6,
+          "food_id": "food_egg",
+          "kcal_per_100g": 139.0,
+          "name": "鸡蛋",
+          "protein_per_100g": 13.1,
+          "source": "boohee",
+          "units": [
+            {
+              "eat_weight": "1.00",
+              "unit_id": 0,
+              "unit_name": "克",
+              "weight": "1.00"
+            },
+            {
+              "eat_weight": "52.80",
+              "unit_id": 34,
+              "unit_name": "只(中)",
+              "weight": "60.00"
+            },
+            {
+              "eat_weight": "61.60",
+              "unit_id": 210,
+              "unit_name": "只(大)",
+              "weight": "70.00"
+            }
+          ]
+        },
+        "kcal_source": "source",
+        "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+        "quantity": null,
+        "quantity_text": "",
+        "unit": ""
+      },
+      "status": "valid",
+      "user_id": "r11-feishu-20261104"
+    },
+    {
+      "agent_revision": 1,
+      "created_at": 1793789238783,
+      "date": "2026-11-04",
+      "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+      "food_name": "米饭",
+      "grams": 100.0,
+      "meal_type": "breakfast",
+      "message_id": "menu-r8-20261104-prepared-record:agent:1",
+      "nutrition": {
+        "carbs": 25.9,
+        "fat": 0.3,
+        "kcal": 116.0,
+        "protein": 2.6
+      },
+      "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+      "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+      "snapshot": {
+        "basis": "user_edible_grams",
+        "estimated": false,
+        "food": {
+          "aliases": [],
+          "boohee_id": "mifan_zheng",
+          "carbs_per_100g": 25.9,
+          "detail_loaded": true,
+          "fat_per_100g": 0.3,
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "kcal_per_100g": 116.0,
+          "name": "米饭",
+          "protein_per_100g": 2.6,
+          "source": "boohee",
+          "units": [
+            {
+              "eat_weight": "1.00",
+              "unit_id": 0,
+              "unit_name": "克",
+              "weight": "1.00"
+            },
+            {
+              "eat_weight": "40.00",
+              "unit_id": 233,
+              "unit_name": "勺",
+              "weight": "40.00"
+            },
+            {
+              "eat_weight": "20.00",
+              "unit_id": 587542,
+              "unit_name": "口",
+              "weight": "20.00"
+            },
+            {
+              "eat_weight": "150.00",
+              "unit_id": 132,
+              "unit_name": "小碗",
+              "weight": "150.00"
+            },
+            {
+              "eat_weight": "180.00",
+              "unit_id": 980,
+              "unit_name": "碗",
+              "weight": "180.00"
+            }
+          ]
+        },
+        "kcal_source": "source",
+        "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+        "quantity": null,
+        "quantity_text": "",
+        "unit": ""
+      },
+      "status": "valid",
+      "user_id": "r11-feishu-20261104"
+    }
+  ],
+  "old_rows_unchanged": true,
+  "added_ids": [
+    "9446294e-9534-4c8d-b0bb-42d216c06a49",
+    "aaaeae8c-3f32-4d12-b87c-be4b4c065e58"
+  ],
+  "independent_valid_rows": 4,
+  "independent_total_kcal": 510,
+  "feishu_body_equals_saved_reply": true,
+  "actual_feishu_body": "今天早餐已记录：米饭 100 克、鸡蛋 100 克，本餐合计 255 千卡。\n\n关于“把鸡胸换成鸡蛋”：当前这版方案里没有鸡胸肉这一项；补充蛋白本来就用鸡蛋，早餐 200 克、上午加餐 100 克、晚间加餐 150 克；另外辅以玉米粒和土豆泥补碳水。所以这次没有可替换的对象，原方案保持不动：两顿沙县鸭腿饭各一份（只算白米饭和鸭腿、不加卤蛋）固定不动；全天约 2143 千卡，蛋白质约 137 克，在 200 千卡误差内达标。\n\n如果想再提高一点蛋白、或用鸡蛋替掉某一份土豆，告诉我具体哪一项，我再改。",
+  "actual_send_result": {
+    "code": 0,
+    "data": {
+      "body": {
+        "content": "{\"text\":\"今天早餐已记录：米饭 100 克、鸡蛋 100 克，本餐合计 255 千卡。\\n\\n关于“把鸡胸换成鸡蛋”：当前这版方案里没有鸡胸肉这一项；补充蛋白本来就用鸡蛋，早餐 200 克、上午加餐 100 克、晚间加餐 150 克；另外辅以玉米粒和土豆泥补碳水。所以这次没有可替换的对象，原方案保持不动：两顿沙县鸭腿饭各一份（只算白米饭和鸭腿、不加卤蛋）固定不动；全天约 2143 千卡，蛋白质约 137 克，在 200 千卡误差内达标。\\n\\n如果想再提高一点蛋白、或用鸡蛋替掉某一份土豆，告诉我具体哪一项，我再改。\"}"
+      },
+      "chat_id": "<owner-chat>",
+      "create_time": "1793796401008",
+      "deleted": false,
+      "message_id": "om_x100b6186ddc050accf199b748b8eaff",
+      "msg_type": "text",
+      "sender": {
+        "id": "<feishu_app_id>",
+        "id_type": "app_id",
+        "sender_type": "app",
+        "tenant_key": "1ad7eb736f291c90"
+      },
+      "update_time": "1793796401008",
+      "updated": false
+    },
+    "msg": "success"
+  },
+  "delivery": {
+    "cos_revision": 27,
+    "message_id": "om_x100b6186ddc050accf199b748b8eaff",
+    "mode": "send",
+    "presented": true,
+    "result_digest": "f267a55f93a3e66753e3240a5d47121d8e2fd5987db12ba3ac427e56dc582b54",
+    "send_duration_ms": 798.989,
+    "send_result": {
+      "code": 0,
+      "data": {
+        "body": {
+          "content": "{\"text\":\"今天早餐已记录：米饭 100 克、鸡蛋 100 克，本餐合计 255 千卡。\\n\\n关于“把鸡胸换成鸡蛋”：当前这版方案里没有鸡胸肉这一项；补充蛋白本来就用鸡蛋，早餐 200 克、上午加餐 100 克、晚间加餐 150 克；另外辅以玉米粒和土豆泥补碳水。所以这次没有可替换的对象，原方案保持不动：两顿沙县鸭腿饭各一份（只算白米饭和鸭腿、不加卤蛋）固定不动；全天约 2143 千卡，蛋白质约 137 克，在 200 千卡误差内达标。\\n\\n如果想再提高一点蛋白、或用鸡蛋替掉某一份土豆，告诉我具体哪一项，我再改。\"}"
+        },
+        "chat_id": "<owner-chat>",
+        "create_time": "1793796401008",
+        "deleted": false,
+        "message_id": "om_x100b6186ddc050accf199b748b8eaff",
+        "msg_type": "text",
+        "sender": {
+          "id": "<feishu_app_id>",
+          "id_type": "app_id",
+          "sender_type": "app",
+          "tenant_key": "1ad7eb736f291c90"
+        },
+        "update_time": "1793796401008",
+        "updated": false
+      },
+      "msg": "success"
+    },
+    "sent_at": 1793796401.111967,
+    "slow_request": true,
+    "t_service_ms": 16754.775,
+    "t_user_ms": 17445.967,
+    "uuid": "00458674-6a07-41ab-955e-2e5d95626f38"
+  },
+  "result": {
+    "status": "ok",
+    "reply_source": "agent",
+    "model_reply": "今天早餐已记录：米饭 100 克、鸡蛋 100 克，本餐合计 255 千卡。\n\n关于“把鸡胸换成鸡蛋”：当前这版方案里没有鸡胸肉这一项；补充蛋白本来就用鸡蛋，早餐 200 克、上午加餐 100 克、晚间加餐 150 克；另外辅以玉米粒和土豆泥补碳水。所以这次没有可替换的对象，原方案保持不动：两顿沙县鸭腿饭各一份（只算白米饭和鸭腿、不加卤蛋）固定不动；全天约 2143 千卡，蛋白质约 137 克，在 200 千卡误差内达标。\n\n如果想再提高一点蛋白、或用鸡蛋替掉某一份土豆，告诉我具体哪一项，我再改。",
+    "model_calls": 2,
+    "native_calls": [
+      {
+        "action_id": "r11-feishu-20261104-record:agent:1",
+        "action_note": null,
+        "args": {
+          "date": "2026-11-04",
+          "items": [
+            {
+              "food_query": "米饭",
+              "grams": 100
+            },
+            {
+              "food_query": "鸡蛋",
+              "grams": 100
+            }
+          ],
+          "meal_type": "breakfast"
+        },
+        "batch_id": "r11-feishu-20261104-record:model:1",
+        "call_id": "call_00_BORj65VxC4nna6SDbbkW0914",
+        "finish_after_tools": false,
+        "index": 1,
+        "tool": "record_meal"
+      }
+    ],
+    "tool_results": [
+      {
+        "action_id": "r11-feishu-20261104-record:agent:1",
+        "call_id": "call_00_BORj65VxC4nna6SDbbkW0914",
+        "data": {
+          "cancelled": [],
+          "cancelled_items": [],
+          "completed_count": 2,
+          "items": [
+            {
+              "date": "2026-11-04",
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "grams": 100.0,
+              "matched_name": "米饭",
+              "meal_type": "breakfast",
+              "message_id": "r11-feishu-20261104-record:agent:1",
+              "nutrition": {
+                "carbs": 25.9,
+                "fat": 0.3,
+                "kcal": 116.0,
+                "protein": 2.6
+              },
+              "record_id": "aaaeae8c-3f32-4d12-b87c-be4b4c065e58",
+              "snapshot": {
+                "basis": "user_edible_grams",
+                "estimated": false,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "mifan_zheng",
+                  "carbs_per_100g": 25.9,
+                  "detail_loaded": true,
+                  "fat_per_100g": 0.3,
+                  "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+                  "kcal_per_100g": 116.0,
+                  "name": "米饭",
+                  "protein_per_100g": 2.6,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "40.00",
+                      "unit_id": 233,
+                      "unit_name": "勺",
+                      "weight": "40.00"
+                    },
+                    {
+                      "eat_weight": "20.00",
+                      "unit_id": 587542,
+                      "unit_name": "口",
+                      "weight": "20.00"
+                    },
+                    {
+                      "eat_weight": "150.00",
+                      "unit_id": 132,
+                      "unit_name": "小碗",
+                      "weight": "150.00"
+                    },
+                    {
+                      "eat_weight": "180.00",
+                      "unit_id": 980,
+                      "unit_name": "碗",
+                      "weight": "180.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "meal_id": "r11-feishu-20261104-record:agent:1",
+                "quantity": null,
+                "quantity_text": "",
+                "unit": ""
+              }
+            },
+            {
+              "date": "2026-11-04",
+              "food_id": "food_egg",
+              "grams": 100.0,
+              "matched_name": "鸡蛋",
+              "meal_type": "breakfast",
+              "message_id": "r11-feishu-20261104-record:agent:1",
+              "nutrition": {
+                "carbs": 2.4,
+                "fat": 8.6,
+                "kcal": 139.0,
+                "protein": 13.1
+              },
+              "record_id": "9446294e-9534-4c8d-b0bb-42d216c06a49",
+              "snapshot": {
+                "basis": "user_edible_grams",
+                "estimated": false,
+                "food": {
+                  "aliases": [],
+                  "boohee_id": "jidan_junzhi",
+                  "carbs_per_100g": 2.4,
+                  "detail_loaded": true,
+                  "fat_per_100g": 8.6,
+                  "food_id": "food_egg",
+                  "kcal_per_100g": 139.0,
+                  "name": "鸡蛋",
+                  "protein_per_100g": 13.1,
+                  "source": "boohee",
+                  "units": [
+                    {
+                      "eat_weight": "1.00",
+                      "unit_id": 0,
+                      "unit_name": "克",
+                      "weight": "1.00"
+                    },
+                    {
+                      "eat_weight": "52.80",
+                      "unit_id": 34,
+                      "unit_name": "只(中)",
+                      "weight": "60.00"
+                    },
+                    {
+                      "eat_weight": "61.60",
+                      "unit_id": 210,
+                      "unit_name": "只(大)",
+                      "weight": "70.00"
+                    }
+                  ]
+                },
+                "kcal_source": "source",
+                "meal_id": "r11-feishu-20261104-record:agent:1",
+                "quantity": null,
+                "quantity_text": "",
+                "unit": ""
+              }
+            }
+          ],
+          "meal_totals": [
+            {
+              "count": 2,
+              "date": "2026-11-04",
+              "estimated": false,
+              "meal_id": "r11-feishu-20261104-record:agent:1",
+              "meal_type": "breakfast",
+              "total": {
+                "carbs": 28.3,
+                "fat": 8.9,
+                "kcal": 255.0,
+                "protein": 15.7
+              }
+            }
+          ],
+          "total": {
+            "carbs": 28.3,
+            "fat": 8.9,
+            "kcal": 255.0,
+            "protein": 15.7
+          },
+          "unfinished": [],
+          "write_status": "created"
+        },
+        "status": "ok",
+        "tool": "record_meal"
+      }
+    ],
+    "errors": []
+  },
+  "model_configurations": [
+    {
+      "max_tokens": 8192,
+      "model": "deepseek-v4-flash",
+      "parallel_tool_calls": false,
+      "temperature": 0
+    },
+    {
+      "max_tokens": 8192,
+      "model": "deepseek-v4-flash",
+      "parallel_tool_calls": false,
+      "temperature": 0
+    }
+  ],
+  "model_first_interpretation": "The user wants: change chicken breast to eggs in the draft, and record today's breakfast.",
+  "semantic_review": {
+    "message_id": "r11-feishu-20261104-record",
+    "reviewed_at": 1793796517.5253272,
+    "sample_sha256_before_manual_review": "ccb98ad915d1f6dcb73c41f160ce73716ca077088b348852f03cf9379f49de21",
+    "hard_correctness_passed": false,
+    "ledger_correct": true,
+    "failure_kind": "receipt_scope_error",
+    "evidence": "首句记餐确已新增255千卡，但实际飞书正文混入已完成的历史改稿请求及旧菜单数字，且未采用本批事实回执。",
+    "normal_samples_after_first_failure": 0
+  },
+  "first_failure": {
+    "first_failure_message_id": "r11-feishu-20261104-record",
+    "step": "record",
+    "reason": "首句记餐确已新增255千卡，但实际飞书正文混入已完成的历史改稿请求及旧菜单数字，且未采用本批事实回执。",
+    "detected_by": "manual semantic review after independent ledger checks",
+    "subsequent_business_samples_stopped": true
+  },
+  "skipped_messages": [
+    "revise",
+    "today",
+    "plan",
+    "replace",
+    "knowledge"
+  ],
+  "normal_timer_archive": {
+    "checked_at": 1793796694.331695,
+    "normal_timer_only": true,
+    "manual_invocations": 0,
+    "message_revision": 29,
+    "sync_revision": 10,
+    "changes": {
+      "archive:settings:r11-feishu-20261104": {
+        "id": "r11-feishu-20261104",
+        "kind": "settings",
+        "revision": 1,
+        "user_id": "r11-feishu-20261104",
+        "value": {
+          "daily_targets": {
+            "2026-11-04": {
+              "carbs": 180,
+              "fat": 60,
+              "kcal": 1800,
+              "protein": 120
+            }
+          },
+          "targets": {
+            "carbs": 250,
+            "fat": 70,
+            "kcal": 2230,
+            "protein": 150
+          }
+        }
+      },
+      "archive:intake:b1ea74ac-d942-4ff8-8afc-0112e4dc051c": {
+        "id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+        "kind": "intake",
+        "revision": 1,
+        "user_id": "r11-feishu-20261104",
+        "value": {
+          "agent_revision": 1,
+          "created_at": 1793789238784,
+          "date": "2026-11-04",
+          "food_id": "food_egg",
+          "food_name": "鸡蛋",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "nutrition": {
+            "carbs": 2.4,
+            "fat": 8.6,
+            "kcal": 139.0,
+            "protein": 13.1
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "jidan_junzhi",
+              "carbs_per_100g": 2.4,
+              "detail_loaded": true,
+              "fat_per_100g": 8.6,
+              "food_id": "food_egg",
+              "kcal_per_100g": 139.0,
+              "name": "鸡蛋",
+              "protein_per_100g": 13.1,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "52.80",
+                  "unit_id": 34,
+                  "unit_name": "只(中)",
+                  "weight": "60.00"
+                },
+                {
+                  "eat_weight": "61.60",
+                  "unit_id": 210,
+                  "unit_name": "只(大)",
+                  "weight": "70.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      },
+      "archive:intake:ffc8fa64-e9c7-418a-ba30-56d2795ac197": {
+        "id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+        "kind": "intake",
+        "revision": 1,
+        "user_id": "r11-feishu-20261104",
+        "value": {
+          "agent_revision": 1,
+          "created_at": 1793789238783,
+          "date": "2026-11-04",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name": "米饭",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "nutrition": {
+            "carbs": 25.9,
+            "fat": 0.3,
+            "kcal": 116.0,
+            "protein": 2.6
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "mifan_zheng",
+              "carbs_per_100g": 25.9,
+              "detail_loaded": true,
+              "fat_per_100g": 0.3,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "kcal_per_100g": 116.0,
+              "name": "米饭",
+              "protein_per_100g": 2.6,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "40.00",
+                  "unit_id": 233,
+                  "unit_name": "勺",
+                  "weight": "40.00"
+                },
+                {
+                  "eat_weight": "20.00",
+                  "unit_id": 587542,
+                  "unit_name": "口",
+                  "weight": "20.00"
+                },
+                {
+                  "eat_weight": "150.00",
+                  "unit_id": 132,
+                  "unit_name": "小碗",
+                  "weight": "150.00"
+                },
+                {
+                  "eat_weight": "180.00",
+                  "unit_id": 980,
+                  "unit_name": "碗",
+                  "weight": "180.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "menu-r8-20261104-prepared-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      },
+      "archive:intake:9446294e-9534-4c8d-b0bb-42d216c06a49": {
+        "id": "9446294e-9534-4c8d-b0bb-42d216c06a49",
+        "kind": "intake",
+        "revision": 1,
+        "user_id": "r11-feishu-20261104",
+        "value": {
+          "agent_revision": 1,
+          "created_at": 1793796396065,
+          "date": "2026-11-04",
+          "food_id": "food_egg",
+          "food_name": "鸡蛋",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "r11-feishu-20261104-record:agent:1",
+          "nutrition": {
+            "carbs": 2.4,
+            "fat": 8.6,
+            "kcal": 139.0,
+            "protein": 13.1
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "9446294e-9534-4c8d-b0bb-42d216c06a49",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "jidan_junzhi",
+              "carbs_per_100g": 2.4,
+              "detail_loaded": true,
+              "fat_per_100g": 8.6,
+              "food_id": "food_egg",
+              "kcal_per_100g": 139.0,
+              "name": "鸡蛋",
+              "protein_per_100g": 13.1,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "52.80",
+                  "unit_id": 34,
+                  "unit_name": "只(中)",
+                  "weight": "60.00"
+                },
+                {
+                  "eat_weight": "61.60",
+                  "unit_id": 210,
+                  "unit_name": "只(大)",
+                  "weight": "70.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "r11-feishu-20261104-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      },
+      "archive:intake:aaaeae8c-3f32-4d12-b87c-be4b4c065e58": {
+        "id": "aaaeae8c-3f32-4d12-b87c-be4b4c065e58",
+        "kind": "intake",
+        "revision": 1,
+        "user_id": "r11-feishu-20261104",
+        "value": {
+          "agent_revision": 1,
+          "created_at": 1793796396026,
+          "date": "2026-11-04",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name": "米饭",
+          "grams": 100.0,
+          "meal_type": "breakfast",
+          "message_id": "r11-feishu-20261104-record:agent:1",
+          "nutrition": {
+            "carbs": 25.9,
+            "fat": 0.3,
+            "kcal": 116.0,
+            "protein": 2.6
+          },
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "record_id": "aaaeae8c-3f32-4d12-b87c-be4b4c065e58",
+          "snapshot": {
+            "basis": "user_edible_grams",
+            "estimated": false,
+            "food": {
+              "aliases": [],
+              "boohee_id": "mifan_zheng",
+              "carbs_per_100g": 25.9,
+              "detail_loaded": true,
+              "fat_per_100g": 0.3,
+              "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+              "kcal_per_100g": 116.0,
+              "name": "米饭",
+              "protein_per_100g": 2.6,
+              "source": "boohee",
+              "units": [
+                {
+                  "eat_weight": "1.00",
+                  "unit_id": 0,
+                  "unit_name": "克",
+                  "weight": "1.00"
+                },
+                {
+                  "eat_weight": "40.00",
+                  "unit_id": 233,
+                  "unit_name": "勺",
+                  "weight": "40.00"
+                },
+                {
+                  "eat_weight": "20.00",
+                  "unit_id": 587542,
+                  "unit_name": "口",
+                  "weight": "20.00"
+                },
+                {
+                  "eat_weight": "150.00",
+                  "unit_id": 132,
+                  "unit_name": "小碗",
+                  "weight": "150.00"
+                },
+                {
+                  "eat_weight": "180.00",
+                  "unit_id": 980,
+                  "unit_name": "碗",
+                  "weight": "180.00"
+                }
+              ]
+            },
+            "kcal_source": "source",
+            "meal_id": "r11-feishu-20261104-record:agent:1",
+            "quantity": null,
+            "quantity_text": "",
+            "unit": ""
+          },
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      }
+    },
+    "states": {
+      "archive:settings:r11-feishu-20261104": {
+        "ack_revision": 1,
+        "confirmed_at": 1793796640.5210578,
+        "inflight": null,
+        "last_error": "",
+        "record_id": "reczz28VbfitKgvp",
+        "status": "confirmed"
+      },
+      "archive:intake:b1ea74ac-d942-4ff8-8afc-0112e4dc051c": {
+        "ack_revision": 1,
+        "confirmed_at": 1793796628.6996078,
+        "inflight": null,
+        "last_error": "",
+        "record_id": "reczz28VbfVwYSFi",
+        "status": "confirmed"
+      },
+      "archive:intake:ffc8fa64-e9c7-418a-ba30-56d2795ac197": {
+        "ack_revision": 1,
+        "confirmed_at": 1793796634.6004922,
+        "inflight": null,
+        "last_error": "",
+        "record_id": "reczz28VbfcQVkGS",
+        "status": "confirmed"
+      },
+      "archive:intake:9446294e-9534-4c8d-b0bb-42d216c06a49": {
+        "ack_revision": 1,
+        "confirmed_at": 1793796616.1181617,
+        "inflight": null,
+        "last_error": "",
+        "record_id": "reczz28VbfIHu03J",
+        "status": "confirmed"
+      },
+      "archive:intake:aaaeae8c-3f32-4d12-b87c-be4b4c065e58": {
+        "ack_revision": 1,
+        "confirmed_at": 1793796622.8679929,
+        "inflight": null,
+        "last_error": "",
+        "record_id": "reczz28VbfPMYMiT",
+        "status": "confirmed"
+      }
+    },
+    "all_current_archive_kinds_confirmed": true,
+    "direct_rows": [
+      [
+        "reczz28VbfIHu03J",
+        {
+          "agent_item_id": "9446294e-9534-4c8d-b0bb-42d216c06a49",
+          "agent_revision": "1",
+          "carbs": "2.4",
+          "created_at": "1793796396065",
+          "date": "1793721600000",
+          "fat": "8.6",
+          "food_id": "food_egg",
+          "food_name_snapshot": "鸡蛋",
+          "grams": "100",
+          "kcal": "139",
+          "meal_type": "breakfast",
+          "message_id": "r11-feishu-20261104-record:agent:1",
+          "protein": "13.1",
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"jidan_junzhi\", \"carbs_per_100g\": 2.4, \"detail_loaded\": true, \"fat_per_100g\": 8.6, \"food_id\": \"food_egg\", \"kcal_per_100g\": 139.0, \"name\": \"鸡蛋\", \"protein_per_100g\": 13.1, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"52.80\", \"unit_id\": 34, \"unit_name\": \"只(中)\", \"weight\": \"60.00\"}, {\"eat_weight\": \"61.60\", \"unit_id\": 210, \"unit_name\": \"只(大)\", \"weight\": \"70.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"r11-feishu-20261104-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ],
+      [
+        "reczz28VbfPMYMiT",
+        {
+          "agent_item_id": "aaaeae8c-3f32-4d12-b87c-be4b4c065e58",
+          "agent_revision": "1",
+          "carbs": "25.9",
+          "created_at": "1793796396026",
+          "date": "1793721600000",
+          "fat": "0.3",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name_snapshot": "米饭",
+          "grams": "100",
+          "kcal": "116",
+          "meal_type": "breakfast",
+          "message_id": "r11-feishu-20261104-record:agent:1",
+          "protein": "2.6",
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"mifan_zheng\", \"carbs_per_100g\": 25.9, \"detail_loaded\": true, \"fat_per_100g\": 0.3, \"food_id\": \"c98a3f0b-648d-4aee-ba48-a661789378fa\", \"kcal_per_100g\": 116.0, \"name\": \"米饭\", \"protein_per_100g\": 2.6, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"40.00\", \"unit_id\": 233, \"unit_name\": \"勺\", \"weight\": \"40.00\"}, {\"eat_weight\": \"20.00\", \"unit_id\": 587542, \"unit_name\": \"口\", \"weight\": \"20.00\"}, {\"eat_weight\": \"150.00\", \"unit_id\": 132, \"unit_name\": \"小碗\", \"weight\": \"150.00\"}, {\"eat_weight\": \"180.00\", \"unit_id\": 980, \"unit_name\": \"碗\", \"weight\": \"180.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"r11-feishu-20261104-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ],
+      [
+        "reczz28VbfVwYSFi",
+        {
+          "agent_item_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+          "agent_revision": "1",
+          "carbs": "2.4",
+          "created_at": "1793789238784",
+          "date": "1793721600000",
+          "fat": "8.6",
+          "food_id": "food_egg",
+          "food_name_snapshot": "鸡蛋",
+          "grams": "100",
+          "kcal": "139",
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "protein": "13.1",
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"jidan_junzhi\", \"carbs_per_100g\": 2.4, \"detail_loaded\": true, \"fat_per_100g\": 8.6, \"food_id\": \"food_egg\", \"kcal_per_100g\": 139.0, \"name\": \"鸡蛋\", \"protein_per_100g\": 13.1, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"52.80\", \"unit_id\": 34, \"unit_name\": \"只(中)\", \"weight\": \"60.00\"}, {\"eat_weight\": \"61.60\", \"unit_id\": 210, \"unit_name\": \"只(大)\", \"weight\": \"70.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"menu-r8-20261104-prepared-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ],
+      [
+        "reczz28VbfcQVkGS",
+        {
+          "agent_item_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+          "agent_revision": "1",
+          "carbs": "25.9",
+          "created_at": "1793789238783",
+          "date": "1793721600000",
+          "fat": "0.3",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name_snapshot": "米饭",
+          "grams": "100",
+          "kcal": "116",
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "protein": "2.6",
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"mifan_zheng\", \"carbs_per_100g\": 25.9, \"detail_loaded\": true, \"fat_per_100g\": 0.3, \"food_id\": \"c98a3f0b-648d-4aee-ba48-a661789378fa\", \"kcal_per_100g\": 116.0, \"name\": \"米饭\", \"protein_per_100g\": 2.6, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"40.00\", \"unit_id\": 233, \"unit_name\": \"勺\", \"weight\": \"40.00\"}, {\"eat_weight\": \"20.00\", \"unit_id\": 587542, \"unit_name\": \"口\", \"weight\": \"20.00\"}, {\"eat_weight\": \"150.00\", \"unit_id\": 132, \"unit_name\": \"小碗\", \"weight\": \"150.00\"}, {\"eat_weight\": \"180.00\", \"unit_id\": 980, \"unit_name\": \"碗\", \"weight\": \"180.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"menu-r8-20261104-prepared-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ]
+    ],
+    "intake_checks": [
+      {
+        "agent_item_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+        "expected_revision": 1,
+        "record_id": "reczz28VbfVwYSFi",
+        "matching_rows": 1,
+        "actual_revision": 1.0,
+        "nutrition_matches": true,
+        "grams_matches": true,
+        "date_matches": true,
+        "status_matches": true
+      },
+      {
+        "agent_item_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+        "expected_revision": 1,
+        "record_id": "reczz28VbfcQVkGS",
+        "matching_rows": 1,
+        "actual_revision": 1.0,
+        "nutrition_matches": true,
+        "grams_matches": true,
+        "date_matches": true,
+        "status_matches": true
+      },
+      {
+        "agent_item_id": "9446294e-9534-4c8d-b0bb-42d216c06a49",
+        "expected_revision": 1,
+        "record_id": "reczz28VbfIHu03J",
+        "matching_rows": 1,
+        "actual_revision": 1.0,
+        "nutrition_matches": true,
+        "grams_matches": true,
+        "date_matches": true,
+        "status_matches": true
+      },
+      {
+        "agent_item_id": "aaaeae8c-3f32-4d12-b87c-be4b4c065e58",
+        "expected_revision": 1,
+        "record_id": "reczz28VbfPMYMiT",
+        "matching_rows": 1,
+        "actual_revision": 1.0,
+        "nutrition_matches": true,
+        "grams_matches": true,
+        "date_matches": true,
+        "status_matches": true
+      }
+    ],
+    "direct_final_versions_passed": true,
+    "intake_cohorts": {
+      "prior_build": {
+        "item_ids": [
+          "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+          "ffc8fa64-e9c7-418a-ba30-56d2795ac197"
+        ],
+        "original_created_at": 1793789238.783,
+        "final_version_confirmed_at": 1793796634.6004922,
+        "archive_ms": 7395817.492
+      },
+      "current_build": {
+        "item_ids": [
+          "9446294e-9534-4c8d-b0bb-42d216c06a49",
+          "aaaeae8c-3f32-4d12-b87c-be4b4c065e58"
+        ],
+        "original_created_at": 1793796396.026,
+        "final_version_confirmed_at": 1793796622.8679929,
+        "archive_ms": 226841.993
+      }
+    },
+    "source_settings_independent_readbacks": [
+      {
+        "archive_key": "archive:settings:r11-feishu-20261104",
+        "kind": "settings",
+        "expected_revision": 1,
+        "table_id": "tbl9pFfJkLEoHv40",
+        "stable_field": "pending_id",
+        "stable_value": "0e6bf4fb-1ade-40a7-a519-dc78f2a402e5",
+        "matches": 1,
+        "record_id": "reczz28VbfitKgvp",
+        "direct_fields": {
+          "expires_at": "0",
+          "intent": "user_settings",
+          "meal_type": "unknown",
+          "payload": "{\"encoding\": \"zlib-base64\", \"data\": \"eJyrVkpJzMypjC9JLEpPLSlWslKoVjIyMDLTNTTUNTABc5MTi5JAEoYWBjoKSmmJJUC2GYiZnZyYAxEH8QqK8ktSM/NAAkYGtbVAEWQzYYYYmSIMMUcyxMjIGM0QU6AhALgwK4k=\"}",
+          "pending_id": "0e6bf4fb-1ade-40a7-a519-dc78f2a402e5",
+          "source_message_id": "user_settings:r11-feishu-20261104:",
+          "status": "completed",
+          "user_id": "r11-feishu-20261104"
+        },
+        "differences": [],
+        "independent_fields_match": true,
+        "sync_current_version_confirmed": true
+      }
+    ],
+    "all_source_settings_fields_passed": true,
+    "original_commit_at": 1793796396.026,
+    "final_intake_archive_confirmed_at": 1793796622.8679929,
+    "archive_ms": 226841.993,
+    "ten_minute_passed": true,
+    "elapsed_since_first_commit_ms": 298305.708
+  },
+  "trial_decision": "defer: first Feishu receipt reanswered a completed historical request"
+}

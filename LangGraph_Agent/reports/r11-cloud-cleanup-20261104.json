@@ -1,0 +1,208 @@
+{
+  "started_at": 1793796774.7343974,
+  "prefix": "cos-probe/production-candidate/r11-feishu-20261104/",
+  "trigger_operations": [
+    {
+      "function": "calorie-cos-ingress-probe",
+      "action": "deleted",
+      "trigger": "32zzmpkk6u",
+      "request_id": "9ead50d8-cae1-4ce1-9d7d-1af375a4fadd"
+    },
+    {
+      "function": "calorie-cos-sync-probe",
+      "action": "disabled",
+      "trigger": "r11-feishu-20261104-five-minutes",
+      "request_id": "beb62163-2341-4235-a974-c9b7dbe59d4b"
+    },
+    {
+      "function": "calorie-cos-sync-probe",
+      "action": "deleted",
+      "trigger": "r11-feishu-20261104-five-minutes",
+      "request_id": "67861a3f-4161-4e68-ae97-386e01f60045"
+    }
+  ],
+  "function_operations": [
+    {
+      "function": "calorie-cos-ingress-probe",
+      "request_id": "3c63f6aa-e2f9-4eb4-bfb4-b0901389cc2e"
+    },
+    {
+      "function": "calorie-cos-msg-probe",
+      "request_id": "eeea603b-daa6-4bd1-8c10-b81bb771dcee"
+    },
+    {
+      "function": "calorie-cos-sync-probe",
+      "request_id": "4b09326c-0260-4b06-b2ad-ddfa4ef10ca9"
+    }
+  ],
+  "bitable_rows_deleted": [],
+  "tables_deleted": [
+    {
+      "kind": "intake",
+      "name": "r11-feishu-20261104-intake",
+      "table_id": "tblvUjZuHWuwr0iO",
+      "delete_code": 0
+    },
+    {
+      "kind": "food",
+      "name": "r11-feishu-20261104-food",
+      "table_id": "tblC81sx7xBmsLWT",
+      "delete_code": 0
+    },
+    {
+      "kind": "settings",
+      "name": "r11-feishu-20261104-settings",
+      "table_id": "tbl9pFfJkLEoHv40",
+      "delete_code": 0
+    }
+  ],
+  "bot_messages_deleted": [
+    {
+      "message_id": "om_x100b6186ddc050accf199b748b8eaff",
+      "delete_code": 0,
+      "independent_visible_readback": "unavailable: existing app has no message-read permission; prior evidence reused"
+    }
+  ],
+  "cos_objects_deleted": 249,
+  "local_temp_removed": false,
+  "local_temp_dir": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r11-feishu-20261104",
+  "old_temp_cleanup_attempted": false,
+  "functions_remaining": [],
+  "table_contents_before_delete": {
+    "tblvUjZuHWuwr0iO": [
+      [
+        "reczz28VbfIHu03J",
+        {
+          "agent_item_id": "9446294e-9534-4c8d-b0bb-42d216c06a49",
+          "agent_revision": "1",
+          "carbs": "2.4",
+          "created_at": "1793796396065",
+          "date": "1793721600000",
+          "fat": "8.6",
+          "food_id": "food_egg",
+          "food_name_snapshot": "鸡蛋",
+          "grams": "100",
+          "kcal": "139",
+          "meal_type": "breakfast",
+          "message_id": "r11-feishu-20261104-record:agent:1",
+          "protein": "13.1",
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"jidan_junzhi\", \"carbs_per_100g\": 2.4, \"detail_loaded\": true, \"fat_per_100g\": 8.6, \"food_id\": \"food_egg\", \"kcal_per_100g\": 139.0, \"name\": \"鸡蛋\", \"protein_per_100g\": 13.1, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"52.80\", \"unit_id\": 34, \"unit_name\": \"只(中)\", \"weight\": \"60.00\"}, {\"eat_weight\": \"61.60\", \"unit_id\": 210, \"unit_name\": \"只(大)\", \"weight\": \"70.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"r11-feishu-20261104-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ],
+      [
+        "reczz28VbfPMYMiT",
+        {
+          "agent_item_id": "aaaeae8c-3f32-4d12-b87c-be4b4c065e58",
+          "agent_revision": "1",
+          "carbs": "25.9",
+          "created_at": "1793796396026",
+          "date": "1793721600000",
+          "fat": "0.3",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name_snapshot": "米饭",
+          "grams": "100",
+          "kcal": "116",
+          "meal_type": "breakfast",
+          "message_id": "r11-feishu-20261104-record:agent:1",
+          "protein": "2.6",
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"mifan_zheng\", \"carbs_per_100g\": 25.9, \"detail_loaded\": true, \"fat_per_100g\": 0.3, \"food_id\": \"c98a3f0b-648d-4aee-ba48-a661789378fa\", \"kcal_per_100g\": 116.0, \"name\": \"米饭\", \"protein_per_100g\": 2.6, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"40.00\", \"unit_id\": 233, \"unit_name\": \"勺\", \"weight\": \"40.00\"}, {\"eat_weight\": \"20.00\", \"unit_id\": 587542, \"unit_name\": \"口\", \"weight\": \"20.00\"}, {\"eat_weight\": \"150.00\", \"unit_id\": 132, \"unit_name\": \"小碗\", \"weight\": \"150.00\"}, {\"eat_weight\": \"180.00\", \"unit_id\": 980, \"unit_name\": \"碗\", \"weight\": \"180.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"r11-feishu-20261104-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ],
+      [
+        "reczz28VbfVwYSFi",
+        {
+          "agent_item_id": "b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+          "agent_revision": "1",
+          "carbs": "2.4",
+          "created_at": "1793789238784",
+          "date": "1793721600000",
+          "fat": "8.6",
+          "food_id": "food_egg",
+          "food_name_snapshot": "鸡蛋",
+          "grams": "100",
+          "kcal": "139",
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "protein": "13.1",
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"jidan_junzhi\", \"carbs_per_100g\": 2.4, \"detail_loaded\": true, \"fat_per_100g\": 8.6, \"food_id\": \"food_egg\", \"kcal_per_100g\": 139.0, \"name\": \"鸡蛋\", \"protein_per_100g\": 13.1, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"52.80\", \"unit_id\": 34, \"unit_name\": \"只(中)\", \"weight\": \"60.00\"}, {\"eat_weight\": \"61.60\", \"unit_id\": 210, \"unit_name\": \"只(大)\", \"weight\": \"70.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"menu-r8-20261104-prepared-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ],
+      [
+        "reczz28VbfcQVkGS",
+        {
+          "agent_item_id": "ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+          "agent_revision": "1",
+          "carbs": "25.9",
+          "created_at": "1793789238783",
+          "date": "1793721600000",
+          "fat": "0.3",
+          "food_id": "c98a3f0b-648d-4aee-ba48-a661789378fa",
+          "food_name_snapshot": "米饭",
+          "grams": "100",
+          "kcal": "116",
+          "meal_type": "breakfast",
+          "message_id": "menu-r8-20261104-prepared-record:agent:1",
+          "protein": "2.6",
+          "raw_text": "记录今天早餐：米饭100克、鸡蛋100克，均为可食克重。",
+          "snapshot": "{\"basis\": \"user_edible_grams\", \"estimated\": false, \"food\": {\"aliases\": [], \"boohee_id\": \"mifan_zheng\", \"carbs_per_100g\": 25.9, \"detail_loaded\": true, \"fat_per_100g\": 0.3, \"food_id\": \"c98a3f0b-648d-4aee-ba48-a661789378fa\", \"kcal_per_100g\": 116.0, \"name\": \"米饭\", \"protein_per_100g\": 2.6, \"source\": \"boohee\", \"units\": [{\"eat_weight\": \"1.00\", \"unit_id\": 0, \"unit_name\": \"克\", \"weight\": \"1.00\"}, {\"eat_weight\": \"40.00\", \"unit_id\": 233, \"unit_name\": \"勺\", \"weight\": \"40.00\"}, {\"eat_weight\": \"20.00\", \"unit_id\": 587542, \"unit_name\": \"口\", \"weight\": \"20.00\"}, {\"eat_weight\": \"150.00\", \"unit_id\": 132, \"unit_name\": \"小碗\", \"weight\": \"150.00\"}, {\"eat_weight\": \"180.00\", \"unit_id\": 980, \"unit_name\": \"碗\", \"weight\": \"180.00\"}]}, \"kcal_source\": \"source\", \"meal_id\": \"menu-r8-20261104-prepared-record:agent:1\", \"quantity\": null, \"quantity_text\": \"\", \"unit\": \"\"}",
+          "status": "valid",
+          "user_id": "r11-feishu-20261104"
+        }
+      ]
+    ],
+    "tblC81sx7xBmsLWT": [],
+    "tbl9pFfJkLEoHv40": [
+      [
+        "reczz28VbfitKgvp",
+        {
+          "expires_at": "0",
+          "intent": "user_settings",
+          "meal_type": "unknown",
+          "payload": "{\"encoding\": \"zlib-base64\", \"data\": \"eJyrVkpJzMypjC9JLEpPLSlWslKoVjIyMDLTNTTUNTABc5MTi5JAEoYWBjoKSmmJJUC2GYiZnZyYAxEH8QqK8ktSM/NAAkYGtbVAEWQzYYYYmSIMMUcyxMjIGM0QU6AhALgwK4k=\"}",
+          "pending_id": "0e6bf4fb-1ade-40a7-a519-dc78f2a402e5",
+          "source_message_id": "user_settings:r11-feishu-20261104:",
+          "status": "completed",
+          "user_id": "r11-feishu-20261104"
+        }
+      ]
+    ]
+  },
+  "cos_objects_remaining": 0,
+  "new_tables_remaining": 0,
+  "candidate_intake_rows_remaining": 0,
+  "preexisting_test_rows_preserved": 8,
+  "production_configuration_unchanged": true,
+  "production_source_snapshot_unchanged": true,
+  "known_bot_message_delete_ack_count": 1,
+  "completed_at": 1793796798.389882,
+  "schema": "r11-cloud-cleanup.v1",
+  "local": {
+    "current_run_directory": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r11-feishu-20261104",
+    "status": "automatic_approval_rejected_before_process_start",
+    "historical_residuals": "same-breakfast-cleanup-r11-20261104.json; previous 22 directories and 2 trace files remain on the existing list",
+    "path": "C:\\Users\\33203\\AppData\\Local\\Temp\\calorie-r11-feishu-20261104",
+    "files": 17,
+    "bytes": 1349201.0,
+    "archive_root": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r11-cloud-20261104",
+    "archive_zip": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r11-cloud-20261104\\operator-run.zip",
+    "archive_sha256": "98bc6bda76e2462c864bcd4e3dda8aff3bf228ee941da4d8bf79089a5f9c289b",
+    "raw_evidence": "C:\\Users\\33203\\AppData\\Local\\calorie-agent\\archives\\r11-cloud-20261104\\full-evidence.json",
+    "raw_evidence_sha256": "8191d889b741249cb2e900374f90659d038cd4ce1c8f1bc507732c4edbce2627",
+    "archive_verified": true,
+    "removed": false,
+    "reason": "blocked by policy",
+    "deleted_files": 0,
+    "retry_or_alternate_deletion_tool": false,
+    "exists_after_rejection": true,
+    "historical_cleanup_attempted_this_round": false
+  }
+}
