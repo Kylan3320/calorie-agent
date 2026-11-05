@@ -62,13 +62,13 @@ Bash 构建脚本需 Linux/WSL 环境及其 Python 依赖；本机 Windows venv 
 PYTHON=python3.10 bash deploy/build_zip.sh
 ```
 
-包或依赖变更需要装配验收时，在 Linux Python 3.10 运行以下命令，`--layer` 指向本次使用的冻结 Layer ZIP：
+包或依赖变更需要装配验收时，在 Linux Python 3.10 运行以下命令。`--package` 指向待验业务 ZIP，`--layer` 指向本次使用的冻结 Layer ZIP。
 
 ```bash
-python3.10 deploy/check_package.py --package deploy/calorie-agent-v4.zip --layer /path/to/frozen-layer.zip --output reports/package-check.json
+python3.10 deploy/check_package.py --package /path/to/candidate.zip --layer /path/to/frozen-layer.zip --output reports/package-check.json
 ```
 
-检查从两个 ZIP 临时解压加载，隔离仓库源码和本机 site-packages；记录业务包／Layer 的 SHA256、BUILD_ID 和 INDEX_VERSION，业务包身份与 `production_release.py freeze` 复用同一实现。该检查证明装配和启动，不代替业务正确性验证。候选 `production_live.py --stage report` 在最终门槛未满足时返回非零；补证据后可仅重算报告，无需重发业务消息。
+检查从两个 ZIP 临时解压加载，隔离仓库源码和本机 site-packages，记录业务包和 Layer 的 SHA256、业务包 BUILD_ID 和索引 INDEX_VERSION。该检查证明装配和启动。业务证据按[交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md#6-验收判据与交付)选取。`production_live.py` 的 `report` 阶段在最终门槛未满足时返回非零，补证后可直接重算报告。
 
 本机日常更新可直接调用腾讯云 API。部署凭据在仓库外 `%USERPROFILE%\.config\calorie-agent\tencentcloud-credentials.csv`，CSV 列为 `SecretId`、`SecretKey`；文件只允许本机用户和 SYSTEM 访问。不要回显密钥或将文件复制进仓库、报告、部署包。
 
@@ -82,19 +82,19 @@ Remove-Variable deployCredential
 python deploy/production_release.py inspect --function calorie-agent-reminder
 ```
 
-执行部署时，在同一次调用中将上述最后一行换为对应上传命令：
+执行部署时，在同一次 PowerShell 调用中加载凭据并设置待发包路径。`$releasePackage` 使用发布记录中已验收且获准上传的 ZIP。
 
-```bash
-python deploy/api_deploy.py --function calorie-agent-reminder  # 默认 deploy/calorie-agent-v4.zip
+```powershell
+$releasePackage = 'C:\path\to\approved-candidate.zip'
 ```
 
 按实际改动更新受影响函数：受理 Web 函数 `calorie-agent-api-v3-test`、消息 Event 函数 `calorie-agent-reminder`、归档 Event 函数 `calorie-agent-archive`。状态兼容的更新沿用以下步骤：
 
-1. 用 `production_release.py freeze` 固定包身份，inspect 受影响函数并将原包及私有配置备份到仓库外。
+1. 以发布记录的 BUILD_ID 和 SHA256 为准，用 `Get-FileHash -LiteralPath $releasePackage -Algorithm SHA256` 核对待上传文件一次。检查受影响函数，将原包及私有配置备份到仓库外。
 2. 用 `production_release.py maintenance-on --function calorie-agent-api-v3-test` 暂停新受理，核对未完收件及未知提交，保留原任务。
-3. 向受影响函数上传同一冻结包，保留角色、前缀、环境、触发及所需 Layer；消息 handler 为 app.message_handler，归档为 app.maintenance_handler。每个已受理更新仅轮询至 Active。
-4. 下载实际代码，核对 BUILD_ID、全部成员内容及所需配置，并检查受理 health。HTTP 平台重封装可能改变 ZIP 整体哈希，成员内容须匹配。
-5. 核对通过后用 `production_release.py maintenance-off --function calorie-agent-api-v3-test` 恢复受理；失败则先恢复原包和配置并核对。
+3. 向受影响函数显式上传同一冻结包，例如 `python deploy/api_deploy.py --function calorie-agent-reminder $releasePackage`。保留角色、前缀、环境、触发及所需 Layer。消息 handler 为 app.message_handler，归档为 app.maintenance_handler。每个已受理更新仅轮询至 Active。
+4. 每个更新的函数下载一次实际代码，核对包身份和所需配置，记录结果。下载 ZIP 的 SHA256 与原包一致即确认代码身份。HTTP 平台重封装导致整体哈希不同时，用同一份下载文件核对 BUILD_ID 及全部成员内容。代码核对结果沿用到本次发布结束，只有代码版本发生变化或出现具体疑点才复查。
+5. 核对通过后用 `production_release.py maintenance-off --function calorie-agent-api-v3-test` 恢复受理。确认受理已恢复、health 返回发布记录中的 BUILD_ID 且回调鉴权正常后结束。更新后需要回退时，先确认受理已暂停，再恢复原包和配置并核对，最后恢复受理。
 
 脚本从环境读取 TENCENTCLOUD_SECRET_ID／TENCENTCLOUD_SECRET_KEY，临时凭据另需 TENCENTCLOUD_SESSION_TOKEN；SCF_REGION 默认 ap-shanghai。资源及首次切换记录见 [生产计划](deploy/cos-production-plan.json)。该计划及 `cloudshell_cutover.py` 保留首次迁移恢复用途；日常更新按上述发布步骤，不重跑首次迁移、COS维护回收或未受影响的候选验收。迁移接口见 [Bitable 契约](contracts/bitable_schema.md#旧-bitable-状态与迁移)。
 
