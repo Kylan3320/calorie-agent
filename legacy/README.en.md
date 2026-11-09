@@ -1,5 +1,7 @@
 # Calorie Agent
 
+This document describes the historical V2 and V3 Beta packages. See the [current project](../README.md) for the active implementation.
+
 A Feishu-native calorie tracking Agent with low-friction logging, tool-grounded facts, and a product validation loop.
 
 `Calorie Agent` is a natural-language food logging Agent for a Feishu bot. A user can send messages such as "chicken breast 50g" or "eggs 100g for breakfast, rice 200g for lunch, how much do I have left today?", and the system turns the message into tool actions for logging, querying, undoing, asking follow-up questions, and replying in Feishu.
@@ -10,7 +12,7 @@ It is closer to a verifiable AI Agent product pipeline: Feishu provides the low-
 
 <p align="center">
   <strong>Language</strong>:
-  <a href="./README.md">简体中文</a> |
+  <a href="../README.md">简体中文</a> |
   <a href="./README.en.md">English</a>
 </p>
 
@@ -364,4 +366,4 @@ If the goal is only a one-off chatbot answer, a lightweight bot would be simpler
 
 ## License
 
-No root-level open-source license has been declared yet. Add an explicit `LICENSE` file before public distribution, commercial reuse, or derivative publication.
+See the repository [license](../LICENSE).
