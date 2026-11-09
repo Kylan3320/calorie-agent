@@ -1,8 +1,21 @@
-# ![Calorie Agent](assets/readme/cover.jpg)
+<h1 align="center">Calorie Agent</h1>
+
+<p align="center">
+  <a href="#飞书演示"><img src="https://img.shields.io/badge/Feishu-Bot-3b6fa6?style=flat-square" alt="Feishu Bot"></a>
+  <a href="#本地运行"><img src="https://img.shields.io/badge/Python-3.12%2B-555?style=flat-square" alt="本地运行需 Python 3.12 或更新版本"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-31796f?style=flat-square" alt="MIT 许可证"></a>
+</p>
+
+<p align="center">
+  <a href="#飞书演示">飞书演示</a> ·
+  <a href="#本地运行">本地运行</a> ·
+  <a href="#云函数部署">云函数部署</a> ·
+  <a href="#文档">文档</a>
+</p>
+
+![Calorie Agent 宣传片片头](assets/readme/cover.jpg)
 
 Calorie Agent 是个飞书机器人，用来记每天吃了什么。记错了份量，可以直接在同一个对话里改。
-
-[本地运行](#本地运行) · [云函数部署](#云函数部署)
 
 ## 飞书演示
 
@@ -55,6 +68,8 @@ py -3 -m venv .venv
 ![飞书消息进入 Calorie Agent。记餐写入 COS，再后台归档。营养问答从 LightRAG 检索资料。](assets/readme/message-flow.gif)
 
 </details>
+
+## 文档
 
 - [产品范围](REQUIREMENTS.md) · [饮食记录和计划](PERSONAL_CALORIE_SPEC.md) · [对话行为](CONVERSATION_EXPERIENCE_SPEC.md)
 - [本地控制台与 DSH](docs/operations.md#本地控制台与-dsh) · [运行评测](docs/operations.md#运行评测) · [存储和接口](contracts/)
