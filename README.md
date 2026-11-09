@@ -2,6 +2,8 @@
 
 飞书饮食记录助手：整餐记录、改量／撤销、追问补全、历史聚合及知识问答。
 
+早期 V2、V3 Beta 和历史产品资料见 [legacy/](legacy/README.md)。
+
 产品决定见 [REQUIREMENTS.md](REQUIREMENTS.md)，饮食业务见 [个人功能规格](PERSONAL_CALORIE_SPEC.md)，回复与上下文治理见 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，持久化与数据回收见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，接口见 [contracts/](contracts/)。协作与验证见 [AGENTS.md](AGENTS.md)，当前部署及验收结果见 [交付记录](reports/LATENCY_DELIVERY.md)。
 
 ## 本地运行
