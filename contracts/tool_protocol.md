@@ -1,5 +1,7 @@
 # Store 与原生工具契约
 
+本文描述已实现接口；阶段 C 的通用来源、Router／Worker、分页索引和回收尚未实现，目标分别见[统一规格第10节](../PERSONAL_ASSISTANT_SPEC.md#10-下一阶段-c通用事务与可靠运行)及[COS 规格](../LATENCY_OPTIMIZATION_SPEC.md)。实现时同步实际接口及消费者，不把目标当作现有能力。
+
 回复、整轮完成和恢复规则见[交流体验规格第 2 节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。字段的观测口径见 [Trace 契约](trace_schema.md)。
 
 控制权、份量补证、记忆与持续委托的产品行为见[统一规格](../PERSONAL_ASSISTANT_SPEC.md)。生产能力以[交付记录](../reports/LATENCY_DELIVERY.md)为准。
