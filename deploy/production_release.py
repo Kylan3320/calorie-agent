@@ -24,9 +24,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("operation", choices=["inspect", "freeze", "maintenance-on", "maintenance-off"])
     parser.add_argument("--function")
+    parser.add_argument("--package", type=Path, help="ZIP to identify with freeze")
     args = parser.parse_args(argv)
     if args.operation == "freeze":
-        package = ROOT / "deploy/calorie-agent-v4.zip"
+        if args.package is None:
+            parser.error("freeze requires --package")
+        package = args.package.expanduser().resolve()
         print(json.dumps(package_identity(package, package.read_bytes()), ensure_ascii=False))
         return
     if not args.function:

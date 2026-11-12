@@ -107,7 +107,7 @@ def runtime_check(package, layer):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--package", type=Path, default=ROOT / "deploy/calorie-agent-v4.zip")
+    parser.add_argument("--package", type=Path, required=True, help="exact function ZIP to deploy")
     parser.add_argument("--layer", type=Path, required=True, help="exact Layer ZIP to deploy")
     parser.add_argument("--output", type=Path, default=ROOT / "reports/package-check.json")
     args = parser.parse_args(argv)
