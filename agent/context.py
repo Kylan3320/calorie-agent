@@ -95,7 +95,7 @@ def measure_request(body, config, purpose="main"):
     reserve = body["max_tokens"]
     hard_limit = config.context_window - reserve - config.protocol_margin_tokens
     return {"purpose": purpose, "encoding": "deepseek-v4-official-20261103", "wire_encoding": "json-wire-v1",
-            "parts": parts, "input_tokens": total, "input_target": config.summary_input_tokens if purpose == "summary" else config.input_target_tokens,
+            "parts": parts, "input_tokens": total, "input_target": config.summary_input_tokens if purpose in {"summary", "experience"} else config.input_target_tokens,
             "output_reserve": reserve, "protocol_margin": config.protocol_margin_tokens, "hard_input_limit": hard_limit}
 
 
@@ -118,8 +118,9 @@ def clean_messages(messages):
         if message.additional_kwargs.get("lc_source") == "summarization":
             continue
         if isinstance(message, ToolMessage):
-            extra = {"fact_scope": "historical" if message.name != "query_knowledge" else "knowledge"}
-            if message.name == "query_knowledge":
+            name = message.name or json.loads(message.content).get("tool")
+            extra = {"fact_scope": "historical" if name != "query_knowledge" else "knowledge"}
+            if name == "query_knowledge":
                 extra["tool_evidence_origin"] = "query_knowledge"
             clean.append(AIMessage(content=message.content, additional_kwargs=extra))
         elif isinstance(message, AIMessage) and message.tool_calls:

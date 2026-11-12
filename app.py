@@ -228,7 +228,7 @@ def message_handler(event, context=None):
         from agent.storage.timeutil import execution_deadline
         limit_ms = context["time_limit_in_ms"] if isinstance(context, dict) else context.time_limit_in_ms if context is not None else 120000
         with execution_deadline(limit_ms / 1000 - 1):
-            if event.get("type") not in {"calorie_message", "calorie_summary"}:
+            if event.get("type") not in {"calorie_message", "calorie_summary", "calorie_experience", "calorie_memory_backfill"}:
                 from agent.storage.reminders import handler
                 return handler(event, context)
             return configured_pipeline().worker(event)
@@ -243,7 +243,7 @@ def maintenance_handler(event, context=None):
     from agent.storage.timeutil import execution_deadline
     from agent.storage.cos_archive import archive_pending
     from agent.storage.cos_journal import Journal
-    from agent.storage.conversation import run_background
+    from agent.storage.memory_background import run_next
     from agent.storage.scf_dispatch import dispatch_event
     limit_ms = context["time_limit_in_ms"] if isinstance(context, dict) else context.time_limit_in_ms if context is not None else 120000
     remaining = limit_ms / 1000
@@ -255,7 +255,7 @@ def maintenance_handler(event, context=None):
         archive = archive_pending(store=store, progress=progress)
         summary = {"status": "skipped_maintenance_error"}
         if not archive["failed"] and not recovery.get("blocked"):
-            summary = run_background(store, progress, dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
+            summary = run_next(store, progress, dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
         return {"recovery": recovery, "archive": archive, "summary": summary}
 
 

@@ -14,13 +14,13 @@ REAL=False
 TRANSCRIPT=[]
 
 
-def send(s,text,steps,mid,delivered=True,config=CONFIG):
+def send(s,text,steps,mid,delivered=True,config=CONFIG,*,chat="test"):
     model=DeepSeekModel(model_name='deepseek-v4-flash') if REAL else NativeFake(responses=steps)
-    r=run(dict(message_id=mid,user_id='user',chat_id='test',text=text),store=s,config=replace(config,model='deepseek-v4-flash') if REAL else config,model=model)
+    r=run(dict(message_id=mid,user_id='user',chat_id=chat,text=text),store=s,config=replace(config,model='deepseek-v4-flash') if REAL else config,model=model)
     TRANSCRIPT.append({'id':mid,'user':text,'result':r})
     assert r['status']=='ok',r['errors']
     assert not r['guard_result']['fallback_used'],r
-    if delivered:mark_reply_presented(s,'user','test',r)
+    if delivered:mark_reply_presented(s,'user',chat,r)
     return r
 
 def kcal(r,value):
@@ -167,7 +167,8 @@ def E04():
         assert not s.load_session('user','test')['proposal']['presented']
         assert len(re.findall('[？?]',r['reply']))==1,r['reply']
         mark_reply_presented(s,'user','test',r);s=deepcopy(s)
-        send(s,'好的',[call('update_user_settings',{'mode':'confirm','kind':'targets','values':{'kcal':999}}),answer],'e4b');assert s.get_standard('user')['kcal']==1900
+        text='就照你刚才提的目标生效吧。'
+        send(s,text,[call('update_user_settings',{'mode':'confirm','kind':'targets','proposal_id':r['proposal_id'],'authorization_quote':text}),answer],'e4b');assert s.get_standard('user')['kcal']==1900
         send(s,'再建议设为1800，先问我。',[call('update_user_settings',{'mode':'propose','kind':'targets','values':{'kcal':1800}}),answer],'e4c')
         send(s,'取消',[AIMessage(content='好，沿用当前目标。')],'e4d')
         send(s,'好的',[AIMessage(content='好的。')],'e4e');assert s.get_standard('user')['kcal']==1900
@@ -320,7 +321,10 @@ def E06():
     import cli,os
     from unittest.mock import patch
     def entry_run(message,**kw):
-        steps=[call('update_user_settings',{'mode':'confirm','kind':'targets','values':{'kcal':999}}),answer] if message['text']=='好的' else [call('update_user_settings',{'mode':'propose','kind':'targets','values':{'kcal':1900}}),AIMessage(content='这个目标可以先试试。')]
+        def confirm(messages):
+            state=json.loads(next(m.content for m in messages if m.content.startswith('可信会话事实：')).split('：',1)[1])
+            return call('update_user_settings',{'mode':'confirm','kind':'targets','proposal_id':state['proposal']['proposal_id'],'authorization_quote':message['text']})
+        steps=[confirm,answer] if message['text']=='好的' else [call('update_user_settings',{'mode':'propose','kind':'targets','values':{'kcal':1900}}),AIMessage(content='这个目标可以先试试。')]
         return run(message,model=NativeFake(responses=steps),**kw)
     local=setup()
     with patch.dict(os.environ,{'USER_ID_ALIASES':'local_user:user'}), patch.multiple(cli,FakeStore=lambda:local,load_config=lambda:CONFIG,run=entry_run,_interactive=lambda:iter(['先建议1900','好的'])):
@@ -337,4 +341,74 @@ def E06():
             assert dsh.get_standard('user')['kcal']==1900
         finally:server._SESSIONS.pop(key,None)
 
-CHECKS={f'E{i:02}':f for i,f in enumerate((E01,E02,E03,E04,E05,E06),1)}
+def E07():
+    """真实份量资料和个人实测两条路径，账本使用各自适用的可食重量。"""
+    from agent.storage.fake_store import FakeStore
+    from agent.storage.experience import local_day
+
+    url = "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version"
+    food = {"food_id": "acceptance-apple", "name": "苹果", "type": "生", "aliases": ["大苹果", "Apple"],
+            "kcal_per_100g": 52, "carbs_per_100g": 13.8, "protein_per_100g": 0.26, "fat_per_100g": 0.17,
+            "boohee_id": "acceptance-apple", "detail_loaded": True}
+    store = FakeStore(foods=[food], today=local_day(CONFIG))
+    result = send(store, f"早餐吃了一个大苹果，记下来。我找到一份公开的食物份量资料 {url}", [], "stage-a-real-source")
+    assert len(store.intake) == 1 and store.intake[0]["grams"] == 242
+    proof = store.intake[0]["snapshot"]["portion_evidence"]
+    assert proof["url"] == url and proof["adopted_grams"] == 242
+    assert url in result["reply"] and store.intake[0]["snapshot"]["estimated"]
+
+    send(store, "以后我说一个大苹果，就用我实测的每个可食220克，帮我保存这个默认份量。", [], "stage-a-personal-size")
+    reuse = send(store, "早餐记一个大苹果。", [], "stage-a-personal-reuse", chat="next-day")
+    assert len(store.intake) == 2 and store.intake[-1]["grams"] == 220
+    assert store.intake[-1]["snapshot"]["basis"] == "confirmed_personal_portion"
+    assert not any(row["args"].get("portion_web") for row in reuse["native_calls"])
+
+
+def E08():
+    """真实模型标记首次反馈，后台发布可追溯经验，换会话换说法后使用。"""
+    from agent.storage import experience, memory, memory_background
+    from agent.storage.cos_journal import Journal
+    from agent.storage.fake_store import FakeStore
+    from harness.eval.production_store_cases import Objects
+    from langchain_core.messages import SystemMessage
+    from unittest.mock import patch
+
+    config = replace(CONFIG, model="deepseek-v4-flash")
+    store = FakeStore(today=experience.local_day(config))
+    send(store, "帮我把米饭150克、鸡蛋可食50克和鸡胸肉100克安排成一份带饭午餐，午休时间短。", [], "stage-a-lunch")
+    text = "上次试了之后我发现，把饭和菜分开装，午休热饭时只热需要加热的盒子，时间够用了。"
+    feedback = send(store, text, [], "stage-a-first-feedback")
+    source = memory.reference("user", "turn", feedback["dialogue_turn_id"])
+    assert source in store.load_document("memory_work", "user").get("pending", {}), feedback["reply"]
+    progress = Journal(Objects(), "stage-a-real/sync/")
+    publications = []
+    for _ in range(2):
+        result = memory_background.run_background(store, progress, config=config,
+            dispatch=lambda event: publications.append(experience.apply_candidate(store, event, config)))
+        TRANSCRIPT.append({"id": "stage-a-experience", "result": result, "publication": publications[-1:]})
+        if result["status"] != "retry":
+            break
+    assert publications and publications[-1]["status"] == "applied", result["status"]
+    view = memory.state(store, "user")
+    note_refs = {ref for kind, ref in view.get("current", {}).items() if kind.startswith("note:")
+                 and (note := memory.get(store, "user", ref)[0]) and note["status"] == "usable" and source in note["supports"]}
+    assert note_refs
+    seen = set()
+    generate = DeepSeekModel._generate
+
+    def observe(model, messages, *args, **kwargs):
+        for message in messages:
+            if isinstance(message, (SystemMessage, ToolMessage)):
+                seen.update(ref for ref in note_refs if ref in str(message.content))
+        return generate(model, messages, *args, **kwargs)
+
+    with patch.object(DeepSeekModel, "_generate", observe):
+        reused = send(store, "明天中午只有几分钟能用微波炉，便当怎么准备更省事？", [], "stage-a-rephrased", chat="other")
+    TRANSCRIPT[-1]["visible_note_refs"] = sorted(seen)
+    assert seen, "没有证据表明换说法后取到了这条经验"
+    assert ("分开" in reused["reply"] or "分装" in reused["reply"]) and not store.intake
+    assert not store.load_document("user_settings", "user")
+
+
+E07.real_only = E08.real_only = True
+CHECKS={f'E{i:02}':f for i,f in enumerate((E01,E02,E03,E04,E05,E06,E07,E08),1)}

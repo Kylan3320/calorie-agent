@@ -27,7 +27,8 @@
 
 ## 行动说明与草案审计
 
-- `result/journal.action_note_opportunities` 的 `first/supplement` 各存 `batch_id/status/call_id/text`。`action_notice` 与 `receipt_state.action_notice` 保存 `batch_id/call_id/opportunity/text/status/attempted_at/confirmed_at/message_id/uuid` 和脱敏错误类别。说明确认与 `delivery.mode=send/action_note_edit`、终稿展示分别记录。尝试及恢复约束见[入口契约](tool_protocol.md#入口及预设)。
+- `result/journal.action_note_opportunities` 用 `first/supplement` 标记首批或后续任一未执行批次的 `batch_id/status/call_id/text`。`action_notice` 与 `receipt_state.action_notice` 保存 `batch_id/call_id/opportunity/text/status/attempted_at/confirmed_at/message_id/uuid` 和脱敏错误类别。每消息最多尝试一次。说明确认与 `delivery.mode=send/action_note_edit`、终稿展示分别记录。
+- `journal.model_steps[].review_sources` 记录私有复盘标记的归一引用和理由，实际交付后才可入队。公开正文和 `result.model_steps` 不包含该控制区。网页请求按 `calls[].prepared.web_requests` 的预留计数，重投不重复请求。
 - 按对应批次核对 `model_steps.started_at`、`model_http` 响应结束、`execution_save.phase=response_batch_saved` 结束、`action_note_send` 确认、首个 `tool_commit` 及 `delivery.sent_at`。批次落盘包含原始响应和固定调用，补发按自身批次计时。终稿编辑计入 `send_reply` 和 `T_service`。
 - `result.presented_candidates` 记录实际附入终稿的 `food_offer_candidate/meal_draft_candidate`，交付确认后提升。终止回执可带已核算草案，仍保留 `error/terminal`。确认按原消息及精确候选 ID。`source_ref/offer_id/draft_id/history_scope/reminder_pending` 用于接续。
 - `calculate_meal.data` 的 `fixed_subtotal/fixed_complete/supplement_gap/selection` 保存固定餐和选版。`selection.candidates` 保留各版来源、份量和营养，`selected/reason` 对应最终草案。模型投影仅保留比较指标，完整事实含全部审计和原 `assumption`。

@@ -84,7 +84,7 @@ def AN01():
     _, pipeline, config = fixture()
     receipt = pipeline.accept(message("ordinary-no-note"))
     notes, sent = [], []
-    model = NativeFake(responses=[call("query_today", {"finish_after_tools": True, "action_note": "不应发送"})])
+    model = NativeFake(responses=[call("query_today", {"finish_after_tools": True})])
     with patch("agent.config.load_config", return_value=config):
         result = pipeline.worker(event(receipt), execute=lambda msg, **kw: run(msg, model=model, **kw),
             note_send=lambda *a, **k: notes.append(1), send=lambda *a, **k: sent.append(1) or {"data": {"message_id": "final"}})
@@ -214,7 +214,7 @@ def extended_note_scenario(kind):
     assert result["status"] == "completed"
     expected_models = 4 if kind == "both_empty" else 2 if kind == "direct_final" else 3
     assert result["result"]["model_calls"] == expected_models
-    if kind in {"both_empty", "direct_final"}:
+    if kind == "direct_final":
         assert not notes and not edits and len(sends) == 1
     elif kind == "lost_supplement":
         assert len(notes) == len(sends) == 1 and not edits and notes[0][1] != sends[0][1]
@@ -222,7 +222,7 @@ def extended_note_scenario(kind):
         assert len(notes) == len(edits) == 1 and not sends and edits[0][0] == "r5-same-note"
         notice = result["action_notice"]
         assert notice["opportunity"] == ("first" if kind == "second_item" else "supplement")
-        assert notice["call_id"] == ("second" if kind == "second_item" else "calc")
+        assert notice["call_id"] == ("second" if kind == "second_item" else "later-calc" if kind == "both_empty" else "calc")
     return result
 
 
@@ -247,13 +247,13 @@ def AN09():
 
 
 def AN10():
-    """两个机会均空或只剩最终正文正常完成，第三批文案不重开补发机会。"""
+    """前两批省略时仍可在后续动作前发送；纯最终正文不补发。"""
     for kind in ("both_empty", "direct_final"):
         extended_note_scenario(kind)
 
 
 def AN11():
-    """普通写账漏完成声明仍不因错误携带公开说明增加进度RPC。"""
+    """写入批次的行动说明也可在执行前发送并沿同一消息交付。"""
     _, pipeline, config = fixture()
     receipt = pipeline.accept(message("ordinary-write-missing-finish", "记录夹具A100克"))
     notes = []
@@ -261,8 +261,9 @@ def AN11():
         "action_note": "我会按你给的份量记录早餐。"}), AIMessage(content="已记录60千卡。")])
     with patch("agent.config.load_config", return_value=config):
         state = pipeline.worker(event(receipt), execute=lambda msg, **kw: run(msg, model=model, **kw),
-            note_send=lambda *a, **kw: notes.append(1), send=lambda *a, **kw: {"data": {"message_id": "ordinary-final"}})
-    assert state["status"] == "completed" and not notes and state["result"]["model_calls"] == 2
+            note_send=lambda *a, **kw: notes.append(1) or {"data": {"message_id": "record-note"}},
+            update_send=lambda mid, body: {"code": 0} if mid == "record-note" else None)
+    assert state["status"] == "completed" and notes == [1] and state["result"]["model_calls"] == 2
 
 
 CHECKS = {f"AN{n:02}": fn for n, fn in enumerate((AN01, AN02, AN03, AN04, AN05, AN06, AN07, AN08, AN09, AN10, AN11), 1)}

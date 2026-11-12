@@ -7,9 +7,11 @@ import math
 import re
 
 from .storage.bitable_adapter import DEFAULT_DAILY_STANDARD
+from .storage import memory
 from .storage.timeutil import round_number
 from .tools.base import calculate_food_intake, positive_grams
 from .tools.meals import NUTRIENTS, exact_food, from_row, resolve_date, resolve_item, scale_item, totals
+from .tools.portions import query_web
 
 
 def _food_source(rt, food, *, row=None):
@@ -40,9 +42,10 @@ def _available(rt):
     return deepcopy(rt.session.get("food_offer", {}).get("options", []))
 
 
-def _source_item(rt, item):
+def _source_item(rt, item, *, portion_lookup=False, sources=None):
     """Resolve only references returned in this conversation; no meal-pending choice."""
     item = deepcopy(item)
+    estimate = item.pop("allow_estimate", True)
     ref = item.get("source_ref", "")
     if item.get("choice") is not None:
         offer = rt.session.get("food_offer", {})
@@ -57,7 +60,7 @@ def _source_item(rt, item):
         if item.get("food_query") == offer.get("query"):
             item["food_query"] = ""
     if ref:
-        source = rt.session.get("food_sources", {}).get(ref)
+        source = (sources or {}).get(ref) or rt.session.get("food_sources", {}).get(ref)
         if not source:
             return None, {**item, "reason": "食物来源引用不可用，请重新查询食物或选择已展示选项", "candidates": _available(rt)}
         food = source["food"]
@@ -69,11 +72,11 @@ def _source_item(rt, item):
         if source.get("item") and item.get("grams") is None and item.get("quantity") is None:
             resolved = deepcopy(source["item"])
             return {**resolved, "source_ref": ref}, None
-        resolved, missing = resolve_item(rt, item, pending={"food": food})
+        resolved, missing = resolve_item(rt, item, pending={"food": food}, portion_lookup=portion_lookup, estimate=estimate)
     elif not item.get("food_query"):
         return None, {**item, "reason": "请明确食物名称或可用来源引用", "candidates": _available(rt)}
     else:
-        resolved, missing = resolve_item(rt, item)
+        resolved, missing = resolve_item(rt, item, portion_lookup=portion_lookup, estimate=estimate)
     if resolved:
         resolved["source_ref"] = ref or _food_source(rt, resolved["snapshot"]["food"])
     if missing:
@@ -95,6 +98,15 @@ def _offer_value(message_id, query, options):
 
 
 def query_food_nutrition(rt, p):
+    if "portion_web" in p:
+        web = query_web(rt, p["portion_web"])
+        if not (p.get("food_query") or p.get("source_ref")):
+            return web
+        query = {key: p[key] for key in ("food_query", "source_ref", "grams", "quantity", "unit", "allow_estimate") if key in p}
+        if not (query.get("quantity") or query.get("grams")):
+            query["grams"] = 100
+        nutrition = _query_food_nutrition(rt, query, publish_offer=False)
+        return {**nutrition, "data": {**nutrition["data"], **web["data"]}}
     if "queries" not in p:
         return _query_food_nutrition(rt, p)
     results = []
@@ -148,7 +160,7 @@ def _query_food_nutrition(rt, p, *, publish_offer=True):
     source = rt.session.get("food_sources", {}).get(source_ref, {})
     if params.get("grams") is None and params.get("quantity") is None and not source.get("item"):
         params["grams"] = 100
-    item, missing = _source_item(rt, params)
+    item, missing = _source_item(rt, params, portion_lookup=True)
     if item:
         options = [_option(rt, item["snapshot"]["food"])]
     else:
@@ -212,21 +224,38 @@ def _replace_items(items, replacements, *, automatic=False):
 
 
 def _draft_inputs(rt, p):
-    if not p.get("draft_id"):
+    source_ref = p.get("draft_ref")
+    if not (p.get("draft_id") or source_ref):
         if p.get("replacements"):
             return None, {"status": "pending", "data": {"question": "请指定最近已展示草案的draft_id和要替换的item_id"}}
         return deepcopy(p), None
-    draft = rt.session.get("meal_draft", {})
-    if draft.get("draft_id") != p["draft_id"]:
-        return None, {"status": "pending", "data": {"question": "原草案已失效或尚未展示，请从最近已展示草案继续", "draft_id": draft.get("draft_id", "")}}
+    if source_ref:
+        if p.get("draft_id"):
+            return None, {"status": "pending", "data": {"question": "请只指定一个源草案。"}}
+        item, reason = memory.get(rt.store, rt.user_id, source_ref)
+        draft = item.get("draft", {}) if reason == "ok" and item["status"] == "delivered" else {}
+        if (not draft.get("calculation", {}).get("complete") or not draft.get("items")
+                or any(part.get("source_ref") not in draft.get("food_sources", {}) for part in draft["items"])):
+            return None, {"status": "pending", "data": {"reason": "source_draft_incomplete" if draft else reason,
+                    "question": "无法核对这份已交付菜单的完整计算依据。请选另一份菜单或提供缺少的餐项。"}}
+    else:
+        draft = rt.session.get("meal_draft", {})
+        if draft.get("draft_id") != p["draft_id"]:
+            return None, {"status": "pending", "data": {"question": "原草案已失效或尚未展示，请从最近已展示草案继续", "draft_id": draft.get("draft_id", "")}}
+        if draft.get("memory_ref") and memory.get(rt.store, rt.user_id, draft["memory_ref"])[1] == "withdrawn":
+            return None, {"status": "pending", "data": {"question": "这份草案已撤回，请选择其他菜单。"}}
     if p.get("items"):
         return None, {"status": "pending", "data": {"question": "修改草案请通过replacements指定餐项，保留其余组合"}}
     if p.get("adjustment"):
         return None, {"status": "pending", "data": {"question": "改稿只替换指定项并保留原范围；需要扩大调整范围请先明确新计划"}}
     params = {k: deepcopy(draft[k]) for k in ("items", "scope", "date", "constraints", "tolerance_kcal", "portion_preference") if k in draft}
     params.update({k: deepcopy(v) for k, v in p.items() if k not in {"items", "replacements", "constraints"}})
-    params["constraints"] = list(dict.fromkeys(draft.get("constraints", []) + p.get("constraints", [])))
+    params["constraints"] = list(dict.fromkeys(draft.get("base_constraints", draft.get("constraints", [])) + p.get("constraints", [])))
     params["date"] = resolve_date(p.get("date"), rt.day)
+    params["source_draft_id"] = draft["draft_id"]
+    params["parent_ref"] = source_ref or draft.get("memory_ref", "")
+    params["source_foods"] = draft.get("food_sources", {})
+    params["inherited_conditions"] = draft.get("condition_refs", [])
     replacements = deepcopy(p.get("replacements", []))
     for change in replacements:
         if (change.get("grams") is not None or change.get("quantity") is not None) and "portion_basis" not in change:
@@ -234,15 +263,19 @@ def _draft_inputs(rt, p):
     items, problem = _replace_items(draft["items"], replacements)
     if problem:
         return None, {"status": "pending", "data": {"question": problem, "draft_id": draft["draft_id"]}}
+    view = memory.state(rt.store, rt.user_id)
+    for item in items:
+        if item.get("assumption"):
+            item["assumption"] = memory.redact_text(view, item["assumption"])
     params["items"] = items
     return params, None
 
 
-def _calculate_items(rt, entries):
+def _calculate_items(rt, entries, sources=None):
     items, unfinished, canonical = [], [], []
     for entry in entries:
         key = entry["item_id"]
-        resolved, missing = _source_item(rt, entry)
+        resolved, missing = _source_item(rt, entry, sources=sources)
         servings = positive_grams(entry.get("servings", 1))
         basis = entry.get("portion_basis", "user_given")
         if resolved:
@@ -449,12 +482,63 @@ def _correct_portions(calculation, target, consumed, tolerance, preference, allo
                      "original_budget_difference": base["budget_difference"], "selected_budget_difference": best["budget_difference"]}
 
 
+def _plan_memory(rt, params, day):
+    view = memory.state(rt.store, rt.user_id)
+    explicit = set(params.get("condition_refs", []))
+    inherited = params.get("inherited_conditions", [])
+    draft_id = params.get("source_draft_id")
+    base = [text for text in params.get("constraints", []) if memory.redact_text(view, text) == text]
+    conditions, explanations = [], []
+    for ref in dict.fromkeys([*inherited, *params.get("condition_refs", [])]):
+        item, status = memory.get(rt.store, rt.user_id, ref, view=view)
+        if item and item["status"] == "superseded":
+            current = view.get("current", {}).get(memory.ref_id(ref), ref)
+            item, status = memory.get(rt.store, rt.user_id, current, view=view)
+        if status != "ok" or item["kind"] != "condition" or not memory.applicable(item, day, draft_id):
+            continue
+        if params.get("draft_ref") and not item.get("ends") and ref not in explicit:
+            return None, {"status": "pending", "data": {"question": f"原菜单的条件「{item['text']}」现在仍适用吗？"}}
+        if item.get("source_only") and not draft_id and item["turn_id"] != rt.human_id:
+            continue
+        conditions.append(item["ref"])
+        explanations.append(item["text"])
+    experiences = [ref for ref in dict.fromkeys(params.get("experience_refs", []))
+                   if ref.startswith("note:") and memory.dependencies_valid(rt.store, rt.user_id, [ref], day, view=view)]
+    return (base, conditions, explanations, experiences), None
+
+
+def _choose_plan(rt, ref):
+    draft = rt.session.get("meal_plan_choices", {}).get(ref)
+    if not draft or draft["message_id"] != rt.message["message_id"]:
+        return {"status": "pending", "data": {"unmet_conditions": [{"code": "candidate_unavailable", "ref": ref}]}}
+    data = draft["calculation"]
+    day, scope = draft["date"], draft["scope"]
+    rt.settings = rt.store.load_document("user_settings", rt.user_id)
+    view = memory.state(rt.store, rt.user_id)
+    expected = [*draft.get("condition_refs", []), *draft.get("experience_refs", [])]
+    if draft.get("parent_ref"):
+        expected.append(draft["parent_ref"])
+    rows = rt.store.intake_items(rt.user_id, day, (date.fromisoformat(day) + timedelta(days=1)).isoformat()) if scope == "remaining" else []
+    if (not memory.dependencies_valid(rt.store, rt.user_id, expected, day, view=view, draft_id=draft.get("source_draft_id"))
+            or _targets(rt, scope, day) != data["targets"] or totals(rows) != data["consumed"]
+            or {row["record_id"] for row in rows} != set(data["consumed_scope"]["record_ids"])):
+        return {"status": "pending", "data": {"unmet_conditions": [{"code": "candidate_inputs_changed", "ref": ref}]}}
+    rt.session["meal_draft_candidate"] = deepcopy(draft)
+    return {"status": "ok" if data["complete"] else "pending", "data": deepcopy(data)}
+
+
 def calculate_plan(rt, p):
+    if p.get("candidate_ref"):
+        return _choose_plan(rt, p["candidate_ref"])
     params, invalid = _draft_inputs(rt, p)
     if invalid:
         return invalid
     scope = params.get("scope", "remaining")
     day = resolve_date(params.get("date"), rt.day)
+    memory_inputs, invalid = _plan_memory(rt, params, day)
+    if invalid:
+        return invalid
+    base_constraints, conditions, explanations, experiences = memory_inputs
     entries = [{**entry, "item_id": entry.get("item_id") or f"I{n}"} for n, entry in enumerate(params.get("items", []), 1)]
     keys = [e["item_id"] for e in entries]
     if not keys:
@@ -463,8 +547,9 @@ def calculate_plan(rt, p):
         return {"status": "pending", "data": {"question": "菜单餐项item_id重复，请分别指定"}}
     # Resolve fixed portions first, then keep those exact source calculations in
     # both candidates. Intake and target budgets are each read only once.
-    fixed = _calculate_items(rt, [e for e in entries if e.get("fixed")])
-    supplement = _calculate_items(rt, [e for e in entries if not e.get("fixed")])
+    sources = params.get("source_foods", {})
+    fixed = _calculate_items(rt, [e for e in entries if e.get("fixed")], sources)
+    supplement = _calculate_items(rt, [e for e in entries if not e.get("fixed")], sources)
     def combine(extra, order):
         combined = {key: fixed[key] + extra[key] for key in ("items", "unfinished", "canonical")}
         positions = {e["item_id"]: n for n, e in enumerate(order)}
@@ -496,8 +581,8 @@ def calculate_plan(rt, p):
             compared.append({"variant": "adjustment", **_comparison(calculations[1], target, consumed, tolerance, preference)})
             selected, reason = _select(*compared)
     calibration = {"status": "no_tolerance" if tolerance is None else "already_within_tolerance"}
-    if tolerance is not None and not any(c["within_tolerance"] for c in compared):
-        allowed = {e["item_id"] for e in p.get("replacements", [])} if p.get("draft_id") else None
+    if p.get("use_default_calibration", True) and tolerance is not None and not any(c["within_tolerance"] for c in compared):
+        allowed = {e["item_id"] for e in p.get("replacements", [])} if p.get("draft_id") or p.get("draft_ref") else None
         corrected, correction = None, None
         for n in [selected] + [i for i in range(len(calculations)) if i != selected]:
             calculation = calculations[n]
@@ -521,31 +606,57 @@ def calculate_plan(rt, p):
                 selected, reason = len(compared) - 1, final_reason
             else:
                 calibration["status"] = "kept_original"
-    chosen = calculations[selected]
-    items, canonical, unfinished, total, complete = (chosen[k] for k in ("items", "canonical", "unfinished", "total", "complete"))
-    diff = compared[selected]["budget_difference"]
-    draft_id = "draft:" + hashlib.sha256((rt.action_id + json.dumps(canonical, sort_keys=True, ensure_ascii=False)).encode()).hexdigest()[:24]
-    draft = {"draft_id": draft_id, "message_id": rt.message["message_id"], "items": canonical,
-             "scope": scope, "date": day, "constraints": params.get("constraints", []), "unfinished": unfinished}
-    if tolerance is not None:
-        draft["tolerance_kcal"] = tolerance
-    if preference:
-        draft["portion_preference"] = preference
-    data = {
-        "items": items, "total": total, "unfinished": unfinished, "date": day, "scope": scope,
-        "targets": target, "consumed": consumed, "consumed_count": len(consumed_rows),
-        "consumed_scope": {"date": day, "included": scope == "remaining", "record_ids": [r["record_id"] for r in consumed_rows]},
-        "budget_difference": diff, "complete": complete, "estimated": any(i["snapshot"].get("estimated") for i in items),
-        "within_tolerance": complete and tolerance is not None and abs(diff["kcal"]) <= tolerance,
-        "tolerance_kcal": tolerance, "constraints": draft["constraints"], "draft_id": draft_id}
-    data.update(fixed_subtotal=fixed["total"], fixed_complete=not fixed["unfinished"],
-                supplement_gap={k: round_number(target[k] - consumed[k] - fixed["total"][k]) for k in NUTRIENTS},
-                selection={"selected": compared[selected]["variant"], "reason": reason, "candidates": compared, "calibration": calibration})
-    if rejected:
-        data["selection"]["rejected_adjustment"] = rejected
-    draft["calculation"] = deepcopy(data)
+    compare_only = p.get("selection_mode") == "compare"
+    if compare_only:
+        for index, option in enumerate(compared):
+            digest = hashlib.sha256(f"{rt.action_id}:{index}".encode()).hexdigest()[:24]
+            option["candidate_ref"] = f"meal-candidate:{digest}"
+
+    def draft_at(index, selection_reason):
+        chosen = calculations[index]
+        items, canonical, unfinished, total, complete = (chosen[k] for k in ("items", "canonical", "unfinished", "total", "complete"))
+        diff = compared[index]["budget_difference"]
+        draft_id = "draft:" + hashlib.sha256((rt.action_id + json.dumps(canonical, sort_keys=True, ensure_ascii=False)).encode()).hexdigest()[:24]
+        constraints = list(dict.fromkeys([*base_constraints, *explanations]))
+        food_sources = {**rt.session.get("food_sources", {}), **sources}
+        draft = {"draft_id": draft_id, "message_id": rt.message["message_id"], "items": canonical,
+                 "scope": scope, "date": day, "received_date": rt.day, "constraints": constraints, "unfinished": unfinished,
+                 "base_constraints": [value for value in base_constraints if value not in explanations],
+                 "condition_refs": conditions, "experience_refs": experiences, "parent_ref": params.get("parent_ref", ""),
+                 "source_draft_id": params.get("source_draft_id"),
+                 "food_sources": {entry["source_ref"]: food_sources[entry["source_ref"]] for entry in canonical
+                                  if entry.get("source_ref") in food_sources}}
+        if tolerance is not None:
+            draft["tolerance_kcal"] = tolerance
+        if preference:
+            draft["portion_preference"] = preference
+        data = {
+            "items": items, "total": total, "unfinished": unfinished, "date": day, "scope": scope,
+            "targets": target, "consumed": consumed, "consumed_count": len(consumed_rows),
+            "consumed_scope": {"date": day, "included": scope == "remaining", "record_ids": [r["record_id"] for r in consumed_rows]},
+            "budget_difference": diff, "complete": complete, "estimated": any(i["snapshot"].get("estimated") for i in items),
+            "within_tolerance": complete and tolerance is not None and abs(diff["kcal"]) <= tolerance,
+            "tolerance_kcal": tolerance, "constraints": draft["constraints"], "draft_id": draft_id}
+        data.update(fixed_subtotal=fixed["total"], fixed_complete=not fixed["unfinished"],
+                    supplement_gap={k: round_number(target[k] - consumed[k] - fixed["total"][k]) for k in NUTRIENTS},
+                    selection={"selected": compared[index]["variant"], "reason": selection_reason, "candidates": compared, "calibration": calibration})
+        if rejected:
+            data["selection"]["rejected_adjustment"] = rejected
+        draft["calculation"] = deepcopy(data)
+        return draft
+
+    if compare_only:
+        rt.session.pop("meal_draft_candidate", None)
+        rt.session["meal_plan_choices"] = {
+            option["candidate_ref"]: draft_at(index, "model_choice") for index, option in enumerate(compared)}
+        return {"status": "ok", "data": {"scope": scope, "date": day, "targets": target, "consumed": consumed,
+                "constraints": list(dict.fromkeys([*base_constraints, *explanations])),
+                "selection": {"candidates": compared, "default_ref": compared[selected]["candidate_ref"],
+                              "calibration": calibration, "awaiting_choice": True}}}
+    draft = draft_at(selected, reason)
     rt.session["meal_draft_candidate"] = deepcopy(draft)
-    return {"status": "pending" if not complete else "ok", "data": data}
+    data = draft["calculation"]
+    return {"status": "ok" if data["complete"] else "pending", "data": data}
 
 
 def candidate_presentations(session, message_id, *, facts=()):

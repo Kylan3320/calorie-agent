@@ -112,7 +112,7 @@ def U02():
     pending=s.load_session("user","test")["unfinished"]
     fish=next(v for v in pending.values() if v["food_query"]=="鱼")
     b=next(v for v in pending.values() if v["food_query"]=="夹具B")
-    assert len(fish["candidates"])==1 and "请选择" in fish["reason"]
+    assert len(fish["candidates"]) == 1 and fish["unmet_conditions"][0]["code"] == "food_identity_unverified"
     assert "鱼" in r["reply"] and "夹具B" in r["reply"]
     s.today="2026-11-01"
     def detail(url,headers):
@@ -226,15 +226,15 @@ def U05():
     from agent.graph import mark_reply_presented
     mark_reply_presented(s,"user","test",proposal)
     assert s.get_standard("user")["kcal"]==2000
-    send(s,"好的",[call("update_user_settings",{"mode":"confirm","kind":"targets","values":{"kcal":999}}),answer],mid="m4")
+    send(s,"好的",[call("update_user_settings",{"mode":"confirm","kind":"targets","proposal_id":proposal["proposal_id"],"authorization_quote":"好的"}),answer],mid="m4")
     assert s.get_standard("user")["kcal"]==1900
     send(s,"再建议",[call("update_user_settings",{"mode":"propose","kind":"targets","values":{"kcal":1800}}),answer],mid="m5")
     send(s,"换个话题今天吃了什么",[call("query_today",{}),answer],mid="m6")
-    send(s,"好的",[call("update_user_settings",{"kind":"targets","values":{"kcal":999}}),answer],mid="m7")
+    send(s,"好的",[call("update_user_settings",{"mode":"confirm","kind":"targets","authorization_quote":"好的"}),answer],mid="m7")
     assert s.get_standard("user")["kcal"]==1900
     r,_=send(s,"帮我计划A200g和B2个",[call("calculate_meal",{"items":MEAL["items"]}),AIMessage(content="这个方案合计270kcal。")],mid="m8")
     assert r["tool_results"][0]["data"]["total"]["kcal"]==270
-    assert "270kcal" in r["reply"] and len(s.intake)==0
+    assert ("270kcal" in r["reply"] or "270千卡" in r["reply"]) and len(s.intake)==0
     send(s,"采用这个计划",[AIMessage(content="好的，按此方案安排。")],mid="m9")
     assert len(s.intake)==0
     send(s,"吃完了，记录这餐",[call("record_meal",MEAL),answer],mid="m10")

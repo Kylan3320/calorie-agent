@@ -18,6 +18,7 @@ allowed_tools:
   - query_history
   - calculate_meal
   - update_user_settings
+  - query_memory
 
 # 本地时区偏移（小时），用于“今天”的口径
 timezone_offset_hours: 8
