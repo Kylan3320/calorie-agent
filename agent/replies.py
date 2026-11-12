@@ -118,6 +118,8 @@ def model_view(fact):
                                 **({"eat_weight": u["eat_weight"]} if "eat_weight" in u else {})} for u in value["units"]]
         return result
     source = fact
+    if fact.get("tool") == "query_diet_goal" and (artifact := fact.get("data", {}).get("artifact")):
+        source = {**fact, "data": {**fact["data"], "artifact": {key: value for key, value in artifact.items() if key != "reply"}}}
     if fact.get("tool") == "query_food_nutrition" and "queries" in fact.get("data", {}):
         queries = []
         for query in fact["data"]["queries"]:

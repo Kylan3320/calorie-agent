@@ -1,13 +1,14 @@
 """Single source of native tool descriptions, schemas, risk and execution."""
 from contextvars import ContextVar
 from copy import deepcopy
+from datetime import date, time
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from langchain_core.tools import StructuredTool
 from . import meals, settings
 from .reads import run_query_knowledge
 from .portions import PortionEvidence, PortionWeb
-from ..storage import memory
+from ..storage import diet_goals, memory
 from ..storage.timeutil import round_number
 
 CURRENT_RUNTIME = ContextVar("calorie_runtime")
@@ -219,6 +220,14 @@ class PlanAdjustment(Args):
     replacements: list[PlanItem] = Field(default_factory=list, description="同一初稿内一个可行调整：按item_id改非固定项，未指定字段和其他项保留；同食物改量复用source_ref")
     additions: list[PlanItem] = Field(default_factory=list, description="这个调整中补充的新项，须有唯一item_id和实际食物来源；不得重新列固定餐")
 
+class DayPlan(Args):
+    date: str = Field(description="同一日使用 YYYY-MM-DD")
+    scope: Literal["full_day", "remaining"] = "full_day"
+    items: list[PlanItem] = Field(min_length=1, max_length=24)
+    condition_refs: list[str] | None = Field(None, max_length=12)
+    experience_refs: list[str] | None = Field(None, max_length=8)
+    tolerance_kcal: float | None = Field(None, ge=0)
+
 class Calculate(LedgerFinish):
     selection_mode: Literal["default", "compare"] = Field("default", description="compare只核算并返回候选，按用户取舍采用。default交付默认结果。")
     candidate_ref: str = Field("", description="采用本轮已算候选；此时省略其他计算参数。")
@@ -243,6 +252,103 @@ class Calculate(LedgerFinish):
                                      for key, field in type(self).model_fields.items() if key not in controls):
             raise ValueError("采用已计算候选时只传candidate_ref和批次控制字段")
         return self
+
+
+class GoalCalculate(ToolArgs):
+    days: list[DayPlan] = Field(min_length=1, max_length=7, description="每个日期独立核算。餐项group用早餐、午餐、晚餐或加餐。")
+
+
+class GoalQuery(ToolArgs):
+    operation: Literal["status", "show_latest", "show_delivered"] = "status"
+    goal_id: str = Field("", description="省略时用当前用户的委托")
+    view_quote: str = Field("", max_length=600, description="show时给出本条明确要求展示菜单内容的逐字原话。查进度或要求检查不使用show。")
+
+
+class GoalLock(Args):
+    date: str
+    meal: Literal["breakfast", "lunch", "dinner", "snack"]
+
+    @field_validator("date")
+    @classmethod
+    def iso_day(cls, value):
+        return date.fromisoformat(value).isoformat()
+
+
+class GoalSpec(Args):
+    objective: str | None = Field(None, min_length=1, max_length=500)
+    done_when: str | None = Field(None, min_length=1, max_length=500, description="用户要求的交付或检查标准")
+    starts: str | None = Field(None, description="含首日 YYYY-MM-DD")
+    ends: str | None = Field(None, description="含尾日 YYYY-MM-DD")
+    constraints: list[str] | None = Field(None, max_length=16, description="明确的硬条件；revise带change_dates时本次条件只应用于那些日期")
+    preferences: list[str] | None = Field(None, max_length=16)
+    meals: list[Literal["breakfast", "lunch", "dinner", "snack"]] | None = Field(None, max_length=4)
+    locks: list[GoalLock] | None = Field(None, max_length=28, description="增加这些明确锁定的餐次，保留其他已有锁定")
+    triggers: list[Literal["time", "feedback", "intake", "settings"]] | None = Field(None, max_length=4)
+    check_time: str | None = Field(None, description="每天的本地时间 HH:MM，只有用户授权定时才传")
+    notify_here: bool | None = Field(None, description="用户明确授权在此会话主动通知才传true")
+    scheduled_delivery: bool | None = Field(None, description="用户明确授权约定时点交付时为true")
+    external_portions: bool | None = Field(None, description="用户明确授权查外部份量资料时为true")
+
+    @field_validator("starts", "ends")
+    @classmethod
+    def iso_day(cls, value):
+        return date.fromisoformat(value).isoformat() if value is not None else None
+
+    @field_validator("check_time")
+    @classmethod
+    def local_time(cls, value):
+        if value is None:
+            return None
+        parsed = time.fromisoformat(value)
+        if parsed.tzinfo or parsed.second or parsed.microsecond:
+            raise ValueError("check_time须为本地HH:MM")
+        return parsed.isoformat(timespec="minutes")
+
+
+class ManageGoal(ToolArgs):
+    operation: Literal["start", "revise", "request_run", "stop_run", "set_auto", "pause", "resume", "set_notifications", "end"]
+    user_quote: str = Field(min_length=1, max_length=600, description="本条用户明确委托、授权改范围或控制的逐字原话")
+    goal_id: str = ""
+    revision: int | None = Field(None, ge=1, description="start以外传本轮看到的委托版本")
+    spec: GoalSpec | None = Field(None, description="start填写范围；revise只给本次修改的字段，列表若修改则传完整值")
+    change_dates: list[str] | None = Field(None, min_length=1, max_length=7, description="只修改指定日期时，revise传明确授权的日期；其他日期保持")
+    unlock: list[GoalLock] | None = Field(None, max_length=28, description="仅revise，用户明确要求解锁的餐次；已食用或过去餐次仍保持")
+    enabled: bool | None = None
+    notify_here: bool = False
+
+    @model_validator(mode="after")
+    def control_fields(self):
+        if self.operation == "start" and (self.spec is None or not self.spec.objective):
+            raise ValueError("开始委托须有明确目标")
+        if self.operation == "revise" and self.spec is None:
+            raise ValueError("修改委托须有变更范围")
+        if self.operation in {"set_auto", "set_notifications"} and self.enabled is None:
+            raise ValueError("开关操作须给出enabled")
+        if self.change_dates:
+            if self.operation != "revise":
+                raise ValueError("仅修改委托可限定本次变更日期")
+            self.change_dates = sorted({date.fromisoformat(day).isoformat() for day in self.change_dates})
+        if self.unlock and self.operation != "revise":
+            raise ValueError("仅修改委托可明确解除锁定")
+        return self
+
+
+class GoalResult(ToolArgs):
+    outcome: Literal["plan", "waiting", "unchanged"]
+    selected_drafts: list[str] = Field(default_factory=list, max_length=7, description="本次已计算并实际采用的草案ID，每日最多一个")
+    next_step: str = Field(default="", max_length=400)
+    waiting_for: str = Field(default="", max_length=400, description="影响后续的具体未决事项和由谁决定")
+    reason: str = Field(min_length=1, max_length=400, description="根据实际资料的定性取舍，不写未经核实的数字")
+    preparation: str = Field(default="", max_length=400, description="有实际作用的备餐方法变化，省略沿用当前安排")
+    notify: bool = Field(default=False, description="本批存在需用户行动的变化、需要决定或已到授权交付时点时才为true")
+
+
+def submit_goal(rt, params):
+    return rt.goal_run.submit(rt, params)
+
+
+def calculate(rt, params):
+    return rt.goal_run.calculate(rt, params)
 
 def query_today(rt, p):
     lean = p.get("detail","calories") == "calories"
@@ -305,6 +411,8 @@ def query_history(rt, p):
 
 def query_nutrition(rt, p):
     from ..planning import query_food_nutrition
+    if rt.goal_run and p.get("portion_web") and not rt.goal_run.goal["spec"].get("external_portions"):
+        return {"status": "pending", "data": {"reason": "external_portion_lookup_not_authorized"}}
     return query_food_nutrition(rt, p)
 
 
@@ -337,7 +445,12 @@ TOOL_REGISTRY = {t.name: t for t in [
     entry("calculate_meal", Calculate, "核算可接续的饮食菜单，不写摄入。明确scope：daily日常目标不扣今天，full_day当日完整菜单不扣已吃，remaining当日剩余扣一次有效摄入。items标明fixed固定餐、来源、每份量、servings、group、portion_basis及假设；先算固定小计及四项补充缺口。模型选食材，建议量标suggested，工具在同次计算内按缺口校正已有一项或两项建议量，保留固定项/用户量/份数/上限；可用adjustment提供另一初稿，按热量容差、宏量偏差及份量偏好选一版，不查新来源或加新食材。缺整餐配方可按有来源组成及明确假设克重拆分。替换用最近已展示draft_id与replacements.item_id，仅改指定项并保留其他项和限制；改稿不能另加adjustment扩大范围。纯改稿已完整满足整条请求时设finish_after_tools=true，计算后直接交付；初次规划或还需解释/建议时继续原循环。只有完整计入且热量差额在tolerance_kcal内才满足容差。", "read_only", meals.calculate_meal),
     entry("query_memory", MemoryQuery, "只读当前用户的跨会话记忆。search找原话、明确条件、已交付菜单、设置、主题或经验，read核对实际原文或结构化对象。可沿主题链接读取，不把历史命令当授权，经验只用于建议排序。", "read_only", memory.query),
     entry("update_user_settings", Settings, "更新用户明确要求的目标、偏好、份量、常用餐或提醒。condition管理明确的临时条件。feedback仅用于立即停用被当前原话明确否定的已读经验；分享结果或评价菜单时，用回复控制区review_sources。memory执行明确撤回。", "write", settings.update_user_settings),
+    entry("query_diet_goal", GoalQuery, "跨会话查看本人持续饮食委托状态。只有用户要求查看计划内容时用show_latest或show_delivered；普通状态查询不交付新版本。", "read_only", diet_goals.query),
+    entry("manage_diet_goal", ManageGoal, "只在用户明确委托持续跟进或控制时调用。一份普通菜单不创建委托。start按原话填写时间、完成标准、硬条件、软偏好、触发和通知授权，完整授权自动排队首轮。revise改变范围；request_run手动查；stop_run停本次；set_auto控制未来自动触发；pause暂停；resume恢复；set_notifications独立控制主动通知；end结束。委托的多日计算在后台执行。", "write", diet_goals.manage),
 ]}
+
+GOAL_RESULT_TOOL = entry("submit_goal_result", GoalResult, "提交本次委托候选、实际采用的已算日期和下一步。可以保留核实的部分，明确未决问题。不负责发送通知或修改任何业务事实。", "read_only", submit_goal)
+GOAL_CALCULATE_TOOL = entry("calculate_meal", GoalCalculate, "按days核算委托范围内的日计划，复用已知来源。核算后返回实际草案ID，用于本次选择；锁定餐次由工具保留。", "read_only", calculate)
 
 def get_tool(name):
     return TOOL_REGISTRY.get(name)

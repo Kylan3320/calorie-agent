@@ -228,7 +228,7 @@ def message_handler(event, context=None):
         from agent.storage.timeutil import execution_deadline
         limit_ms = context["time_limit_in_ms"] if isinstance(context, dict) else context.time_limit_in_ms if context is not None else 120000
         with execution_deadline(limit_ms / 1000 - 1):
-            if event.get("type") not in {"calorie_message", "calorie_summary", "calorie_experience", "calorie_memory_backfill"}:
+            if event.get("type") not in {"calorie_message", "calorie_summary", "calorie_experience", "calorie_memory_backfill", "calorie_diet_goal"}:
                 from agent.storage.reminders import handler
                 return handler(event, context)
             return configured_pipeline().worker(event)
@@ -240,10 +240,12 @@ def message_handler(event, context=None):
 
 
 def maintenance_handler(event, context=None):
+    from agent.config import load_config
     from agent.storage.timeutil import execution_deadline
     from agent.storage.cos_archive import archive_pending
     from agent.storage.cos_journal import Journal
     from agent.storage.memory_background import run_next
+    from agent.storage.diet_goal_runtime import run_next as run_goal
     from agent.storage.scf_dispatch import dispatch_event
     limit_ms = context["time_limit_in_ms"] if isinstance(context, dict) else context.time_limit_in_ms if context is not None else 120000
     remaining = limit_ms / 1000
@@ -254,15 +256,17 @@ def maintenance_handler(event, context=None):
         progress = Journal(pipeline.objects, pipeline.prefix + "sync/")
         archive = archive_pending(store=store, progress=progress)
         summary = {"status": "skipped_maintenance_error"}
+        goal = {"status": "skipped_maintenance_error"}
         if not archive["failed"] and not recovery.get("blocked"):
+            goal = run_goal(store, progress, load_config(), dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
             summary = run_next(store, progress, dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
-        return {"recovery": recovery, "archive": archive, "summary": summary}
+        return {"recovery": recovery, "archive": archive, "summary": summary, "diet_goal": goal}
 
 
 def reminder_handler(event, context=None):
     # All message writes, timer checks and manual recovery run in this function,
     # configured with platform concurrency one. Maintenance only wakes it.
-    if event.get("type") == "calorie_message":
+    if event.get("type") in {"calorie_message", "calorie_diet_goal"}:
         return message_handler(event, context)
     from agent.storage.reminders import handler
     return handler(event, context)

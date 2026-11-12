@@ -24,16 +24,17 @@ from .storage.telemetry import EVENTS, message_scope
 from .storage.timeutil import business_scope, task_date_scope, BUSINESS_DATE, WORK_DEADLINE
 from .config import load_config
 from .policy import resolve_preset
+from .policy.presets import Preset
 from .storage import create_store
 from .storage.bitable_adapter import message_key
 from .model import DeepSeekModel
 from .model_controls import extract_review_sources
-from .tools.registry import TOOL_REGISTRY, CURRENT_RUNTIME
+from .tools.registry import TOOL_REGISTRY, CURRENT_RUNTIME, GOAL_CALCULATE_TOOL, GOAL_RESULT_TOOL
 from .tools import feedback
 from .replies import (add_recorded_portion_sources, history_messages, model_view, plan_companion_reply, progress_reply,
                       project_messages, proposal_prompt, render, state_view, tool_facts_reply)
 from .context import select_messages, REQUEST_BUDGET, InputBudgetExceeded, ModelRequestFailed, TruncatedGeneration, StateCheckpointFailed
-from .storage import conversation, memory
+from .storage import conversation, diet_goals, diet_goal_runtime, memory
 from .evidence import collect_visible_evidence
 
 _LOCKS = {}
@@ -58,6 +59,7 @@ personal_memory中的明确条件适用时遵守；主题入口只在相关建�
 续改前把指定替换和须保留的餐项一起与本次明确要求及生效条件核对。有冲突而只改指定项无法满足时，说明具体冲突并询问能否扩大修改范围。过期条件不再约束新稿；无期限且只随源稿的条件，跨会话时先确认是否仍适用。
 明确临时条件可用update_user_settings的condition保存原话及范围，已有记录用于菜单时放condition_refs。明确反证且唯一关联经验时用feedback登记原话并当轮停用；用户要求忘记时用memory撤回。依据已提交结果回复实际变更。
 用户分享实际使用后的结果或评价时，直接回应并按价值标记复盘材料；这类反馈不调用设置工具，也不承诺已改原菜单或长期设置。复盘标记放在同次响应正文末尾，单独一行：<review_sources>[{"ref":"current_turn","reason":"简短说明其复盘价值"}]</review_sources>。例如用户说换一种准备方法后确实省了时间，可以直接回应并用 current_turn 标记实际结果。最多4项，可引用本轮已读记忆，日常无材料的回复省略。
+持续饮食委托用manage_diet_goal按本条明确授权创建或控制，普通菜单照常。委托首轮及改稿在后台核算，前台创建或修改成功后直接说明排队结果，无需再调用营养查询、计算或重复请求运行来完成同一委托。查委托用query_diet_goal。只问状态或请求手动检查时不展示菜单；手动检查用request_run排队。用户明确说要看计划内容才用show_latest或show_delivered并给出明确原话，工具会附上实际菜单。收到工具结果后据实说明已授权范围、运行与可取用版本、缺口或下次触发。区分停本次、停未来自动处理、暂停整个委托与关闭通知。后台计划不等于摄入，也不授权修改设置。参考可信会话事实中的委托版本。
 新消息明确要求记录或复用一餐时调用record_meal新增，即使同日已有相同食物、份量和餐次；历史引用只用于定位，不能据此把本次记录改成查询或回答“已经记过”。防重由系统按原消息ID和固定动作键处理，不按餐食内容去重。只有“刚才那份记上了吗”等核对旧账的请求才查询原记录，不新增摄入。
 营养、账本和执行状态取自本次工具事实；历史操作引用用于定位，摄入和目标重新查询。记餐和改量已有meal_totals即可直接回复原餐合计。
 “刚才/上一餐”明确指向last_meal；其中同名食物唯一且有效时直接用引用ID调用revise_intake，不要为重取数量/营养先query_history，工具会核对当前原行和重算原餐。“今天早餐”等未指定哪一份且存在多餐时先定位消歧，不能擅自取最近餐。
@@ -174,8 +176,14 @@ def _settings_version(store, user, args, day):
 
 
 class Runtime(AgentMiddleware):
-    def __init__(self, message, store, config, preset, model, day, execution):
+    def __init__(self, message, store, config, preset, model, day, execution, goal_run=None):
         self.message, self.store, self.config, self.preset, self.model = message, store, config, preset, model
+        self.goal_run = goal_run
+        self.tool_registry = {name: tool for name, tool in TOOL_REGISTRY.items() if name in preset.allowed_tools}
+        if goal_run:
+            self.tool_registry[GOAL_RESULT_TOOL.name] = GOAL_RESULT_TOOL
+            if GOAL_CALCULATE_TOOL.name in self.tool_registry:
+                self.tool_registry[GOAL_CALCULATE_TOOL.name] = GOAL_CALCULATE_TOOL
         self.user_id = message["user_id"]
         self.human_id = "calorie-user:" + message_key(message)
         self.started = time.monotonic()
@@ -189,11 +197,11 @@ class Runtime(AgentMiddleware):
         self.recovery_deadline = min(self.started + config.deadline_seconds, PROCESSING_DEADLINE.get() or float("inf"))
         self.deadline = min(self.total_deadline, self.recovery_deadline) - 5
         self.journal.setdefault("model_steps", [])
-        self.session = deepcopy(self.journal.get("session") or store.load_session(self.user_id, message["chat_id"]))
+        live_session = {} if goal_run else store.load_session(self.user_id, message["chat_id"])
+        self.session = deepcopy(self.journal.get("session") or live_session)
         self.settings = store.load_document("user_settings", self.user_id)
         self.day = self.journal.get("day") or day or store.today_string()
         self.journal.setdefault("previous_session_message_id",self.session.get("last_message_id"))
-        live_session = store.load_session(self.user_id, message["chat_id"])
         self.session_superseded = live_session.get("last_message_id") not in {
             None, self.journal["previous_session_message_id"], message["message_id"]}
         self.journal.setdefault("message", message)
@@ -208,7 +216,8 @@ class Runtime(AgentMiddleware):
         self.pending_before = {}
         self.failed = False
         self.session.setdefault("unfinished", {})
-        conversation.context(store, self.user_id, message["chat_id"], live_session, write=preset.allow_write)
+        if not goal_run:
+            conversation.context(store, self.user_id, message["chat_id"], live_session, write=preset.allow_write)
         if preset.allow_write:
             conversation.stage_turn(store, self.user_id, message["chat_id"], self.human_id,
                 [HumanMessage(content=message["text"], id=self.human_id)], reserve=True,
@@ -240,12 +249,15 @@ class Runtime(AgentMiddleware):
         for entry in self.journal["calls"]:
             entry.get("prepared", {}).get("session", {}).pop("messages", None)
         self.journal["settings"] = deepcopy(self.settings)
-        if self.preset.allow_write:
+        if self.preset.allow_write or self.goal_run:
             state = json.dumps([self.journal, completed], sort_keys=True, ensure_ascii=False)
             if state != self._persisted:
                 from .storage.telemetry import span
                 with span("execution_save", completed=completed, bytes=len(state.encode()), phase=phase):
-                    self.store.save_execution(self.task, self.journal, completed=completed)
+                    if self.goal_run:
+                        self.goal_run.save(self.journal)
+                    else:
+                        self.store.save_execution(self.task, self.journal, completed=completed)
                 self._persisted = state
 
     def check_deadline(self):
@@ -253,6 +265,8 @@ class Runtime(AgentMiddleware):
             raise DeadlineExceeded("message processing deadline reached")
 
     def try_tool_facts(self):
+        if self.goal_run:
+            return bool(self.session.get("goal_candidate"))
         if self.journal.get("direct_reply"):
             return True
         calls = self.journal["calls"]
@@ -373,6 +387,8 @@ class Runtime(AgentMiddleware):
 
     def wrap_model_call(self, request, handler):
         self.check_deadline()
+        if self.goal_run:
+            self.goal_run.check()
         steps = self.journal["model_steps"]
         step = steps[-1] if steps and steps[-1].get("status") == "reserved" else None
         if step is None:
@@ -398,16 +414,28 @@ class Runtime(AgentMiddleware):
                     fact = memory.refresh_result(self.store, self.user_id, self.day, fact)
                 native[index] = message.model_copy(update={"content": json.dumps(self.project_tool_result(fact), ensure_ascii=False)})
         self.journal["messages"] = messages_to_dict(native)
-        history, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True, config=self.config, before=self.human_id, for_model=True)
-        state = state_view(self)
+        if self.goal_run:
+            history, summary = [], {}
+            state = {"diet_goal": self.goal_run.context(), "settings": self.settings.get("targets", {})}
+            prompt = diet_goal_runtime.PROMPT
+            memory_text = json.dumps(state["diet_goal"], ensure_ascii=False)
+        else:
+            history, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True,
+                                                    config=self.config, before=self.human_id, for_model=True)
+            state = state_view(self)
+            if "query_diet_goal" in self.tool_registry and (goal := diet_goals.context(self.store, self.user_id)):
+                state["diet_goal"] = goal
+            step.setdefault("goal_binding", {key: state["diet_goal"][key] for key in ("id", "revision")} if "diet_goal" in state else {})
+            prompt = SYSTEM
+            memory_text = self.message["text"]
         memories = memory.context_view(self.store, self.user_id, self.day, self.human_id,
-                                       self.session.get("meal_draft", {}), self.message["text"])
+                                       self.session.get("meal_draft", {}), memory_text)
         if memories:
             state["personal_memory"] = memories
         state["execution_budget"] = {"model_decision": self.journal["model_calls"], **self.remaining_resources()}
-        projected, measurement = select_messages(history, summary, native, SYSTEM, state,
+        projected, measurement = select_messages(history, summary, native, prompt, state,
             [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)
-        request = request.override(messages=[SystemMessage(content="可信会话事实：" + json.dumps(state, ensure_ascii=False)), *projected], system_message=SystemMessage(content=SYSTEM + "\n"))
+        request = request.override(messages=[SystemMessage(content="可信会话事实：" + json.dumps(state, ensure_ascii=False)), *projected], system_message=SystemMessage(content=prompt + "\n"))
         self.journal["visible_evidence"] = collect_visible_evidence(request.messages)
         saved_request = next((item for item in self.journal["model_requests"] if item.get("step_id") == step["id"]), None)
         if saved_request is None:
@@ -439,7 +467,9 @@ class Runtime(AgentMiddleware):
             if not cached and time.monotonic() >= step_deadline:
                 raise ModelRequestFailed("model_step_deadline", "late model result discarded")
             self.check_deadline()
-        except (InputBudgetExceeded, ModelRequestFailed, TruncatedGeneration, StateCheckpointFailed):
+            if self.goal_run:
+                self.goal_run.check()
+        except (InputBudgetExceeded, ModelRequestFailed, TruncatedGeneration, StateCheckpointFailed, diet_goal_runtime.ObsoleteGoalRun):
             raise
         except Exception as exc:
             raise ModelRequestFailed("model_error", type(exc).__name__ + ": model step failed") from exc
@@ -526,6 +556,16 @@ class Runtime(AgentMiddleware):
         def perform():
             self._execute(entry, handler)
             self._save_pending_progress(session)
+            result = entry["result"]
+            if self.preset.allow_write and result["status"] == "ok":
+                data = result.get("data", {})
+                if entry["tool"] in {"record_meal", "revise_intake"}:
+                    days = {meal["date"] for meal in data.get("meal_totals", [])}
+                    if days:
+                        diet_goals.register_event(self.store, self.user_id, "intake", entry["action_id"],
+                                                  sorted(days), time.time(), days)
+                elif entry["tool"] == "update_user_settings" and data.get("kind") in {"targets", "preferences", "portion", "condition"}:
+                    diet_goals.register_event(self.store, self.user_id, "settings", entry["action_id"], data["kind"], time.time())
             return {"entry": deepcopy(entry), "session": deepcopy(self.session), "settings": deepcopy(self.settings)}
         try:
             from .storage.telemetry import span
@@ -591,6 +631,13 @@ class Runtime(AgentMiddleware):
 
     def _dispatch_tool(self, tool, args, handler):
         mode = args.get("mode", "execute")
+        if tool.name == "manage_diet_goal":
+            step = next((step for step in self.journal["model_steps"] if step["id"] == self.current["batch_id"]), {})
+            binding = step.get("goal_binding", {})
+            if binding and args.get("operation") != "start" and args.get("goal_id", binding["id"]) in {"", binding["id"]}:
+                args["goal_id"] = binding["id"]
+                args.setdefault("revision", binding["revision"])
+            return self._invoke_tool(tool, args)
         if tool.metadata["risk"] == "read_only":
             return self._invoke_tool(tool, args, handler)
         quote = args.pop("authorization_quote", "").strip()
@@ -673,12 +720,14 @@ class Runtime(AgentMiddleware):
         if "result" in entry:
             return ToolMessage(content=json.dumps(model_view(entry["result"]), ensure_ascii=False), tool_call_id=entry["call_id"], name=entry["tool"])
         self.check_deadline()
+        if self.goal_run:
+            self.goal_run.check()
         self.current = entry
         self.prepared = deepcopy(entry.get("prepared"))
         self.pending_before = {}
         name, args = entry["tool"], deepcopy(entry["args"])
-        tool = TOOL_REGISTRY.get(name)
-        if tool is None or name not in self.preset.allowed_tools:
+        tool = self.tool_registry.get(name)
+        if tool is None:
             result = {"status": "error", "data": {}, "error": "tool_not_allowed"}
         elif entry["index"] > self.config.max_tool_calls:
             result = {"status": "limit", "data": {"question": "已保留进度，本轮达到工具调用上限"}}
@@ -706,6 +755,12 @@ class Runtime(AgentMiddleware):
         return self.execute(entry, lambda: handler(business_request))
 
     def finish(self, error="", *, terminal=False):
+        if self.goal_run:
+            result = {"goal_candidate": self.goal_run.result(self, error), "model_calls": self.journal["model_calls"],
+                      "goal_steps": self.goal_run.audit(self.journal["calls"])}
+            self.journal["result"] = result
+            self.persist(completed=True)
+            return result
         if terminal:
             proposal = self.session.get("proposal")
             confirmation = self.journal.get("confirmation") or {}
@@ -761,6 +816,17 @@ class Runtime(AgentMiddleware):
             adjustments.append({"reason":"proposal_confirmation_added","proposal_id":proposal["proposal_id"]})
             confirmation = proposal_prompt(proposal)
             reply = reply.replace(confirmation, "").rstrip() + "\n" + confirmation
+        goal_artifact = next((fact["data"]["artifact"] for fact in reversed(facts)
+                              if fact["tool"] == "query_diet_goal" and fact["status"] == "ok" and "artifact" in fact["data"]), None)
+        if goal_artifact:
+            reply = goal_artifact["reply"]
+            adjustments.append({"reason": "diet_goal_artifact_presented", "version": goal_artifact["version"]})
+        elif facts and all(fact["tool"] in {"query_diet_goal", "manage_diet_goal"} for fact in facts):
+            controls = [diet_goals.control_receipt(fact["data"]) for fact in facts
+                        if fact["tool"] == "manage_diet_goal" and fact["status"] == "ok"]
+            if controls:
+                reply = "\n".join(controls) + ("\n" + terminal_notice if terminal_notice else "")
+                adjustments.append({"reason": "diet_goal_control_receipt"})
         reply = add_recorded_portion_sources(reply, facts, adjustments)
         # Keep native paired history, and save the actual delivered reply for future references.
         fact_scope = "business" if any(f["tool"] != "query_knowledge" for f in facts) else ("knowledge" if facts else "dialogue")
@@ -798,6 +864,8 @@ class Runtime(AgentMiddleware):
             "guard_result": {"checked_scope": "committed_tool_facts_and_batch_completion" if direct else "structured_tools_and_source_references", "fallback_used": bool(error or (not text and not direct)), "violations": adjustments},
             "latency_events": [e for e in (EVENTS.get() or []) if e.get("message_id")==self.message["message_id"]],
             "errors": [error] if error else [], "latency_ms": int((time.monotonic()-self.started)*1000), "trace_id": "native_"+uuid.uuid4().hex[:12]}
+        if goal_artifact and goal_artifact["latest"]:
+            result["goal_delivery_ref"] = {"id": goal_artifact["id"], "version": goal_artifact["version"]}
         if not error or terminal:
             self.journal["result"] = {k:v for k,v in result.items() if k not in {"model_requests", "native_calls", "tool_results"}}
         self.persist(completed=not error or terminal)
@@ -821,22 +889,29 @@ class Runtime(AgentMiddleware):
 @request_scope
 @message_scope
 @task_date_scope
-def run(message, *, store=None, config=None, intake_date=None, model=None, action_note_callback=None):
+def run(message, *, store=None, config=None, intake_date=None, model=None, action_note_callback=None, goal_run=None):
     config = config or load_config()
     preset = resolve_preset(config.preset, config.allowed_tools)
+    if goal_run:
+        preset = Preset("diet_goal", diet_goal_runtime.READ_TOOLS & preset.allowed_tools, "cos", False, False)
     store = store or create_store(config, preset)
     if preset.store_kind == "fake" and store.kind() != "fake":
         raise ValueError("shadow_fakewrite cannot access Bitable")
     message = {**message, "user_id": store.load_user_aliases().get(message["user_id"], message["user_id"])}
     with session_lock(message["user_id"], message["chat_id"]):
-        store.prefetch_message(message)
-        execution = store.load_execution(message) if preset.allow_write else None
+        if goal_run:
+            execution = goal_run.execution()
+        else:
+            store.prefetch_message(message)
+            execution = store.load_execution(message) if preset.allow_write else None
         if execution:
             BUSINESS_DATE.set(execution["payload"].get("day") or intake_date)
         if execution and execution["payload"].get("result"):
             # Replays return the saved response without reopening the journal or
             # overwriting a newer conversation with this message's old snapshot.
             journal = execution["payload"]
+            if goal_run:
+                return _saved_result(journal)
             _stage_saved_dialogue(store, message, journal)
             if "previous_session_message_id" in journal:
                 session = store.load_session(message["user_id"],message["chat_id"])
@@ -845,7 +920,7 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
                     store.save_session(message["user_id"],message["chat_id"],{**journal["session"],"messages":journal["messages"],"last_message_id":message["message_id"]})
             return _saved_result(journal)
         model = model or DeepSeekModel(model_name=config.model)
-        rt = Runtime(message, store, config, preset, model, intake_date, execution)
+        rt = Runtime(message, store, config, preset, model, intake_date, execution, goal_run)
         rt.action_note_callback = action_note_callback
         token = CURRENT_RUNTIME.set(rt)
         from .storage.timeutil import PROCESSING_DEADLINE
@@ -873,8 +948,8 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
                 remaining = config.max_model_calls - rt.journal["model_calls"] + int(reserved)
                 if remaining <= 0:
                     return rt.terminate("model_call_limit")
-                agent = create_agent(model=model, tools=[t for n,t in TOOL_REGISTRY.items() if n in preset.allowed_tools],
-                    system_prompt=SYSTEM,
+                agent = create_agent(model=model, tools=list(rt.tool_registry.values()),
+                    system_prompt=diet_goal_runtime.PROMPT if goal_run else SYSTEM,
                     # Runtime._execute is the durable eight-action authority.
                     # A second, per-invoke tool counter injects unjournaled text
                     # messages and can suppress the allowed part of a batch.
@@ -896,6 +971,8 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
             if rt.journal["model_steps"]:
                 rt.journal["model_steps"][-1].update(status="failed", failure_reason=reason)
             result = rt.terminate(reason)
+        except diet_goal_runtime.ObsoleteGoalRun:
+            raise
         except Exception as exc:
             if "result" in rt.journal: raise
             if isinstance(exc, (ValueError, KeyError, PermissionError)):
@@ -949,6 +1026,12 @@ def mark_reply_presented(store, user_id, chat_id, result):
     turn_id = result.get("dialogue_turn_id")
 
     def confirm(source):
+        if result.get("goal_delivery_ref"):
+            goal = result["goal_delivery_ref"]
+            diet_goals.mark_delivered(store, user_id, goal["id"], goal["version"])
+        ref = memory.reference(user_id, "turn", turn_id)
+        if any(mark["ref"] == ref for mark in source.get("review_sources", [])):
+            diet_goals.register_event(store, user_id, "feedback", ref, ref, time.time())
         session = store.load_session(user_id, chat_id)
         source_id = turn_id.removeprefix("calorie-user:")
         changed = False

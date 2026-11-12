@@ -410,5 +410,7 @@ def E08():
     assert not store.load_document("user_settings", "user")
 
 
+from harness.eval.diet_goal_cases import E09
+
 E07.real_only = E08.real_only = True
-CHECKS={f'E{i:02}':f for i,f in enumerate((E01,E02,E03,E04,E05,E06,E07,E08),1)}
+CHECKS={f'E{i:02}':f for i,f in enumerate((E01,E02,E03,E04,E05,E06,E07,E08,E09),1)}
