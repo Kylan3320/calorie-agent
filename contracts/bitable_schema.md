@@ -2,6 +2,8 @@
 
 当前事实及运行状态保存在 COS，Bitable 是后台单向归档及来源资料维护入口。字段默认名可按已有 BITABLE_FIELD_* 配置覆盖；不清空或替换现有表。生产消息链路不访问 Bitable。
 
+本期[统一规格](../PERSONAL_ASSISTANT_SPEC.md)不新增 Bitable 表字段或修改幂等公式；份量依据将扩展现有 snapshot 的 JSON 语义，下游随实现更新本契约。以下字段和状态描述不代表新增记忆能力已实现。
+
 ## 食物与摄入
 
 foods 保留 food_id/food_name/alias/carbs_per_100g/protein_per_100g/fat_per_100g/status/source/boohee_id，新增 kcal_per_100g（数字，可空）、units（JSON文本，含单位原文、weight/eat_weight）、detail_loaded（文本true/false）。薄荷详情按code请求with_units=true，营养value归一；缺units时查询单位接口。
@@ -32,7 +34,7 @@ payload的物理编码为JSON封套 `{encoding:"zlib-base64",data:"..."}`，data
 
 - message_received：飞书原消息、received_at、intake_date，ACK前保存，发送成功才completed。
 - message_execution：message/day、标准序列化messages、model_calls、model_requests、calls（原生call_id/tool/args/index/action_id、prepared及result）、session/settings、确认快照、最终result。首批调用先整体持久化，逐项结果随后保存；执行完成才completed。
-- agent_session：按归一user_id＋入口session_id隔离；标准messages包含摘要及近期完整配对调用；unfinished独立保存原文、原餐日期/餐次、已知数量、候选快照；refs/last_meal保存可操作记录ID；proposal 保存固定目标/参数、response_id 和 presented；offered_message_id 标记未完项候选首次出现或变化的消息。
+- agent_session：按归一user_id＋入口session_id隔离；旧 Bitable 的标准 messages 可包含摘要及近期完整配对调用，迁移需保留来源身份。当前 COS 的清洁对话、摘要和原生恢复交换各自保存，见[工具契约](tool_protocol.md#上下文预算与恢复日志)，不以旧 messages 形状定义新记忆。unfinished独立保存原文、原餐日期/餐次、已知数量、候选快照；refs/last_meal保存可操作记录ID；proposal 保存固定目标/参数、response_id 和 presented；offered_message_id 标记未完项候选首次出现或变化的消息。
 - user_settings：按归一user_id共享；targets/daily_targets、preferences、portions（food_id:unit→eat_weight）、favorites（命名营养依据快照）、reminders、feishu_chat_id（最近本人飞书会话）。提醒默认关闭。
 - reminder_receipt：规则ID＋本地日键，保存固定chat_id/reply/uuid/sent/send_result。
 
