@@ -1,69 +1,43 @@
 # Trace v2
 
-本文记录当前 trace，完成及预算语义见 [交流体验规格](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。
+运行时每次输出一行 JSON 到 stdout，并追加到 `TRACE_PATH`（默认 `/tmp/traces.jsonl`）。`TRACE_ENABLED=false` 仅关闭文件写入。凭据及凭据哈希不入 trace。
 
-每次运行 stdout 输出一行 JSON，并按 TRACE_PATH 追加（默认 /tmp/traces.jsonl，TRACE_ENABLED=false 仅关文件）。不输出密钥。
+## 运行结果与原生调用
 
-字段：schema_version=calorie_agent_trace.v2、created_at、trace_id、message_id/user_id/chat_id/text/raw_text、preset、model、retriever、status、reply/reply_source、latency_ms、errors、guard_result、model_calls、native_calls、model_requests、tool_results。
+- 基础字段包括 `schema_version=calorie_agent_trace.v2`、`created_at/trace_id/message_id/user_id/chat_id/text/raw_text`、`preset/model/retriever/status/errors/latency_ms/storage_revision`。`storage_revision` 是可见提交版本，`latency_ms` 保留运行时计时口径。
+- `native_calls` 按模型返回顺序保存 `call_id/tool/args/index/action_id/batch_id/finish_after_tools/action_note`。两项控制字段与业务 `args` 分离。`completion` 保存末批声明和 `adopted`。未执行的超限项保留 `terminated=tool_call_limit` 和结构化 `limit` 结果，计入 `journal.termination.unexecuted_action_ids`，业务执行数不增加。旧框架错误原文留审计，清洁历史仅带错误身份和终止说明。
+- `tool_results` 保存完整工具事实。`query_food_nutrition.data.queries` 逐项保存 `query/status/data`，外部 RPC 次数和耗时单独计量。`query_knowledge.data.retriever/evidence` 标识实际检索器和原文。条目的 `evidence_id/legacy_source_id` 及 `journal.visible_evidence` 的含义见[知识契约](knowledge_schema.md)。
+- `model_reply` 是原始模型终稿，`reply` 是运行时最终回执，实际投递见[收件与投递](#收件与投递)。`response_adjustments` 记录引用替换、确认提示、`canonical_presentation` 和 `quantitative_plan_note_removed` 等调整。`reply_source` 为 `agent/agent_adjusted/tool_facts/fallback`。事实回执的 `model_reply` 为空，`guard_result.checked_scope=committed_tool_facts_and_batch_completion` 且 `fallback_used=false`。
+- `terminal/termination_reason/completion_status/business_status` 分别保存终结标记、原因、完成状态和业务提交状态。完成状态区分 `completed/awaiting_user/needs_reconciliation/terminated`。已解决的营养待选项不使已展示完整草案继续标为待用户，其他未完事项仍有效。预算确定终结时 `completion_status=terminated`，交付后 `work_status=terminated`。
 
-native_calls 为按模型返回顺序固定的 `{call_id,tool,args,index,action_id,batch_id,finish_after_tools}`，未执行终结项带terminated原因；控制标记不在业务args中。completion记录最后批次声明与adopted。model_requests 保存每次主决策的step_id、projection_ms、当前轮消息、history_message_count及注册表tools（相同tools_digest后续仅存工具名），供核对实际选择及结果回传。
+## 模型请求、预算与摘要
 
-tool_results 为完整原生工具事实；query_knowledge.data.retriever 标记实际检索器，evidence 保存本轮原文。model_reply保存模型原始最终正文，reply是实际交付正文；response_adjustments记录来源引用替换或确认提示合成等局部调整。reply_source为agent/agent_adjusted/tool_facts/fallback。tool_facts的model_reply为空，guard_result.checked_scope=committed_tool_facts_and_batch_completion且fallback_used=false。
+- `model_requests` 保存主决策的 `step_id/projection_ms/history_message_count`、当前消息和注册工具。相同 `tools_digest` 后续仅存工具名。工具消息审计用 `result_ref`（call_id）和 `content_sha256` 关联持久工具事实。
+- `journal.messages` 保存原生恢复交换，`session.messages` 为近期清洁视图。实际请求和已接收响应保留在恢复日志的 `model_steps[].request_body/response`。公共 trace 保留步骤字段和尝试审计。历史 SystemMessage 背景组的字段见[工具契约](tool_protocol.md#上下文预算与恢复日志)，预算归入 `parts.history`。定位信息标记 `historical`，助手带 `fact_scope=business/knowledge/dialogue`，摘要另带 `lc_source=summarization`。当前用户消息 ID 为 `calorie-user:{message_key}`。
+- `model_requests[].budget` 与 `model_http` 记录 `purpose/encoding/wire_encoding/input_tokens/input_target/output_reserve/protocol_margin/hard_input_limit/removed_turns/over_target_reason` 和分项 `parts(system/state/summary/history/current/reasoning/calls/tools/protocol)`。HTTP 返回后记录供应商 `usage/finish_reason`，本地 wire 计量独立。超限拒绝记录 `budget_exceeded`。请求状态的 `execution_budget` 由持久主决策与固定调用计数构造，字段见[工具契约](tool_protocol.md#上下文预算与恢复日志)。
+- `deadline_at` 是消息固定截止 epoch，`legacy_budget` 标识缺原接收时间的旧收件一次性接管。`model_calls` 只计语义步骤。`model_steps` 含 `id/started_at/deadline_at/status/attempts`，逐次尝试保存 `reserved_at/started_at/ended_at/state/status_code/provider_request_id/response_headers_ms/first_nonempty_response_byte_ms/completed_ms/usage/finish_reason`、脱敏错误和 `retry_delay_seconds/retry_not_before`。空白保活不计首个非空字节。
+- `summary_task` 记录 `task_id/status/attempts/duration_ms/measurement`，`summary_application` 记录 `task_id/status`。候选身份见[工具契约](tool_protocol.md#上下文预算与恢复日志)。后台摘要费用独立于主模型调用，`dialogue_turn_id` 关联交付与清洁轮次。
 
-deadline_at为固定消息epoch截止，legacy_budget标记一次性旧收件接管。model_steps保存id/started_at/deadline_at/status及逐次attempts；请求wire和已接收response只在恢复日志保存，公共trace不复制。attempts逐次记录reserved_at/started_at/ended_at/state/status_code/provider_request_id/response_headers_ms/first_nonempty_response_byte_ms/completed_ms/usage/finish_reason及脱敏error，重试等待保存retry_delay_seconds/retry_not_before，不只留下最后一次。空白保活不算first_nonempty_response_byte。model_calls仅统计语义步骤。terminal/termination_reason/completion_status/business_status分别区分终结、待补全、待核对及已提交业务；未执行action终结列表保存在journal.termination。
+## 收件与投递
 
-model_requests的ToolMessage审计项用result_ref（call_id）和原content_sha256关联已持久化工具事实。journal.messages 保存标准序列化的原生恢复交换，session.messages 是近期清洁视图；实际 HTTP 输入保存在 model_steps[].request_body。主请求中的历史轮次以SystemMessage背景组携带turn_id、reply_status、非数值execution状态、dialogue和references；其预算归入parts.history，分组元数据不写回持久来源或当前原生交换。历史业务定位信息标记 historical，助手消息带 `fact_scope=business/knowledge/dialogue`，摘要另带 `lc_source=summarization`。当前用户消息 ID 为 `calorie-user:{message_key}`。完整工具事实保留于对应执行的 calls.result。
+- `scf_handoff` 记录入口到消息函数的 Invoke。事件引用 `receipt_id/ingress_revision` 及原消息、用户和会话身份。飞书 `latency_webhook` 含 ACK 前事件，`latency_worker` 按收件与消息身份记录事件，`latency_delivery` 另带 `build_id/sequence/source` 和投递结果。归档网络等待在独立函数内。
+- `receipt_state` 保存 `receipt_id/sequence/attempts/queue_wait_ms/budget_started_at/deadline_at/legacy_budget/result/work_status`。其 `delivery` 保存 `uuid/result_digest/presented/sent_at/send_result/message_id/cos_revision/t_service_ms/send_duration_ms/slow_request`，进度升级另有 `progress_reply/update_result/recovery_attempts`。新结果和正文摘要在发送前同次保存。CLI／DSH 回报展示及结果摘要，旧事件记为 `presentation_rejected`。
+- `t_service_ms` 从原 `received_at` 到发送 API 成功，旧收件缺该时间则为空。大于 10 秒只标慢。存在有效 `create_time` 时另列 `t_user_ms`。重投保留原执行的 `latency_events`，本次发送看入口／投递事件，恢复和重投不产生新的正常性能样本。
+- `worker_started_at` 在 Pipeline.worker 内部 COS 读取前捕获。首次进入 worker 与原收件的差值包含受理端 COS、派发及可能的实例构造。旧证据的 `function_queue_ms` 沿用这一口径。`queue_wait_ms`、原收件至 worker 和未直接观测的纯平台排队应分开，缺冷启动或排队观测时标未知。
 
-latency_events为增量字段，含id/parent、instance_id、started_epoch_ms、started_monotonic、duration_ms、outcome及类别字段。model_http带main/summary目的、模型及供应商usage；feishu_http带方法、资源、attempt、请求/响应字节；RAG抽词和embedding单列。嵌套阶段不直接相加。标准AIMessage.usage_metadata及model_provider与适配器匹配，思考模式不变。
+## 行动说明与草案审计
 
-飞书另输出latency_webhook（含ACK前HTTP）、latency_dispatch（队列及执行）、latency_delivery。delivery.t_service_ms从原received_at到发送API成功，旧收件无received_at时为空。旧latency_ms保留原口径。旧执行重放的latency_events属于原执行，本次发送耗时以入口事件为准。
+- `result/journal.action_note_opportunities` 的 `first/supplement` 各存 `batch_id/status/call_id/text`。`action_notice` 与 `receipt_state.action_notice` 保存 `batch_id/call_id/opportunity/text/status/attempted_at/confirmed_at/message_id/uuid` 和脱敏错误类别。说明确认与 `delivery.mode=send/action_note_edit`、终稿展示分别记录。尝试及恢复约束见[入口契约](tool_protocol.md#入口及预设)。
+- 按对应批次核对 `model_steps.started_at`、`model_http` 响应结束、`execution_save.phase=response_batch_saved` 结束、`action_note_send` 确认、首个 `tool_commit` 及 `delivery.sent_at`。批次落盘包含原始响应和固定调用，补发按自身批次计时。终稿编辑计入 `send_reply` 和 `T_service`。
+- `result.presented_candidates` 记录实际附入终稿的 `food_offer_candidate/meal_draft_candidate`，交付确认后提升。终止回执可带已核算草案，仍保留 `error/terminal`。确认按原消息及精确候选 ID。`source_ref/offer_id/draft_id/history_scope/reminder_pending` 用于接续。
+- `calculate_meal.data` 的 `fixed_subtotal/fixed_complete/supplement_gap/selection` 保存固定餐和选版。`selection.candidates` 保留各版来源、份量和营养，`selected/reason` 对应最终草案。模型投影仅保留比较指标，完整事实含全部审计和原 `assumption`。
+- `selection.candidates` 可包含 `variant=portion_adjustment`。`selection.calibration` 保存 `status/eligible_item_ids/max_changed_items/gram_step/search_scope/limits`，执行校正时另有 `starting_variant/searched_items/changes/original_budget_difference/selected_budget_difference`。`changes` 保存 `item_id/original_grams/selected_grams/original_assumption/selected_assumption`，有来源单位时另有 `quantity/unit`。未采用、已有版本达标、缺容差分别标 `kept_original/already_within_tolerance/no_tolerance`。
 
-阶段事件带message_id；Runtime与delivery只附实际本消息事件，整次webhook仍保留分消息事件及dispatch父阶段。queue_wait单列锁等待与acquired；旧任务执行通过其消息ID区别，避免计入本消息模型／HTTP耗时。
+## COS 读取视图与归档
 
-COS生产链路新增storage_revision表示可见提交版本。receipt_state保存receipt_id/sequence/attempts/queue_wait_ms/budget_started_at/deadline_at/legacy_budget/result/work_status及delivery.uuid/result_digest/presented/sent_at/send_result/t_service_ms/send_duration_ms/slow_request。提升进度正文另存progress_reply/update_result/recovery_attempts；原结果、UUID及新正文摘要在交付前同次保存。旧展示事件记录presentation_rejected，不确认新正文。T_service始终从原received_at计，缺时间为空；>10秒仅标慢。create_time可用时另列t_user_ms，CLI/DSH回报实际展示及结果摘要。重投不产生新测速样本。
-
-生产COS阶段为cos_versioning/cos_list/cos_get/cos_create，含对象键、bytes和duration_ms。Journal提交编号关联ingress_revision、message COS revision和独立sync_revision；action_id在业务提交中固定，归档日志archive_confirmed/failed含稳定业务key、对象revision、实际飞书record_id、ack_revision及inflight_revision。各阶段事件只计一次，嵌套耗时不直接相加。
-
-scf_handoff记录入口到目标消息函数的Invoke。事件携带receipt_id、原message/user/chat身份及ingress_revision，worker按确切收件版本校验后执行。latency_delivery与latency_worker携带BUILD_ID及收件／COS版本关联，归档网络等待不在消息执行span内。
-
-## 上下文预算与后台摘要（2026-11-03）
-
-model_requests[].budget与model_http事件记录purpose、encoding、wire_encoding、parts(system/state/summary/history/current/reasoning/calls/tools/protocol)、input_tokens、input_target、output_reserve、protocol_margin、hard_input_limit、removed_turns、over_target_reason。供应商实际usage及finish_reason在HTTP返回后填入；本地wire计量不是供应商私有消息模板的精确计数。拒绝发送记录budget_exceeded，terminal=true，Pipeline work_status=terminated。
-
-summary_task记录task_id/status/attempts/duration_ms/measurement；summary_application记录task_id/status。候选包含user_id/chat_id/base_id/turn_ids/source_hash，边界由程序确定。后台摘要费用与主模型调用数分别记录。dialogue_turn_id关联实际交付与清洁来源，不新增业务收件身份。
-
-## 2026-11-04 任务与行动说明增量
-
-native_calls[].action_note保存首轮公开控制字段，与业务args分离；action_notice记录text/status/attempted_at/confirmed_at/message_id/uuid及脱敏错误类别。receipt_state.action_notice与delivery.mode（send/action_note_edit）分别保存说明与最终交付，说明confirmed不代表terminal/presented。action_note_send是独立跨度，最终编辑仍计入send_reply与T_service。
-
-result.presented_candidates保存实际附入最终正文的food_offer_candidate/meal_draft_candidate身份，交付确认后才提升会话状态。source_ref、offer_id、draft_id、history_scope与reminder_pending用于接续，不是已摄入事实。
-
-journal.visible_evidence是最后实际模型请求的可见原文/出处映射；工具entry增加evidence_id/legacy_source_id。来源身份、对话展示状态及原生执行审计分别保存。首轮model_steps.started_at、model_http完整响应结束、execution_save.phase=response_batch_saved持久完成（span末端为已保存的首轮原始响应及整批固定调用，不增加一次保存）、action_note_send确认、tool_commit开始、最终delivery.sent_at用于同批取证；COS区间并集和队列跨度不可重复相加。
-
-工具超限调用仍留在native_calls，index>8项有terminated=tool_call_limit和结构化limit结果，表示未执行，不计为第9次业务。journal.termination.unexecuted_action_ids包括这些已明确终结项；completion_status=terminated，不因纯预算上限转needs_attention。原始框架错误文本仍保留审计，清洁对话只携错误身份和终止说明。
-
-receipt_state.worker_started_at记录每次进入Pipeline.worker的墙钟时间，在该方法内的COS读取前捕获。首次attempt的worker_started_at−原received_at是“原收件至worker入口”，包含受理端COS/派发；app.message_handler此前的configured_pipeline首次构造还可能包含COS版本检查。该跨度及旧queue_wait_ms均不等于纯平台排队，不能再与COS并集叠加；纯排队和冷启动未直接测得时标未知。候选证据保留function_queue_ms旧标签并明确此口径。恢复attempt不产生新的正常性能样本。
-
-## R5 菜单与说明审计
-
-calculate_meal.data新增fixed_subtotal/fixed_complete/supplement_gap/selection；selection.candidates是实际比较双方的份量、完整来源和营养审计，selected/reason关联最终draft_id。模型tool投影保留比较指标，持久事实保留完整items；动态meal_draft视图去掉comparison审计与重复计算items。canonical_presentation记录唯一菜单渲染，不覆盖model_reply原始审计。已解决的营养pending不使已展示完整稿继续标awaiting_user；其他未完成任务仍保留状态。
-
-result/journal.action_note_opportunities记录first/supplement的batch_id/status/call_id/text；action_notice及receipt_state.action_notice增加batch_id/call_id/opportunity。首批/补发批次各自以对应response_batch_saved结束、说明attempted/confirmed和该批首tool_commit开始核对时序，不把补发绑定到已经执行的首批。每条消息最多一次发送attempt；空机会不产生RPC或额外模型。
-
-R6候选来源features.per_100g为真实搜索/来源快照已有值；纠错引用不更换快照身份。终止回执可携已核算的presented_candidates，但status仍error/terminal；展示确认依原source消息和精确候选ID，不将异常包装为正常完成。归档水位只在精确字段/整数版本核对后确认，不应用饮食业务舍入。
-
-R7 query_food_nutrition的data.queries逐项保留原query/status/data，原生calls仍只有一项batch读源；HTTP次数/耗时继续独立记录，不能把1次原生调用声称为1次外部RPC。归档新prepare创建键含目的地/版本，既有inflight审计保持原token；显式repair审计独立保留旧请求、版本/哈希、服务端错误码、目的地及新请求哈希，ACK只由独立读回确认。
-
-## R8 完成判定与读取视图观测
-
-calculate_meal沿用native_calls.finish_after_tools批次控制，与业务args分离；仅针对本会话已展示draft_id的单次完整成功计算可用直接事实回执。completion.adopted及reply_source/model_reply沿普通账本约定，旧执行没有声明不采用。模型的定性规划说明放在终稿`<plan_note>`块，公开正文不保留标签；其中定量句交由规范菜单展示，过滤时response_adjustments增加quantitative_plan_note_removed。
-
-calculate_meal.data.selection可增加variant=portion_adjustment，calibration记录status、eligible_item_ids、max_changed_items、gram_step、search_scope、limits及有调整时的starting_variant/searched_items/changes/original_budget_difference/selected_budget_difference。changes保留item_id、original_grams/selected_grams、原/现assumption及有来源单位时quantity/unit，原建议不作为另一份菜单公开。校正未采用时status=kept_original，达容差未搜索时already_within_tolerance，缺容差时no_tolerance；不新增来源RPC或主模型步骤。
-
-cos_pipeline_view记录function、bucket/region/prefix、rebuilt、reason、previous_view_id/previous_revision与authorization_scope。reason为first_use、confirmed_view、storage_scope_changed或transport_credentials_changed；后者只确认传输凭据变化，授权范围标unknown，不能据此宣称同账号/权限安全复用。既有缓存判等/重建行为不变，凭据及其哈希均不入trace。
-
-cos_refresh记录view_id、prefix、readonly、start_revision、minimum_revision、confirm、end_revision和reason（first_use/confirmed_view/uncertain_commit）。cos_catchup记录相同view_id及start_revision、requested_revision、checkpoint_revision、read_from_revision/read_to_revision、end_revision；区间为空时不表示读取旧提交，checkpoint非空表示从该检查点及其后尾段构建。失败可通过outcome=error和实际end_revision核对，未确认数据不能冒充水位。view_id只关联进程内一个读取视图，不是持久代或授权身份。
-
-这些跨度含本地核对及嵌套RPC，不直接计为COS HTTP等待。COS等待仍仅取cos_get/cos_create/cos_list/cos_versioning实际区间并集；首轮前区间在原model_steps.started_at裁断，不与父跨度、入口或模型等待重复相加。pipeline/span创建前的缺失观测保持未知，不反推纯平台排队。
-
-R9模型请求状态execution_budget包含当前model_decision、model_decisions_after_this及tool_calls_remaining，按已持久的主决策与固定调用计数构造，恢复不续签。自由文本assumption及calibration原/选文字仍保留审计；公开数量只取解析后items，不能从自由文本估计数量反推营养。
+- `latency_events` 使用 `kind/id/parent/instance_id/message_id/started_epoch_ms/started_monotonic/duration_ms/outcome` 及各阶段字段。按实际消息身份筛选 Runtime 和投递事件，入口聚合保留分消息事件。旧任务按各自消息 ID 计时。嵌套耗时取有效区间，避免重复相加。
+- `model_http` 区分 main／summary 并保留供应商用量，标准 `AIMessage.usage_metadata/model_provider` 随适配器。`feishu_http` 记方法、资源、尝试、请求及响应字节。RAG 抽词和 embedding 分开计时。
+- `cos_pipeline_view` 记录 `function/bucket/region/prefix/rebuilt/reason/previous_view_id/previous_revision/authorization_scope`。原因是 `first_use/confirmed_view/storage_scope_changed/transport_credentials_changed`。仅传输凭据变化时授权范围为 `unknown`。
+- `cos_refresh` 记录 `view_id/prefix/readonly/start_revision/minimum_revision/confirm/end_revision/reason`，原因是 `first_use/confirmed_view/uncertain_commit`。`cos_catchup` 用同一视图 ID 记录 `start_revision/requested_revision/checkpoint_revision/read_from_revision/read_to_revision/end_revision`。空读段表示未追读旧提交。非空检查点表示从该检查点及尾段重建。失败看 `outcome=error` 与实际水位。视图 ID 仅关联进程内读视图。
+- COS HTTP 等待只取 `cos_get/cos_create/cos_list/cos_versioning` 实际区间并集。这些跨度记录键及适用的字节数。读视图跨度另含本地核对和嵌套 RPC。首轮前区间截断在原 `model_steps.started_at`。
+- Journal 关联收件 `ingress_revision`、消息提交版本及独立 `sync_revision`，业务动作的 `action_id` 固定。归档确认事件含稳定业务键、业务版本和飞书 `record_id`。失败事件含 `ack_revision/inflight_revision`。旧 inflight 保留原 token。人工修复独立保留旧请求、版本、哈希、服务端错误码、目的地和新请求哈希。读回字段和整数版本确认水位，规则见[归档契约](tool_protocol.md#cos-提交与归档)。
