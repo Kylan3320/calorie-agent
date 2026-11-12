@@ -13,13 +13,19 @@ import hashlib
 import json
 import uuid
 from .telemetry import span
+from .cos_index import RadixIndex
 
 CACHE_MAX_BYTES = 8 * 1024 * 1024
 CACHE_MAX_ENTRIES = 512
 
 
 def encode(value):
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+    def compatible(value):
+        from .paged_document import DocumentMap, DocumentSequence
+        if isinstance(value, DocumentMap): return dict(value)
+        if isinstance(value, DocumentSequence): return list(value)
+        raise TypeError('unsupported persistent value: ' + type(value).__name__)
+    return json.dumps(value, default=compatible, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
 
 
 class CommitUnavailable(RuntimeError):
@@ -73,12 +79,14 @@ class _State(Mapping):
 
 
 class Journal:
-    def __init__(self, objects, prefix, readonly=False):
+    def __init__(self, objects, prefix, readonly=False, guard=None):
+        self.guard = guard
         self.objects, self.prefix, self.readonly = objects, prefix.rstrip('/') + '/', readonly
         self.revision, self.index, self.unavailable = -1, {}, False
         self.cache, self._cache_sizes, self.cache_bytes = OrderedDict(), {}, 0
         self.state = _State(self)
         self.view_id = uuid.uuid4().hex[:12]
+        self.format = None
         self.refresh(confirm=not readonly)
 
     def cache_document(self, ref, value, size=None):
@@ -107,9 +115,15 @@ class Journal:
         if raw is None:
             raise CommitUnavailable('known commit temporarily invisible: ' + self.key(revision))
         value = json.loads(raw)
-        if value.get('schema') != 'calorie.cos.v1' or value['revision'] != revision or value['previous'] != revision - 1:
+        if value.get('schema') not in {'calorie.cos.v1', 'calorie.cos.v2'} or value['revision'] != revision or value['previous'] != revision - 1:
             raise CommitUnavailable('commit identity mismatch')
         return value
+
+    def keys(self, prefix=''):
+        self._check()
+        if isinstance(self.index, RadixIndex):
+            return self.index.keys_with_prefix(prefix)
+        return (key for key in self.index if key.startswith(prefix))
 
     def _catchup(self, revision):
         start = self.revision
@@ -122,9 +136,21 @@ class Journal:
                 return self._apply_catchup(revision)
             finally:
                 event['end_revision'] = self.revision
+                event['format'] = self.format
+                if self.format == 2:
+                    event.update(checkpoint_revision=self.revision,read_from_revision=revision,read_to_revision=revision)
 
     def _apply_catchup(self, revision):
         try:
+            if revision > self.revision and self.format != 1:
+                latest = self._read(revision)
+                if latest['schema'] == 'calorie.cos.v2':
+                    self.index = RadixIndex(self, latest['root'])
+                    self.format, self.revision = 2, revision
+                    return
+                if self.format == 2:
+                    raise CommitUnavailable('incompatible writer: v1 after v2')
+                self.format = 1
             checkpoint = None
             if self.revision >= 0 and 0 < revision - self.revision <= 128:
                 # Contiguous predecessors are known from the committed format.
@@ -215,10 +241,16 @@ class Journal:
             raise
 
     def _append(self, changes):
+        if self.guard:
+            self.guard()
         number = self.revision + 1
         envelope = {'schema': 'calorie.cos.v1', 'revision': number, 'previous': self.revision, 'changes': changes}
-        # Checkpoints copy references, never all historical business payloads.
-        if number % 128 == 0:
+        if self.format != 1:
+            index = self.index if isinstance(self.index, RadixIndex) else RadixIndex(self)
+            updated = index.changed(changes) if changes else index
+            envelope.update(schema='calorie.cos.v2', root=updated.root)
+        elif number % 128 == 0:
+            # Legacy readers stay usable before explicit generation upgrade.
             index = {**self.index, **{k:v for k,v in changes.items() if v is not None}}
             for k,v in changes.items():
                 if v is None: index.pop(k, None)
@@ -230,9 +262,12 @@ class Journal:
             raise
         if not created:
             return False
-        for k,v in changes.items():
-            if v is None: self.index.pop(k, None)
-            else: self.index[k] = v
+        if envelope['schema'] == 'calorie.cos.v2':
+            self.index, self.format = updated, 2
+        else:
+            for k,v in changes.items():
+                if v is None: self.index.pop(k, None)
+                else: self.index[k] = v
         self.revision = number
         return True
 

@@ -1,0 +1,5 @@
+[PASS] CS02 S2→S3: old v1, 30-day boundary, pending delivery/inflight, cutover/delete/restart and new archive.
+[PASS] CS04 S3: moving delta, old ingress event, lost enable response, stale warm writer, interrupted delete and target-only restart.
+[PASS] CS05 S2: actual Worker/input/Router shapes expire only after parent closure; ready background candidates stay.
+
+3 passed, 0 failed (total 3)

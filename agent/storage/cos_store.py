@@ -8,38 +8,66 @@ import time
 from .state_store import StateStore
 from .cos_journal import Journal, encode
 from .cos_transport import CosObjects
+from . import paged_document
 from .bitable_adapter import (stable_uuid, message_key, intake_client_token,
     DEFAULT_DAILY_STANDARD, _is_valid_intake_status, normalize_food_key)
 from .timeutil import today_string, round_number, BUSINESS_DATE
 
 
 class CosStore(StateStore):
-    def __init__(self, objects=None, prefix=None, offset_hours=8, readonly=False):
+    def __init__(self, objects=None, prefix=None, offset_hours=8, readonly=False, controlled=True):
         self.objects = objects if objects is not None else CosObjects()
         self.prefix = (prefix or os.environ['COS_PREFIX']).strip('/') + '/'
         if not self.prefix.strip('/') or '..' in self.prefix.split('/'):
             raise ValueError('explicit isolated COS prefix required')
         self.offset_hours, self.readonly = offset_hours, readonly
-        self.journal = Journal(self.objects, self.prefix+'message/', readonly=readonly)
+        self.control, guard = None, None
+        if controlled:
+            from .generations import GenerationControl
+            self.control = GenerationControl(self.objects, self.prefix)
+            epoch, self.prefix = self.control.location()
+            guard = lambda: self.control.guard(epoch, self.prefix)
+        self.journal = Journal(self.objects, self.prefix+'message/', readonly=readonly, guard=guard)
+        if self.control and (minimum:=self.control.minimum('message')) is not None:
+            self.journal.refresh(confirm=False,minimum_revision=minimum)
         self._changes = None
         self._legacy_document_index = None
 
     def kind(self): return 'cos'
     def today_string(self): return BUSINESS_DATE.get() or today_string(self.offset_hours)
-    def confirm_current(self): return self.journal.refresh(confirm=not self.readonly)
+    def confirm_current(self):
+        if self.control:
+            self.journal.guard()
+        return self.journal.refresh(confirm=not self.readonly)
 
     def _get(self, key, default=None):
         if self._changes is not None and key in self._changes:
             return deepcopy(self._changes[key])
-        return self.journal.get(key, default)
+        value = self.journal.get(key, default)
+        if key.startswith(('pending:', 'action:', 'document:')):
+            from .cos_artifacts import thaw
+            return thaw(self.journal, value)
+        return value
 
     def _save(self, changes):
         if self.readonly: raise PermissionError('readonly COS Store')
         if self._changes is not None: self._changes.update(deepcopy(changes))
-        else: self.journal.commit(changes)
+        else: self._commit(changes)
+
+    def _commit(self, changes):
+        from .cos_artifacts import freeze
+        packed = {key: freeze(self.journal, value) if value is not None and
+                  key.startswith(('pending:', 'action:', 'document:'))
+                  else value for key, value in changes.items()}
+        return self.journal.commit(packed)
 
     def _keys(self, prefix):
-        return sorted(k for k in set(self.journal.state) | set(self._changes or {}) if k.startswith(prefix))
+        keys=set(self.journal.keys(prefix))
+        for key,value in (self._changes or {}).items():
+            if key.startswith(prefix):
+                if value is None:keys.discard(key)
+                else:keys.add(key)
+        return sorted(keys)
 
     def commit_action(self, action_id, callback):
         key = 'action:'+action_id
@@ -50,7 +78,7 @@ class CosStore(StateStore):
         try:
             result = callback()
             self._changes[key] = deepcopy(result)
-            self.journal.commit(self._changes)
+            self._commit(self._changes)
             return result
         finally:
             self._changes = None
@@ -62,7 +90,7 @@ class CosStore(StateStore):
     def flush_preparation(self):
         """Publish fixed prepared facts before any corresponding business effect."""
         if self._changes is not None:
-            self.journal.commit(self._changes)
+            self._commit(self._changes)
             self._changes = {}
 
     def load_user_aliases(self): return self._get('source:aliases', {})
@@ -107,15 +135,23 @@ class CosStore(StateStore):
         return {'status':'duplicate' if exists else 'created','food_id':identity,'name':food['name']}
 
     def load_document(self, kind, user_id, scope=''):
-        return self._get('document:'+stable_uuid(f'{kind}:{user_id}:{scope}'),{}).get('payload',{})
+        payload = self._get('document:'+stable_uuid(f'{kind}:{user_id}:{scope}'),{}).get('payload',{})
+        return paged_document.unpack(self, kind, payload)
 
     def save_document(self, kind, user_id, scope, payload):
         key = 'document:'+stable_uuid(f'{kind}:{user_id}:{scope}')
-        keys = self._document_keys(kind)
-        changes = {key:{'intent':kind,'user_id':user_id,'chat_id':scope,'payload':deepcopy(payload)}}
-        if key not in keys:
-            coverage = hashlib.sha256(encode(sorted(set(self._keys('document:')) | {key}))).hexdigest()
-            changes.update({'document_index:'+kind:keys+[key], 'document_index:ready':coverage})
+        if self.journal.format == 2:
+            packed = paged_document.pack(self, kind, key, payload)
+            changes = {key:{'intent':kind,'user_id':user_id,'chat_id':scope,'payload':packed}}
+            if self._get(key) is None:
+                changes['catalog:' + kind + ':' + key] = {'key': key}
+                changes['user_catalog:' + user_id + ':' + kind + ':' + key] = {'key': key}
+        else:
+            keys = self._document_keys(kind)
+            changes = {key:{'intent':kind,'user_id':user_id,'chat_id':scope,'payload':deepcopy(payload)}}
+            if key not in keys:
+                coverage = hashlib.sha256(encode(sorted(set(self._keys('document:')) | {key}))).hexdigest()
+                changes.update({'document_index:'+kind:keys+[key], 'document_index:ready':coverage})
         self._save(changes)
         if kind == 'user_settings':
             # Delivery routing is runtime metadata, not a settings ledger change.
@@ -123,9 +159,11 @@ class CosStore(StateStore):
             if business: self._archive('settings', user_id, business, user_id)
 
     def list_documents(self, kind):
-        return [self._get(key) for key in self._document_keys(kind)]
+        return [{**self._get(key), 'payload': self.load_document(kind, self._get(key)['user_id'], self._get(key)['chat_id'])} for key in self._document_keys(kind)]
 
     def _document_keys(self, kind):
+        if self.journal.format == 2:
+            return [self._get(k)['key'] for k in self._keys('catalog:' + kind + ':')]
         document_keys = self._keys('document:')
         coverage = hashlib.sha256(encode(document_keys)).hexdigest()
         if self._get('document_index:ready') == coverage:
@@ -193,7 +231,15 @@ class CosStore(StateStore):
 
     def intake_items(self,user_id,start_date='',end_date='',include_deleted=False):
         ids = []
-        for key in self._keys('day:'+user_id+':'):
+        if start_date and end_date:
+            current, stop = datetime.fromisoformat(start_date).date(), datetime.fromisoformat(end_date).date()
+            keys = []
+            while current < stop:
+                keys.append('day:' + user_id + ':' + current.isoformat())
+                current += timedelta(days=1)
+        else:
+            keys = self._keys('day:'+user_id+':')
+        for key in keys:
             day = key.rsplit(':',1)[1]
             if start_date and day < start_date: continue
             if end_date and day >= end_date: continue
@@ -243,22 +289,22 @@ class CosStore(StateStore):
             'chat_id':message.get('chat_id',''),'source_message_id':mid,'intent':intent,
             'food_name':food_name,'grams':grams,'meal_type':meal_type,'raw_text':message.get('text',''),
             'payload':deepcopy(payload or {}),'status':'pending','created_at':int(time.time()*1000),'expires_at':0}
-        self._save({'pending:'+identity:row})
+        self._save({'pending:'+identity:row, 'active_pending:'+identity: {'key': 'pending:'+identity}})
         return row
 
     def get_pending(self,pending_id): return self._get('pending:'+pending_id)
     def mark_pending_status(self,task,status):
         row = self.get_pending(task['pending_id'])
         if not row: raise ValueError('pending task unavailable')
-        self._save({'pending:'+task['pending_id']:{**row,'status':status}})
+        self._save({'pending:'+task['pending_id']:{**row,'status':status}, 'active_pending:'+task['pending_id']: {'key':'pending:'+task['pending_id']} if status == 'pending' else None})
         return {'code':0}
     def load_execution(self,message):
         return self.get_pending(stable_uuid(f'calorie-agent:pending:{message_key(message)}:message_execution:'))
     def begin_execution(self,message,payload): return self.create_pending(message,'message_execution','',None,payload=payload)
     def save_execution(self,task,payload,completed=False):
-        self._save({'pending:'+task['pending_id']:{**task,'payload':deepcopy(payload),'status':'completed' if completed else 'pending','expires_at':0}})
+        self._save({'pending:'+task['pending_id']:{**task,'payload':deepcopy(payload),'status':'completed' if completed else 'pending','expires_at':0, 'completed_at':time.time() if completed else None}, 'active_pending:'+task['pending_id']:None if completed else {'key':'pending:'+task['pending_id']}})
     def load_unfinished_executions(self,user_id='',chat_id='',message=None):
-        rows = [self._get(k) for k in self._keys('pending:')]
+        rows = [self._get(self._get(k)['key']) for k in self._keys('active_pending:')] if self.journal.format == 2 else [self._get(k) for k in self._keys('pending:')]
         tasks = {}
         for row in rows:
             if row['status']!='pending' or row['intent'] not in {'message_received','message_execution'}: continue
@@ -319,7 +365,7 @@ def _atomic(method):
         self._changes = {}
         try:
             result = method(self, *args, **kwargs)
-            self.journal.commit(self._changes)
+            self._commit(self._changes)
             return result
         finally:
             self._changes = None

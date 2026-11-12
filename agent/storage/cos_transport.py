@@ -77,10 +77,13 @@ class CosObjects:
     def get(self, key):
         from qcloud_cos.cos_exception import CosServiceError
         try:
-            with span('cos_get', key=key):
+            with span('cos_get', key=key) as event:
                 response = self.client.get_object(Bucket=self.bucket, Key=key)
                 stream = response['Body'].get_raw_stream()
-                try: return stream.read()
+                try:
+                    raw = stream.read()
+                    event['bytes'] = len(raw)
+                    return raw
                 finally: stream.close()
         except CosServiceError as exc:
             if exc.get_error_code() == 'NoSuchKey': return None
@@ -103,10 +106,24 @@ class CosObjects:
             raise ValueError('COS list limit must be positive')
         keys = []
         while True:
-            with span('cos_list', prefix=prefix):
+            with span('cos_list', prefix=prefix, marker=marker) as event:
                 result = self.client.list_objects(Bucket=self.bucket, Prefix=prefix, Marker=marker,
                     MaxKeys=min(1000, limit - len(keys)) if limit is not None else 1000)
+            event['keys'] = len(result.get('Contents', []))
             keys.extend(row['Key'] for row in result.get('Contents', []))
             if limit is not None and len(keys) >= limit: return keys
             if str(result.get('IsTruncated', 'false')).lower() != 'true': return keys
             marker = result['NextMarker']
+
+    def delete(self, key):
+        # Called only by Maintenance.collect after permission/restart gates.
+        with span('cos_delete', key=key):
+            self.client.delete_object(Bucket=self.bucket, Key=key)
+
+    def worker_urls(self, input_key, candidate_key, expires):
+        if not 0 < expires <= 180:
+            raise ValueError('worker signature exceeds cycle deadline')
+        return {
+            'input_url':self.client.get_presigned_url(Bucket=self.bucket,Key=input_key,Method='GET',Expired=expires),
+            'candidate_url':self.client.get_presigned_url(Bucket=self.bucket,Key=candidate_key,Method='PUT',Expired=expires,
+                Headers={'x-cos-forbid-overwrite':'true','Content-Type':'application/json'})}

@@ -1,0 +1,4 @@
+[PASS] CG01 C1: two native Workers overlap, foreground query, scoped control, duplicate and cancelled late candidate.
+[PASS] MC04 COS traces expose confirmed start/end/range and credential-only reconstruction without credential values.
+
+2 passed, 0 failed (total 2)

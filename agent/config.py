@@ -16,7 +16,7 @@ PRESETS = ("live", "shadow_fakewrite", "shadow_readonly")
 PLANNERS = ("deepseek",)
 DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_TIMEZONE_OFFSET_HOURS = 8.0
-DEFAULT_ALLOWED_TOOLS = ("record_meal", "revise_intake", "query_today", "query_food_nutrition", "query_knowledge", "query_history", "calculate_meal", "update_user_settings", "query_memory", "query_diet_goal", "manage_diet_goal")
+DEFAULT_ALLOWED_TOOLS = ("record_meal", "revise_intake", "query_today", "query_food_nutrition", "query_knowledge", "query_history", "calculate_meal", "update_user_settings", "query_memory", "query_diet_goal", "manage_diet_goal", "query_sources", "calculate_values", "manage_task", "query_task", "delegate_task")
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,10 @@ class Config:
     max_tool_calls: int = 8
     deadline_seconds: float = 90
     model_step_seconds: float = 40
+    task_cycle_decisions: int = 12
+    task_cycle_tools: int = 24
+    task_cycle_web: int = 9
+    task_cycle_seconds: float = 180
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -94,7 +98,7 @@ def load_config() -> Config:
         allowed_tools=tuple(str(item) for item in allowed),
         timezone_offset_hours=offset,
         knowledge_retriever=knowledge_retriever,
-        **{k: raw[k] for k in ("context_window", "input_target_tokens", "output_tokens", "protocol_margin_tokens", "recent_turns", "summary_pending_tokens", "summary_input_tokens", "summary_output_tokens", "summary_max_tokens", "max_model_calls", "max_tool_calls", "deadline_seconds", "model_step_seconds") if k in raw},
+        **{k: raw[k] for k in ("context_window", "input_target_tokens", "output_tokens", "protocol_margin_tokens", "recent_turns", "summary_pending_tokens", "summary_input_tokens", "summary_output_tokens", "summary_max_tokens", "max_model_calls", "max_tool_calls", "deadline_seconds", "model_step_seconds", "task_cycle_decisions", "task_cycle_tools", "task_cycle_web", "task_cycle_seconds") if k in raw},
     )
 
 

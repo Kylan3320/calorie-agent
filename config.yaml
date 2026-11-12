@@ -21,6 +21,11 @@ allowed_tools:
   - query_memory
   - query_diet_goal
   - manage_diet_goal
+  - query_sources
+  - calculate_values
+  - manage_task
+  - query_task
+  - delegate_task
 
 # 本地时区偏移（小时），用于“今天”的口径
 timezone_offset_hours: 8
@@ -38,3 +43,9 @@ max_model_calls: 4
 max_tool_calls: 8
 deadline_seconds: 90
 model_step_seconds: 40
+
+# 父子共享周期初值；子任务的预留由唯一消息写入者提交。
+task_cycle_decisions: 12
+task_cycle_tools: 24
+task_cycle_web: 9
+task_cycle_seconds: 180
