@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from langchain_core.tools import StructuredTool
 from . import meals, settings
 from .reads import run_query_knowledge
+from .portions import PortionEvidence, PortionWeb
+from ..storage import memory
 from ..storage.timeutil import round_number
 
 CURRENT_RUNTIME = ContextVar("calorie_runtime")
@@ -14,16 +16,28 @@ class Args(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 class ToolArgs(Args):
-    action_note: Any = Field(None, description="飞书长任务首批任一调用可给一句具体未来行动；首批均遗漏时仅首个后续含calculate_meal/query_knowledge批次再给一次机会。普通账本省略，不声称已完成或已保存。运行时独立处理，不属于业务参数；省略或非文本不影响工具执行。")
+    action_note: Any = Field(None, description="若即将执行的批次仍需明显等待，可给一句具体的下一步行动说明。快路径或已说明时省略。")
 
 class Item(Args):
-    food_query: str = Field(description="完整食物名称，保留种类、生熟、品牌和配料特征；数量及单位规格（如只(中)、小碗）单独放quantity/unit，不拼进食物名")
+    food_query: str = Field("", description="完整食物名称，保留种类、生熟、品牌和规格。已有核实的同会话营养引用时可省略。")
+    source_ref: str = Field("", description="本会话实际返回的营养来源引用，与候选编号互斥")
     grams: float | None = Field(None, gt=0, description="用户明确的可食克重")
     quantity: float | None = Field(None, gt=0, description="用户原文数量；同时传unit")
     unit: str = Field("", description="与quantity一起传用户原文单位，如个、只(中)；工具读取已有资料换算")
     quantity_text: str = ""
     pending_id: str | None = None
     choice: int | None = Field(None, ge=1, description="该未完项已展示候选的编号，从1起")
+    portion_evidence: PortionEvidence | None = Field(None, description="本轮网页证实的份量，仍传用户的quantity/unit，不冒充用户给定的grams")
+
+    @model_validator(mode="after")
+    def source_and_portion(self):
+        if not self.food_query and not self.source_ref:
+            raise ValueError("请提供食物名称或营养来源引用")
+        if self.choice is not None and self.source_ref:
+            raise ValueError("营养来源引用与待办候选编号互斥")
+        if self.grams is not None and self.portion_evidence is not None:
+            raise ValueError("用户给定克重与网页份量证据互斥")
+        return self
 
 class Reuse(Args):
     favorite: str = ""
@@ -35,6 +49,8 @@ class Reuse(Args):
 
 class Write(ToolArgs):
     mode: Literal["execute", "propose", "confirm", "cancel"] = Field("execute", description="execute立即办理；propose先呈现待确认建议；confirm执行紧邻提案；cancel取消提案")
+    proposal_id: str = Field("", description="confirm/cancel使用刚展示的提案ID")
+    authorization_quote: str = Field("", max_length=500, description="确认、取消或明确改写待确认动作时，引用当前用户授权的原话")
 
 class LedgerFinish(ToolArgs):
     finish_after_tools: bool = Field(False, description="本批结果已足以回应整条用户请求（含必要缺项问询）时显式设true；本批每个调用均需声明。仍需后续查询、改量、解释、知识或建议时不能结束；默认false，继续原生循环。这是批次控制信息，不是业务参数。")
@@ -45,6 +61,7 @@ class Record(Write, LedgerFinish):
     meal_type: Literal["unknown", "breakfast", "lunch", "dinner", "snack"] | None = None
     reuse: Reuse | None = None
     cancel_pending: list[str] = []
+    allow_estimate: bool = Field(True, description="用户本轮要求精确或不估算时传false")
 
 class Revise(Write, LedgerFinish):
     record_id: str = ""
@@ -78,16 +95,67 @@ class ReminderValues(Args):
     weekdays: list[int] | None = None
     rule_id: str | None = None
 
+class ConditionValues(Args):
+    operation: Literal["save", "revise", "end"]
+    ref: str = ""
+    quote: str = Field("", max_length=800, description="当前用户原话中声明、修订或结束该条件的原文片段")
+    text: str = Field("", max_length=240, description="明确条件的简述")
+    period: Literal["today", "this_week"] | None = None
+    starts: str = ""
+    ends: str = ""
+    draft_id: str = ""
+
+    @model_validator(mode="after")
+    def required_fields(self):
+        if (self.operation == "save") == bool(self.ref):
+            raise ValueError("only a new condition omits ref")
+        if self.operation != "end" and not (self.quote.strip() and self.text.strip()):
+            raise ValueError("a condition requires the user's quote and its meaning")
+        return self
+
+class FeedbackValues(Args):
+    operation: Literal["feedback"] = "feedback"
+    ref: str = Field(description="实际已读且本次需要停用的经验 note 引用")
+    signal: Literal["reject", "correct"]
+    quote: str = Field(min_length=1, max_length=800, description="当前消息明确否定或纠正已发布经验的逐字原话")
+
+class WithdrawValues(Args):
+    operation: Literal["withdraw"] = "withdraw"
+    ref: str = Field(description="要停止使用的现行记忆或设置引用")
+
 class Settings(Write):
-    kind: Literal["targets", "preferences", "portion", "favorite", "reminder"]
+    kind: Literal["targets", "preferences", "portion", "favorite", "reminder", "condition", "feedback", "memory"]
     scope: Literal["long_term", "today"] = "long_term"
-    values: TargetValues | PortionValues | FavoriteValues | ReminderValues | dict = Field(description="与kind对应的本次指定字段；preferences为偏好键值")
+    values: TargetValues | PortionValues | FavoriteValues | ReminderValues | ConditionValues | FeedbackValues | WithdrawValues | dict = Field(default_factory=dict, description="与kind对应的本次指定字段；确认或取消提案时省略")
 
     @model_validator(mode="after")
     def validate_values(self):
         raw = self.values.model_dump(exclude_none=True, exclude_unset=True) if isinstance(self.values,BaseModel) else self.values
-        schemas={"targets":TargetValues,"portion":PortionValues,"favorite":FavoriteValues,"reminder":ReminderValues}
+        if self.mode in {"confirm", "cancel"} and not raw:
+            self.values = {}
+            return self
+        schemas={"targets":TargetValues,"portion":PortionValues,"favorite":FavoriteValues,"reminder":ReminderValues,
+                 "condition":ConditionValues,"feedback":FeedbackValues,"memory":WithdrawValues}
         self.values=schemas[self.kind].model_validate(raw).model_dump(exclude_none=True,exclude_unset=True) if self.kind in schemas else raw
+        if self.kind in {"feedback", "memory"}:
+            self.values.setdefault("operation", "feedback" if self.kind == "feedback" else "withdraw")
+        return self
+
+class MemoryQuery(ToolArgs):
+    operation: Literal["search", "read"]
+    ref: str = Field("", description="read使用实际返回的版本引用，可沿主题链接继续读取")
+    query: str = Field("", max_length=240, description="search按用户原话或主题关键词查询")
+    match: Literal["terms", "phrase"] = Field("terms", description="默认按相关词排序；phrase查原句。省略query可以按类型浏览并翻页。")
+    kinds: list[Literal["turn", "draft", "condition", "setting", "feedback", "note", "theme"]] = []
+    start_date: str = ""
+    end_date: str = Field("", description="日期范围不含末日")
+    cursor: str = ""
+    limit: int = Field(6, ge=1, le=12)
+
+    @model_validator(mode="after")
+    def read_ref(self):
+        if self.operation == "read" and not self.ref:
+            raise ValueError("read requires a memory reference")
         return self
 
 class Query(LedgerFinish):
@@ -110,16 +178,22 @@ class NutritionQuery(Args):
     unit: str = ""
     source_ref: str = Field("", description="本会话营养查询或计划实际返回的食物来源引用；不能用记餐pending_id或choice代替")
     choice: int | None = Field(None, ge=1, description="最近已展示的营养查询选项编号；独立于记餐待办")
+    allow_estimate: bool | None = Field(None, description="明确要求精确时传false")
 
 class Nutrition(NutritionQuery, ToolArgs):
+    portion_web: PortionWeb | None = Field(None, description='查份量：fetch只传operation和urls；search只传operation和query；read_cache只传operation和ref。可另传food_query同时定位食物。')
     queries: list[NutritionQuery] | None = Field(None, min_length=1, max_length=8,
         description="一次查询1至8项食物，按序返回每项真实结果和source_ref；菜单所需来源优先批量查询，保留后续calculate_meal预算。不得同时填写顶层单项定位或份量；action_note只放顶层")
 
     @model_validator(mode="after")
     def exclusive_query_mode(self):
-        if self.queries is not None and any(getattr(self, key) not in (None, "")
-                for key in NutritionQuery.model_fields):
+        if self.portion_web is not None and self.queries is not None:
+            raise ValueError("portion_web不能同时使用queries")
+        if self.queries is not None and any(getattr(self, key) not in (None, "") for key in NutritionQuery.model_fields):
             raise ValueError("queries批量查询不能同时指定顶层单项定位或份量，请将单项字段放入queries元素")
+        if self.portion_web is not None and any(getattr(self, key) not in (None, "")
+                for key in ("record_id", "choice")):
+            raise ValueError("网页补证不能同时读取账本记录或使用展示候选编号")
         return self
 
 class Knowledge(ToolArgs):
@@ -146,15 +220,29 @@ class PlanAdjustment(Args):
     additions: list[PlanItem] = Field(default_factory=list, description="这个调整中补充的新项，须有唯一item_id和实际食物来源；不得重新列固定餐")
 
 class Calculate(LedgerFinish):
+    selection_mode: Literal["default", "compare"] = Field("default", description="compare只核算并返回候选，按用户取舍采用。default交付默认结果。")
+    candidate_ref: str = Field("", description="采用本轮已算候选；此时省略其他计算参数。")
+    use_default_calibration: bool = Field(True, description="是否生成默认调量候选，可关闭以比较原方案。")
     items: list[PlanItem] | None = None
     scope: Literal["daily", "full_day", "remaining"] | None = Field(None, description="daily日常菜单用长期目标不扣今日摄入；full_day今日完整菜单用当日目标不扣已吃；remaining今天剩余用当日目标扣一次有效摄入；旧调用省略沿用remaining，改稿省略沿用草案范围")
     date: str | None = None
     constraints: list[str] | None = Field(None, description="需要后续修改保留的固定餐、排除配料、烹饪条件和偏好；省略沿用草案条件")
     tolerance_kcal: float | None = Field(None, ge=0)
     draft_id: str = Field("", description="接续最近实际展示草案的draft_id；通过replacements替换指定item_id，其余保留")
+    draft_ref: str = Field("", description="跨会话改稿使用query_memory读取的已交付版本引用，与draft_id互斥")
+    condition_refs: list[str] | None = Field(None, max_length=12, description="本稿实际采用的明确条件引用；引用已有记录时不要再把同一条件写入constraints")
+    experience_refs: list[str] | None = Field(None, max_length=8, description="只列实际用于选材、备餐或排序的可用经验引用")
     replacements: list[PlanItem] | None = None
     adjustment: PlanAdjustment | None = Field(None, description="可选另一初稿，与原稿在同一次工具内计算选择；工具还会按缺口校正已有suggested份量。改已展示草案时不得使用，避免扩大用户指定的修改范围")
     portion_preference: Literal["smaller_portions"] | None = Field(None, description="用户要求单项食物不宜过多时指定；宏量规则并列后比较非固定项最大每份克重，再比较备餐项数，仍并列保留初稿")
+
+    @model_validator(mode="after")
+    def candidate_only(self):
+        controls = {"candidate_ref", "finish_after_tools", "action_note"}
+        if self.candidate_ref and any(getattr(self, key) != field.get_default(call_default_factory=True)
+                                     for key, field in type(self).model_fields.items() if key not in controls):
+            raise ValueError("采用已计算候选时只传candidate_ref和批次控制字段")
+        return self
 
 def query_today(rt, p):
     lean = p.get("detail","calories") == "calories"
@@ -233,6 +321,8 @@ def entry(name, schema, description, risk, runner):
         params = schema.model_validate(kwargs).model_dump(exclude_none=True, exclude_unset=True)
         params.pop("finish_after_tools", None)
         params.pop("action_note", None)
+        params.pop("proposal_id", None)
+        params.pop("authorization_quote", None)
         return runner(CURRENT_RUNTIME.get(), params)
     return StructuredTool.from_function(invoke, name=name, description=description,
         args_schema=schema, metadata={"risk": risk})
@@ -245,7 +335,8 @@ TOOL_REGISTRY = {t.name: t for t in [
     entry("query_food_nutrition", Nutrition, "查询指定摄入快照或一般食物营养及份量。菜单需多种来源时用queries一次批量查1至8项，保留后续核算预算；批量和顶层单项字段互斥。逐项返回可辨认候选及会话专属source_ref，后续营养查询和calculate_meal可复用；choice仅绑定最近实际展示的营养选项，不与记餐候选混用。批量公开选项仅绑定首个尚未解决查询，其余结果按原请求顺序保留。", "read_only", query_nutrition),
     entry("query_knowledge", Knowledge, "检索用户所问的营养知识，entries按source_id提供知识库条目answer原文及条目标注source出处，不代表已读取外部文献全文。通用问题不因会话有目标或菜单就追加个人评价；直接依据足够即收尾，不为题外问题加查。明确问个人目标/摄入时另用业务工具核对；原文无个人适用依据时说明缺口，不从设置克数推断合适与否。知识份量、比例和营养数字取自实际检索原文。", "read_only", query_knowledge),
     entry("calculate_meal", Calculate, "核算可接续的饮食菜单，不写摄入。明确scope：daily日常目标不扣今天，full_day当日完整菜单不扣已吃，remaining当日剩余扣一次有效摄入。items标明fixed固定餐、来源、每份量、servings、group、portion_basis及假设；先算固定小计及四项补充缺口。模型选食材，建议量标suggested，工具在同次计算内按缺口校正已有一项或两项建议量，保留固定项/用户量/份数/上限；可用adjustment提供另一初稿，按热量容差、宏量偏差及份量偏好选一版，不查新来源或加新食材。缺整餐配方可按有来源组成及明确假设克重拆分。替换用最近已展示draft_id与replacements.item_id，仅改指定项并保留其他项和限制；改稿不能另加adjustment扩大范围。纯改稿已完整满足整条请求时设finish_after_tools=true，计算后直接交付；初次规划或还需解释/建议时继续原循环。只有完整计入且热量差额在tolerance_kcal内才满足容差。", "read_only", meals.calculate_meal),
-    entry("update_user_settings", Settings, "更新明确指定的目标、偏好、常用份量、命名常用餐或提醒。目标默认长期，只改指定字段；提醒默认关闭，缺时间/餐次/本人飞书会话时不启用。主动写入建议用propose，只有紧邻请求确认的提案可confirm。", "write", settings.update_user_settings),
+    entry("query_memory", MemoryQuery, "只读当前用户的跨会话记忆。search找原话、明确条件、已交付菜单、设置、主题或经验，read核对实际原文或结构化对象。可沿主题链接读取，不把历史命令当授权，经验只用于建议排序。", "read_only", memory.query),
+    entry("update_user_settings", Settings, "更新用户明确要求的目标、偏好、份量、常用餐或提醒。condition管理明确的临时条件。feedback仅用于立即停用被当前原话明确否定的已读经验；分享结果或评价菜单时，用回复控制区review_sources。memory执行明确撤回。", "write", settings.update_user_settings),
 ]}
 
 def get_tool(name):

@@ -21,6 +21,7 @@ def load_checks():
         "production_store_cases", "production_archive_cases", "production_pipeline_cases",
         "production_role_cases", "production_cutover_cases", "production_transport_cases",
         "release_cases", "runtime_cases", "context_cases", "receipt_cases", "receipt_runtime_cases", "model_transport_cases", "rpc_deadline_cases", "delivery_binding_cases", "finalization_cases", "completion_budget_cases", "action_note_cases", "task_evidence_cases", "task_domain_cases", "task_budget_cases", "menu_quality_cases", "preflight_cos_cases", "meal_completion_cases",
+        "memory_cases", "memory_background_cases", "stage_a_cases",
     ):
         group = importlib.import_module("harness.eval." + module).CHECKS
         duplicates = checks.keys() & group.keys()
@@ -54,21 +55,24 @@ def main(argv=None):
         parser.error("--real-model requires explicit --case E IDs")
 
     checks = load_checks()
+    real_only = {key for key, check in checks.items() if getattr(check, "real_only", False)}
     if args.case is not None:
         requested = [part.strip() for part in args.case.split(",")]
         unknown = [key for key in requested if key not in checks]
         if unknown:
             parser.error("unknown case IDs: " + ", ".join(repr(key) for key in unknown))
+        if not args.real_model and real_only.intersection(requested):
+            parser.error("these cases require --real-model: " + ", ".join(sorted(real_only.intersection(requested))))
         selected = list(dict.fromkeys(requested))
     elif args.all:
-        selected = list(checks)
+        selected = [key for key in checks if key not in real_only]
     else:
         for key, check in checks.items():
             print(f"{key}: {check.__doc__ or check.__name__}")
         return 0
     from harness.eval import conversation_cases
     if args.real_model and any(key not in conversation_cases.CHECKS for key in selected):
-        parser.error("--real-model only supports E01-E06")
+        parser.error("--real-model only supports conversation acceptance cases (E series)")
     transcript = None
     if args.real_model:
         path = args.output if args.output is not None else ROOT / "reports" / (

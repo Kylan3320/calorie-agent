@@ -365,8 +365,11 @@ def P03():
     sources = []
     def execute(msg, **kwargs):
         confirm = msg["text"] == "好的"
-        args = {"kind": "targets", "mode": "confirm" if confirm else "propose", "values": {"kcal": 1900}}
-        return run(msg, model=NativeFake(responses=[call("update_user_settings", args), AIMessage(content="这个目标可以先试试。")]), **kwargs)
+        def confirm_proposal(messages):
+            state = json.loads(next(m.content for m in messages if m.content.startswith("可信会话事实：")).split("：", 1)[1])
+            return call("update_user_settings", {"kind": "targets", "mode": "confirm", "proposal_id": state["proposal"]["proposal_id"], "authorization_quote": msg["text"]})
+        proposal = call("update_user_settings", {"kind": "targets", "mode": "propose", "values": {"kcal": 1900}})
+        return run(msg, model=NativeFake(responses=[confirm_proposal if confirm else proposal, AIMessage(content="这个目标可以先试试。")]), **kwargs)
     def http(request):
         if os.getenv("CALORIE_SERVICE_AUTH") == "cam":
             assert_cam_request(request)

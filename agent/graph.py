@@ -27,11 +27,13 @@ from .policy import resolve_preset
 from .storage import create_store
 from .storage.bitable_adapter import message_key
 from .model import DeepSeekModel
+from .model_controls import extract_review_sources
 from .tools.registry import TOOL_REGISTRY, CURRENT_RUNTIME
-from .tools.settings import BARE_CONFIRM, BARE_CANCEL
-from .replies import model_view, project_messages, history_messages, state_view, render, progress_reply, proposal_prompt, tool_facts_reply, plan_companion_reply
+from .tools import feedback
+from .replies import (add_recorded_portion_sources, history_messages, model_view, plan_companion_reply, progress_reply,
+                      project_messages, proposal_prompt, render, state_view, tool_facts_reply)
 from .context import select_messages, REQUEST_BUDGET, InputBudgetExceeded, ModelRequestFailed, TruncatedGeneration, StateCheckpointFailed
-from .storage import conversation
+from .storage import conversation, memory
 from .evidence import collect_visible_evidence
 
 _LOCKS = {}
@@ -51,6 +53,11 @@ def session_lock(user_id, chat_id):
 SYSTEM = """你是本人的饮食助手。办妥本条请求，在满足请求及必要完成条件的范围内使用上下文，用自然、简洁的中文交流。已有背景不等于用户要求追加这些内容。
 最后一条用户消息是本次请求；历史已完成轮次只提供背景和定位，不重做或混入本轮答复。独立未完事项仍按可信会话事实保留。
 按明确的食用、记录、修改和设置意图调用工具。食物、份量、日期和指代优先沿用已知信息；数量和原文单位一并传入，由工具换算。记餐候选供用户选择后接续原餐，本轮新返回的记餐候选合并询问用户。
+自然份量可按适用依据估算，明确精确时传allow_estimate=false。根据实际缺口选择已知单位、个人份量、证据缓存、搜索、直接读取公开地址或追问。工具反馈说明事实、未满足条件及余量，由你决定是否换方法。用核实的可食口径、食物、规格、生熟和原数量单位提交证据；可确定餐项先记，已有待办只补原pending_id。
+personal_memory中的明确条件适用时遵守；主题入口只在相关建议或旧资料请求需要时展开。经验只用于选材、备餐和建议排序，明确要求和生效设置优先。使用经验的菜单在experience_refs标明已读且实际使用的条目。query_memory搜索候选后读所需原文、笔记或草案；摘要只作定位，历史没有当前写入授权。旧稿查询保留历史范围，继续菜单用已交付draft_ref和指定replacements，定位用的历史日期不自动成为新日期。
+续改前把指定替换和须保留的餐项一起与本次明确要求及生效条件核对。有冲突而只改指定项无法满足时，说明具体冲突并询问能否扩大修改范围。过期条件不再约束新稿；无期限且只随源稿的条件，跨会话时先确认是否仍适用。
+明确临时条件可用update_user_settings的condition保存原话及范围，已有记录用于菜单时放condition_refs。明确反证且唯一关联经验时用feedback登记原话并当轮停用；用户要求忘记时用memory撤回。依据已提交结果回复实际变更。
+用户分享实际使用后的结果或评价时，直接回应并按价值标记复盘材料；这类反馈不调用设置工具，也不承诺已改原菜单或长期设置。复盘标记放在同次响应正文末尾，单独一行：<review_sources>[{"ref":"current_turn","reason":"简短说明其复盘价值"}]</review_sources>。例如用户说换一种准备方法后确实省了时间，可以直接回应并用 current_turn 标记实际结果。最多4项，可引用本轮已读记忆，日常无材料的回复省略。
 新消息明确要求记录或复用一餐时调用record_meal新增，即使同日已有相同食物、份量和餐次；历史引用只用于定位，不能据此把本次记录改成查询或回答“已经记过”。防重由系统按原消息ID和固定动作键处理，不按餐食内容去重。只有“刚才那份记上了吗”等核对旧账的请求才查询原记录，不新增摄入。
 营养、账本和执行状态取自本次工具事实；历史操作引用用于定位，摄入和目标重新查询。记餐和改量已有meal_totals即可直接回复原餐合计。
 “刚才/上一餐”明确指向last_meal；其中同名食物唯一且有效时直接用引用ID调用revise_intake，不要为重取数量/营养先query_history，工具会核对当前原行和重算原餐。“今天早餐”等未指定哪一份且存在多餐时先定位消歧，不能擅自取最近餐。
@@ -58,17 +65,18 @@ SYSTEM = """你是本人的饮食助手。办妥本条请求，在满足请求�
 记餐、改量简短确认并给本餐热量；原餐estimated为true时说明估算。明细按需展开，常用餐名称按用户原文保存。
 只问热量合计时，用一句话给合计作为完整答复。完成事项以结果收尾；多个必要缺项合并问，其他交流贴合用户当前的话题。
 面向用户使用食物名称、自然指代和资料标题；记录ID、工具参数和source_id供内部操作。知识引用使用实际可见原文的[source_id]，不要自行编造或复用局部编号；缺原文或对应不唯一时重新检索。
-主动写入建议先propose，用户确认后执行。提案正文只写一句陈述解释建议，具体参数及唯一确认问题由系统交付。
+主动写入建议先propose。根据当前原话与刚展示的提案理解确认、取消或改写。confirm/cancel传proposal_id与authorization_quote，确认省略业务参数。有待确认提案时，新写入或改参数用execute并传本次原话。历史同意不授权，提案参数及确认问题由系统展示。
 record_meal、revise_intake、query_today、query_history 的本批结果若足以回应整条请求（包括必要缺项问询），每个调用显式给出finish_after_tools=true，系统直接用完整工具事实回执。
 完整请求尚有后续工具、解释、建议或知识回答未覆盖时不声明完成。先查历史再改量，查历史批次不是完成；记餐后还问今日剩余，须取得所需查询后才完成。
 finish_after_tools也可用于只改最近已展示草案的一次calculate_meal：替代来源已知时直接用draft_id/replacements计算并设true，完整计算后直接交付，不再复述。仍需来源可先查，最后计算足以回应整条请求才设true；初次规划、还问理由/建议或有其他未完成任务不能据此结束。其余工具不要携带此字段，false也不要传。每条消息最多8次工具调用、4次主决策；先合并已知条件，依据可用来源核算，避免反复搜索同一食物。规划可从本轮营养候选选择实际返回的source_ref直接进入calculate_meal，按用户要求和候选差异作明确的组成假设，无需逐个再次查营养。choice只接续用户回复的上一轮已展示营养选项，不能选择本轮刚返回的候选或借用记餐编号。
 使用source_ref时food_query应省略或保持该来源原名；不要把“去卤蛋/熟制/微波炉”等条件追加到来源名称。固定外卖配方未核实时，优先查米饭、鸭肉等组成的实际来源，用assumption明确每顿组成及可食克重，用constraints保留不加卤蛋等要求，不能宣称整体资料已核实排除配料。拟稿尚未展示时修改计算须重交完整修订items，只有已展示meal_draft才能用draft_id改稿。
-饮食规划、修改草案或知识检索长任务，在首批任一调用的action_note给一句具体中文行动说明，只说尚待做的事，不声称已完成。首工具只是查目标也可携带。若首批均遗漏，只在后续首个含calculate_meal或query_knowledge的批次再给一次机会，不另调模型补说明；普通账本、直接结束、已经尝试说明后均省略。
+网页的标题和原文用作份量证据。记餐沿用食物库返回的原名或 source_ref，网页描述的生熟、带皮等口径不自动加进用户的食物名。
+预计仍需明显等待时，可在即将执行的一批工具的action_note给一句具体行动说明，只说接下来要做什么。普通快路径和已经发过说明时省略。
 已展示的meal_draft、food_offer及reminder_pending供下一轮接续；按来源引用和item_id修改，不把草案当已摄入。“每天”用scope=daily长期目标，不取当日覆盖、不扣已吃早餐；今日完整/剩余须按原意选择scope。
 规划需要多种来源时优先用query_food_nutrition的queries一次批量查1至8项，action_note写工具顶层，不写queries元素。不要把每种食物拆成单独工具调用，给calculate_meal及必要纠错保留预算。可选食材不是必须全查或全部入菜单，查询未找到的可选项不应反复换词耗尽预算；先用已有有据来源完成计算，再明确仍缺的条件。
-规划先将用户指定固定餐的每份来源、份数、排除项与组成假设传给calculate_meal并标fixed=true。根据四项缺口选择补充食材，模型建议量标portion_basis=suggested，外卖组成假设标assumed_takeout（包括固定米饭/鸭腿），只有用户明确给量才标user_given。工具在同次计算内校正已有建议量，保留固定项/份数/上限；可用adjustment给另一初稿，不能只算热量后把改善写成未重算建议。单项不宜过多时传portion_preference=smaller_portions。按营养选项per_100g的实际数值拟定份量，不猜每100克营养；有source_ref时省略food_query，不反复查询候选编号。assumption只写该项的组成或做法，克重与几只/几份由工具来源换算，不在自由文本重复估算单位数量。
-初次规划须在前三次主决策内完成必要工具，给第四次保留最终说明。已有完整菜单满足容差且宏量取舍可说明时交付这一版，不为补齐可选食材或追热量零误差再检索/重算；检索已提示额度不足时使用现有有据来源或问必要缺项，不反复搜可选替代。不能在最后一次决策调用还需要模型正文才能结束的规划工具。
-execution_budget给出本次决策序号、此后剩余决策及工具余量。此后无决策时应给最终正文或必要缺项问询；只有本批能按上述finish_after_tools直接完成的账本或纯改稿才可继续调用工具。
+规划用calculate_meal核对目标、来源和份量。按用户硬条件保留固定项，建议量标suggested，组成假设标assumed_takeout。可用默认校正，也可用selection_mode=compare取得实际候选和差额，按本次软偏好选candidate_ref采用；只比较时可直接说明差异。采用已算候选后可按事实直接交付。所有数值取工具核算，说明用户关心的取舍。
+按当前可用资料和执行余量安排工作；留出交付必要的步骤。完成所需计算后可以直接采用已核算结果，剩余缺口按本次请求处理。
+execution_budget给出已用决策及各项余量。预算内选择下一步；最后一次决策选择可直接交付的工具动作或说明已完成部分及缺口。
 菜单明细由系统按最终草案统一展示，不在终稿重复清单。用户还问替换理由、建议或关键取舍时继续回答，把这部分定性说明写在<plan_note>与</plan_note>之间；系统保留说明并附唯一菜单。份量和营养数值由菜单统一展示，不在说明块另写定量结论。
 最终菜单、每项份量及汇总由选中草案唯一渲染；最终正文不再重写清单或另一份菜单。关键前提写入assumption、固定限制写入constraints，由同一草案交付。修改仅传原draft_id与用户指定全部对应餐次的replacements，其他项不动；没有该项时明确无对象并保留原稿。
 知识回答只覆盖本条用户所问：通用问题给相关原文支持的结论和解释，即使上下文有个人目标或菜单，也不追加个人摄入评价、目标数字或改餐建议。原文已能推出所问的结论就收尾，不必找到与问题逐字相同的句子。例如原文允许正常保留某类食物，已足以回答是否必须完全戒掉；不要扩展成极端饮食的安全性或个人最低摄入量，再为这些题外问题检索或列缺口。检索词扩展只用于找用户所问的资料。
@@ -154,6 +162,17 @@ def _intake_version(row):
     return hashlib.sha256(json.dumps({k:row.get(k) for k in fields}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
+def _settings_version(store, user, args, day):
+    settings = store.load_document("user_settings", user)
+    kind = args["kind"]
+    if kind == "targets" and args.get("scope") == "today":
+        value = [day, settings.get("daily_targets", {}).get(day, {})]
+    else:
+        section = {"portion": "portions", "favorite": "favorites", "reminder": "reminders"}.get(kind, kind)
+        value = settings.get(section, {})
+    return conversation.digest(value)
+
+
 class Runtime(AgentMiddleware):
     def __init__(self, message, store, config, preset, model, day, execution):
         self.message, self.store, self.config, self.preset, self.model = message, store, config, preset, model
@@ -171,7 +190,7 @@ class Runtime(AgentMiddleware):
         self.deadline = min(self.total_deadline, self.recovery_deadline) - 5
         self.journal.setdefault("model_steps", [])
         self.session = deepcopy(self.journal.get("session") or store.load_session(self.user_id, message["chat_id"]))
-        self.settings = deepcopy(self.journal.get("settings") or store.load_document("user_settings", self.user_id))
+        self.settings = store.load_document("user_settings", self.user_id)
         self.day = self.journal.get("day") or day or store.today_string()
         self.journal.setdefault("previous_session_message_id",self.session.get("last_message_id"))
         live_session = store.load_session(self.user_id, message["chat_id"])
@@ -192,17 +211,15 @@ class Runtime(AgentMiddleware):
         conversation.context(store, self.user_id, message["chat_id"], live_session, write=preset.allow_write)
         if preset.allow_write:
             conversation.stage_turn(store, self.user_id, message["chat_id"], self.human_id,
-                [HumanMessage(content=message["text"], id=self.human_id)], reserve=True)
+                [HumanMessage(content=message["text"], id=self.human_id)], reserve=True,
+                metadata={"date": self.day, "received_at": self.journal["budget_started_at"]})
         if "messages" not in self.journal:
             self.journal["messages"] = messages_to_dict([HumanMessage(content=message["text"], id=self.human_id)])
-            # A proposal only survives if the immediately preceding assistant asked for confirmation.
+            # Expose only the proposal actually shown by the immediately preceding reply.
             proposal = self.session.get("proposal")
-            text = message["text"].strip().lower().rstrip("。！! ")
-            self.journal["confirmation"] = deepcopy(proposal) if proposal and proposal.get("presented") and text in BARE_CONFIRM else None
-            if text in BARE_CANCEL:
-                self.session.pop("proposal", None)
-                self.session.pop("reminder_pending", None)
-            elif text not in BARE_CONFIRM:
+            self.journal["confirmation"] = deepcopy(proposal) if (proposal and proposal.get("presented")
+                and proposal.get("response_id") == self.session.get("last_message_id")) else None
+            if self.journal["confirmation"] is None:
                 self.session.pop("proposal", None)
         else:
             restored = _execution_messages(self.journal, message, self.human_id)
@@ -244,11 +261,15 @@ class Runtime(AgentMiddleware):
         batch = [entry for entry in calls if entry.get("batch_id") == calls[-1]["batch_id"]]
         ledger = all(entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"} for entry in batch)
         revision = (len(batch) == 1 and batch[0]["tool"] == "calculate_meal"
-                    and bool(batch[0]["args"].get("draft_id"))
-                    and batch[0]["args"]["draft_id"] == self.session.get("meal_draft", {}).get("draft_id"))
+                    and (batch[0]["args"].get("candidate_ref") or batch[0]["args"].get("draft_ref") or
+                         bool(batch[0]["args"].get("draft_id"))
+                         and batch[0]["args"]["draft_id"] == self.session.get("meal_draft", {}).get("draft_id")))
         complete = (ledger or revision) and all(entry.get("finish_after_tools") is True and "result" in entry for entry in batch)
         self.journal["completion"] = {"batch_id": calls[-1]["batch_id"], "declared": [entry.get("finish_after_tools", False) for entry in batch], "adopted": False}
         if not complete:
+            return False
+        prior = [entry["result"] for entry in calls if entry not in batch and "result" in entry]
+        if any(feedback.new_unmet_conditions(entry["result"], prior) for entry in batch):
             return False
         # The final batch declares its results sufficient. Keep earlier writes
         # and non-success results; successful reads may have only informed it.
@@ -325,6 +346,31 @@ class Runtime(AgentMiddleware):
     def add_refs(self, rows):
         self.session["refs"] = list(dict.fromkeys(self.session.get("refs", []) + [r["record_id"] for r in rows]))
 
+    def remaining_resources(self):
+        from .tools.portions import web_requests_remaining
+        return {"model_decisions_after_this": max(0, self.config.max_model_calls - self.journal["model_calls"]),
+                "tool_calls_remaining": max(0, self.config.max_tool_calls - len(self.journal["calls"])),
+                "web_requests_remaining": web_requests_remaining(self), "seconds": max(0, int(self.deadline - time.monotonic()))}
+
+    def project_tool_result(self, result):
+        return {**model_view(result), "feedback": feedback.describe(result, self.remaining_resources())}
+
+    def collect_review_sources(self, marks, state, native):
+        if not marks or not self.preset.allow_write:
+            return []
+        known = {item["ref"] for group in ("conditions", "experiences")
+                 for item in state.get("personal_memory", {}).get(group, [])}
+        if ref := state.get("meal_draft", {}).get("memory_ref"):
+            known.add(ref)
+        for message in native:
+            if isinstance(message, ToolMessage) and message.name == "query_memory":
+                item = json.loads(message.content).get("data", {}).get("item")
+                if item:
+                    known.add(item["ref"])
+        current_ref = memory.reference(self.user_id, "turn", self.human_id)
+        return [{**mark, "ref": current_ref if mark["ref"] == "current_turn" else mark["ref"]}
+                for mark in marks if mark["ref"] == "current_turn" or mark["ref"] in known]
+
     def wrap_model_call(self, request, handler):
         self.check_deadline()
         steps = self.journal["model_steps"]
@@ -345,12 +391,20 @@ class Runtime(AgentMiddleware):
             raise ModelRequestFailed("model_step_deadline")
         projection_started = time.monotonic()
         native = project_messages(request.messages)
+        facts = {entry["call_id"]: entry["result"] for entry in self.journal["calls"] if "result" in entry}
+        for index, message in enumerate(native):
+            if isinstance(message, ToolMessage) and (fact := facts.get(message.tool_call_id)):
+                if message.name == "query_memory":
+                    fact = memory.refresh_result(self.store, self.user_id, self.day, fact)
+                native[index] = message.model_copy(update={"content": json.dumps(self.project_tool_result(fact), ensure_ascii=False)})
         self.journal["messages"] = messages_to_dict(native)
         history, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True, config=self.config, before=self.human_id, for_model=True)
         state = state_view(self)
-        state["execution_budget"] = {"model_decision": self.journal["model_calls"],
-                                     "model_decisions_after_this": self.config.max_model_calls - self.journal["model_calls"],
-                                     "tool_calls_remaining": max(0, self.config.max_tool_calls - len(self.journal["calls"]))}
+        memories = memory.context_view(self.store, self.user_id, self.day, self.human_id,
+                                       self.session.get("meal_draft", {}), self.message["text"])
+        if memories:
+            state["personal_memory"] = memories
+        state["execution_budget"] = {"model_decision": self.journal["model_calls"], **self.remaining_resources()}
         projected, measurement = select_messages(history, summary, native, SYSTEM, state,
             [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)
         request = request.override(messages=[SystemMessage(content="可信会话事实：" + json.dumps(state, ensure_ascii=False)), *projected], system_message=SystemMessage(content=SYSTEM + "\n"))
@@ -391,6 +445,12 @@ class Runtime(AgentMiddleware):
             raise ModelRequestFailed("model_error", type(exc).__name__ + ": model step failed") from exc
         finally:
             REQUEST_BUDGET.reset(scope)
+        original_response = response
+        response, marks = extract_review_sources(response)
+        if response is not original_response and not (response.result[0].content or response.result[0].tool_calls):
+            raise ModelRequestFailed("model_response_invalid", "review control has no public response or tool call")
+        if marks := self.collect_review_sources(marks, state, native):
+            step["review_sources"] = marks
         ai = response.result[0]
         self.journal["messages"] = messages_to_dict([*native, ai])
         for call in ai.tool_calls:
@@ -419,20 +479,15 @@ class Runtime(AgentMiddleware):
         if not batch:
             return
         opportunities = self.journal.setdefault("action_note_opportunities", {})
-        if batch_id == calls[0].get("batch_id"):
-            kind = "first"
-        elif (opportunities.get("first", {}).get("status") == "empty" and "supplement" not in opportunities
-              and any(entry["tool"] in {"calculate_meal", "query_knowledge"} and entry["index"] <= self.config.max_tool_calls for entry in batch)):
-            kind = "supplement"
-        else:
+        kind = "first" if batch_id == calls[0].get("batch_id") else "supplement"
+        if opportunities.get(kind, {}).get("status") in {"ready", "attempted"}:
             return
-        if kind in opportunities:
-            return
-        direct = all(entry.get("finish_after_tools") and entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"} for entry in batch)
-        selected = None if direct else next((entry for entry in batch if entry["index"] <= self.config.max_tool_calls
-            and entry["tool"] in TOOL_REGISTRY and TOOL_REGISTRY[entry["tool"]].metadata["risk"] == "read_only"
+        selected = next((entry for entry in batch if entry["index"] <= self.config.max_tool_calls
+            and entry["tool"] in self.preset.allowed_tools
             and _valid_action_note(entry.get("action_note"))), None)
-        opportunities[kind] = {"batch_id": batch_id, "status": "direct" if direct else "ready" if selected else "empty",
+        if kind == "supplement" and selected is None:
+            return
+        opportunities[kind] = {"batch_id": batch_id, "status": "ready" if selected else "empty",
                                "call_id": selected["call_id"] if selected else None,
                                "text": selected["action_note"].strip() if selected else None}
 
@@ -536,26 +591,54 @@ class Runtime(AgentMiddleware):
 
     def _dispatch_tool(self, tool, args, handler):
         mode = args.get("mode", "execute")
-        text = self.message["text"].strip().lower().rstrip("。！! ")
         if tool.metadata["risk"] == "read_only":
             return self._invoke_tool(tool, args, handler)
-        if mode == "confirm" or text in BARE_CONFIRM:
-            confirmation = self.journal.get("confirmation")
-            self.session.pop("proposal", None)
-            if not confirmation or confirmation["tool"] != tool.name or self.session_superseded:
-                self.journal["confirmation"] = None
+        quote = args.pop("authorization_quote", "").strip()
+        requested_proposal = args.pop("proposal_id", "")
+        authorized = bool(quote and quote in self.message["text"])
+        confirmation = self.journal.get("confirmation")
+        if mode == "execute" and confirmation and not authorized:
+            return {"status": "pending", "data": {"question": "请明确执行原提案，或说明要改成什么。"}}
+        if tool.name == "update_user_settings" and args.get("kind") in {"condition", "feedback", "memory"}:
+            if mode == "execute":
+                return self._invoke_tool(tool, args, handler)
+            return {"status": "pending", "data": {"question": "请明确要保存、纠正或撤回的内容。"}}
+        if (mode == "cancel" and authorized and not requested_proposal and tool.name == "update_user_settings"
+                and args.get("kind") == "reminder" and self.session.get("reminder_pending")):
+            self.session.pop("reminder_pending")
+            return {"status": "cancelled", "data": {"kind": "reminder"}}
+        if mode in {"confirm", "cancel"} and not (tool.name == "record_meal" and args.get("cancel_pending")):
+            live = self.store.load_session(self.user_id, self.message["chat_id"])
+            preceding = (confirmation or {}).get("response_id")
+            expected_message = live.get("last_message_id") == preceding or bool(
+                self.prepared and live.get("last_message_id") == self.message["message_id"])
+            if (not confirmation or confirmation["tool"] != tool.name or self.session_superseded
+                    or live.get("proposal") != confirmation or not expected_message
+                    or (not self.prepared and (not authorized or requested_proposal != confirmation["proposal_id"]))):
                 return {"status": "pending", "data": {"question": "原提案已失效，请明确要执行的内容"}}
+            if mode == "cancel":
+                self.session.pop("proposal", None)
+                self.journal["confirmation"] = None
+                return {"status": "cancelled", "data": {}}
+            frozen = confirmation["args"]
+            supplied = {key: value for key, value in args.items() if key != "mode" and value not in (None, "", {}, [])}
+            if not self.prepared and any(frozen.get(key) != value for key, value in supplied.items()):
+                return {"status": "pending", "data": {"question": "本次参数与原提案不同，请明确要采用的参数。"}}
             if tool.name == "revise_intake":
                 from .tools.meals import select_rows
                 rows = select_rows(self, [confirmation["args"]["record_id"]])
                 if not rows or confirmation.get("target_version") != _intake_version(rows[0]):
                     self.journal["confirmation"] = None
                     return {"status": "pending", "data": {"question": "提案对应的摄入已变化或缺少版本依据，请重新发起修改"}}
+            elif tool.name == "update_user_settings" and (confirmation.get("target_version") is not None or not self.prepared):
+                if confirmation.get("target_version") != _settings_version(self.store, self.user_id, frozen, self.day):
+                    return {"status": "pending", "data": {"question": "提案对应的设置已变化或缺少版本依据，请重新发起修改。"}}
             confirmed_args = deepcopy(confirmation["args"])
             if confirmation.get("target_ratio") is not None:
                 confirmed_args.pop("grams", None)
                 confirmed_args["ratio"] = confirmation["target_ratio"]
             result = self._invoke_tool(tool, confirmed_args)
+            self.session.pop("proposal", None)
             self.journal["confirmation"] = None
             return result
         if mode == "propose":
@@ -567,6 +650,8 @@ class Runtime(AgentMiddleware):
                         "response_id": self.message["message_id"], "presented": False}
             if tool.name == "record_meal" and not args.get("date"):
                 args["date"] = self.day
+            if tool.name == "update_user_settings":
+                proposal["target_version"] = _settings_version(self.store, self.user_id, args, self.day)
             if tool.name == "revise_intake":
                 rows = select_rows(self, [args["record_id"]] if args.get("record_id") else [], latest=not args.get("record_id"))
                 if args.get("food_query"):
@@ -582,11 +667,6 @@ class Runtime(AgentMiddleware):
                 proposal.update(target={k:target[k] for k in ("food_name", "date", "grams")}, target_version=_intake_version(target))
             self.session["proposal"] = proposal
             return {"status": "proposal", "data": {"proposal_id": self.action_id, "action": tool.name, "parameters": args}}
-        if (mode == "cancel" or text in BARE_CANCEL) and not (tool.name == "record_meal" and args.get("cancel_pending")):
-            self.session.pop("proposal", None)
-            if tool.name == "update_user_settings" and args.get("kind") == "reminder":
-                self.session.pop("reminder_pending", None)
-            return {"status": "cancelled", "data": {}}
         return self._invoke_tool(tool, args, handler)
 
     def _execute(self, entry, handler=None):
@@ -655,6 +735,10 @@ class Runtime(AgentMiddleware):
                 else:
                     reply += "\n本轮未完成，已保留执行进度；结果仍需核对。"
         proposal = self.session.get("proposal")
+        if proposal and proposal.get("response_id") != self.message["message_id"]:
+            if not error or terminal:
+                self.session.pop("proposal", None)
+            proposal = None
         presentation = {"text": "", "presented_candidates": {}}
         saved_draft = self.session.get("meal_draft_candidate", {})
         if not error or (terminal and saved_draft.get("message_id") == self.message["message_id"]):
@@ -677,6 +761,7 @@ class Runtime(AgentMiddleware):
             adjustments.append({"reason":"proposal_confirmation_added","proposal_id":proposal["proposal_id"]})
             confirmation = proposal_prompt(proposal)
             reply = reply.replace(confirmation, "").rstrip() + "\n" + confirmation
+        reply = add_recorded_portion_sources(reply, facts, adjustments)
         # Keep native paired history, and save the actual delivered reply for future references.
         fact_scope = "business" if any(f["tool"] != "query_knowledge" for f in facts) else ("knowledge" if facts else "dialogue")
         if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls:
@@ -684,6 +769,7 @@ class Runtime(AgentMiddleware):
         elif not error or terminal:
             messages.append(AIMessage(content=reply, additional_kwargs={"fact_scope": fact_scope}))
         self.session["messages"] = messages_to_dict(messages)
+        self.session.pop("meal_plan_choices", None)
         self.journal["messages"] = messages_to_dict(messages)
         self.session["last_message_id"] = self.message["message_id"]
         self.session["last_execution_complete"] = not bool(error) or terminal
@@ -702,7 +788,7 @@ class Runtime(AgentMiddleware):
             "presented_candidates": presentation["presented_candidates"],
             "action_notice": self.journal.get("action_notice"),
             "action_note_opportunities": deepcopy(self.journal.get("action_note_opportunities", {})),
-            "model_steps": [{key:value for key,value in step.items() if key not in {"request_body", "response"}} for step in self.journal["model_steps"]],
+            "model_steps": [{key:value for key,value in step.items() if key not in {"request_body", "response", "review_sources"}} for step in self.journal["model_steps"]],
             "completion": self.journal.get("completion"), "deadline_at": self.journal["deadline_at"], "legacy_budget": self.journal["legacy_budget"],
             "termination_reason": error if terminal else None,
             "completion_status": "terminated" if terminal else "needs_reconciliation" if error else "awaiting_user" if needs_user else "completed",
@@ -843,7 +929,16 @@ def _stage_saved_dialogue(store, message, journal):
             messages.pop()
         messages.append(AIMessage(content="本次请求已结束，未执行的动作已终止；如需继续，请提出新的请求。",
                                   additional_kwargs={"fact_scope": "dialogue", "execution_terminated": True}))
-    conversation.stage_turn(store, message["user_id"], message["chat_id"], ident, messages)
+    metadata = {"date": journal.get("day", ""), "received_at": journal.get("budget_started_at"),
+                "assistant_reply": result.get("reply", "")}
+    if not result.get("terminal"):
+        marks = {mark["ref"]: mark for step in journal.get("model_steps", []) for mark in step.get("review_sources", [])}
+        if marks:
+            metadata["review_sources"] = list(marks.values())[:4]
+    draft = journal.get("session", {}).get("meal_draft_candidate", {})
+    if draft and result.get("presented_candidates", {}).get("meal_draft_candidate") == draft["draft_id"]:
+        metadata["draft"] = draft
+    conversation.stage_turn(store, message["user_id"], message["chat_id"], ident, messages, metadata=metadata)
 
 
 def mark_reply_presented(store, user_id, chat_id, result):
@@ -851,21 +946,30 @@ def mark_reply_presented(store, user_id, chat_id, result):
     if result.get("status") == "error" and not result.get("terminal"):
         return
     user_id = store.load_user_aliases().get(user_id, user_id)
-    conversation.confirm_turn(store, user_id, chat_id, result.get("dialogue_turn_id"))
-    session = store.load_session(user_id, chat_id)
-    source_id = (result.get("dialogue_turn_id") or "").removeprefix("calorie-user:")
-    changed = False
-    if session.get("last_message_id") == source_id and (result.get("status") == "ok" or result.get("terminal")):
-        for candidate_key, active_key in (("food_offer_candidate", "food_offer"), ("meal_draft_candidate", "meal_draft")):
-            candidate = session.get(candidate_key)
-            candidate_id = candidate.get("offer_id", candidate.get("draft_id")) if candidate else None
-            if (candidate and candidate.get("message_id") == source_id
-                    and result.get("presented_candidates", {}).get(candidate_key) == candidate_id):
-                session[active_key] = session.pop(candidate_key)
-                changed = True
-    proposal = session.get("proposal")
-    if proposal and proposal.get("proposal_id") == result.get("proposal_id"):
-        proposal["presented"] = True
-        changed = True
-    if changed:
-        store.save_session(user_id, chat_id, session)
+    turn_id = result.get("dialogue_turn_id")
+
+    def confirm(source):
+        session = store.load_session(user_id, chat_id)
+        source_id = turn_id.removeprefix("calorie-user:")
+        changed = False
+        presented = result.get("presented_candidates", {})
+        draft = source.get("draft", {})
+        if draft and presented.get("meal_draft_candidate") == draft["draft_id"]:
+            draft = memory.delivered_draft(store, user_id, chat_id, turn_id, draft)
+        if session.get("last_message_id") == source_id and (result.get("status") == "ok" or result.get("terminal")):
+            for candidate_key, active_key in (("food_offer_candidate", "food_offer"), ("meal_draft_candidate", "meal_draft")):
+                candidate = session.get(candidate_key)
+                candidate_id = candidate.get("offer_id", candidate.get("draft_id")) if candidate else None
+                if (candidate and candidate.get("message_id") == source_id and presented.get(candidate_key) == candidate_id):
+                    session[active_key] = session.pop(candidate_key)
+                    if active_key == "meal_draft" and draft:
+                        session[active_key]["memory_ref"] = draft["ref"]
+                    changed = True
+        proposal = session.get("proposal")
+        if proposal and proposal.get("proposal_id") == result.get("proposal_id"):
+            proposal["presented"] = True
+            changed = True
+        if changed:
+            store.save_session(user_id, chat_id, session)
+
+    conversation.confirm_turn(store, user_id, chat_id, turn_id, on_confirm=confirm)

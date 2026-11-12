@@ -2,17 +2,16 @@
 
 回复、整轮完成和恢复规则见[交流体验规格第 2 节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。字段的观测口径见 [Trace 契约](trace_schema.md)。
 
-本次[控制权修订与持续委托目标](../PERSONAL_ASSISTANT_SPEC.md#1-目标范围与保留决定)尚需实现。以下当前接口中的固定查证步骤、默认排序、收尾白名单等是现实现描述，不是新目标的永久规则；实现者按目标调整后再同步实际接口，不能把文档目标当作已有能力。
-
-本文以下记录当前实现接口。[省心饮食与跨会话记忆规格](../PERSONAL_ASSISTANT_SPEC.md) 定义尚未实现的增量：query_memory 分层读取、份量证据、条件／经验生命周期、有界后台候选发布及跨会话源草案。下游随实现更新本契约；当前八工具、source_ref 会话绑定、本会话草案及摘要接口不能据目标文档推定已支持新能力。
+本文记录阶段 A 的仓库接口。控制权、份量补证及记忆行为见[统一规格](../PERSONAL_ASSISTANT_SPEC.md)，生产能力以[交付记录](../reports/LATENCY_DELIVERY.md)为准。持续委托见统一规格阶段 B。
 
 ## 工具注册与执行
 
-- `agent/tools/registry.py` 定义名称、说明、Pydantic 参数、`metadata.risk` 和执行函数。每次 `create_agent` 请求按预设选用注册对象。八个工具为 `record_meal`、`revise_intake`、`query_today`、`query_history`、`query_food_nutrition`、`query_knowledge`、`calculate_meal`、`update_user_settings`。三个修改工具的风险依次为 `write`、`destructive`、`write`。其余为 `read_only`，在可写预设中可以缓存食物资料，不能创建摄入或设置。
+- `agent/tools/registry.py` 定义名称、说明、Pydantic 参数、`metadata.risk` 和执行函数。每次 `create_agent` 请求按预设选用注册对象。九个工具为 `record_meal`、`revise_intake`、`query_today`、`query_history`、`query_food_nutrition`、`query_knowledge`、`calculate_meal`、`update_user_settings`、`query_memory`。三个修改工具的风险依次为 `write`、`destructive`、`write`。其余为 `read_only`，在可写预设中可以缓存食物资料，不能创建摄入或设置。
 - 原生工具返回 `{tool,call_id,action_id,status,data,error?}`。整批先保存原生调用和固定序号，再执行。完整结果存于 `calls.result`。本轮 `ToolMessage` 按 `model_view` 投影并保留配对 `call_id`。参数错误以结构化 `error` 返回，允许在原预算内纠正。旧框架 `ToolMessage.status=error` 的纯文本按错误身份包装，保留原文审计。网络或存储异常中止后续排队动作，原固定动作可恢复。
+- 投影附 `feedback.{outcome,unmet_conditions,remaining}`，给出事实进度、缺口代码及关联引用、剩余决策／工具／网页请求与时间。模型选择下一步。发现尚需语义判断的新缺口时，本批原有完成声明不自动生效。
 - 每条消息累计最多 4 次主决策和 8 次工具执行。超过上限的固定调用按持久 `index` 保存 `limit` 和终结原因，跳过业务执行。预算确定超限时保存终态回执和未执行原因，交付后推进游标。重投返回原回执。
-- 八个工具均可提供 `action_note`。四个账本工具和 `calculate_meal` 另接受 `finish_after_tools`，缺省及旧调用无声明时为 false。控制字段随批次持久保存，剥离后交给原生业务 handler，保持业务参数、`action_id` 和 `prepared` 身份。
-- 直接回执使用完整 `calls.result`，返回 `reply_source=tool_facts` 和空 `model_reply`。纯菜单改稿限本会话已展示 `draft_id` 的单次计算，须与本消息待展示草案一致，结果完整、`status=ok` 且无 `unfinished` 或 `question`。此前成功的只读结果可以作为依据，此前写入及非成功结果仍参与完成判定。首次规划、缺来源或尚需解释时继续原生循环。
+- 任一尚未执行批次可提供 `action_note`，每条收件最多尝试投递一次。四个账本工具和 `calculate_meal` 接受 `finish_after_tools`，缺省为 false。控制字段随批次持久保存，执行保持原 `action_id` 和 `prepared` 身份。
+- 直接回执使用完整 `calls.result`，返回 `reply_source=tool_facts` 和空 `model_reply`。纯改稿或采用已核算候选须绑定本轮待展示草案，结果完整且无剩余缺口。此前成功的只读结果可作为依据，此前写入及非成功结果仍参与完成核对。
 
 ## 摄入、历史与食物来源
 
@@ -25,16 +24,27 @@
 - `query_food_nutrition` 的显式 `record_id` 优先读取摄入快照。一般查询给出 `grams` 或 `quantity` 时按指定数量计算，未指定时只在原消息当日范围查同名摄入。`queries` 接受 1–8 项 `NutritionQuery`，与顶层非空单项参数互斥。元素只含业务参数，按序共享会话来源和原截止时间，完整返回 `data.queries[{query,status,data}]`。整批只占一次原生调用，不吞存储和预算异常。
 - 营养选项的 `source_ref` 绑定归一用户、会话及实际食物或摄入快照，完整来源在 `food_sources`。`features.per_100g` 只取来源已有值。单位 `unit`／`unit_name`／`name` 归一为 `unit_name`，兼容数值或数值字符串 `eat_weight`，展示换算不改缓存。选择 `source_ref` 时省略 `food_query`。错名返回 `pending` 及原引用、来源和快照份量，供纠正。
 - `food_offer_candidate` 保存 `offer_id`、`message_id`、有序选项。批查只绑定首个未解决查询，后续全部解决则清除旧选项。仅展示确认后的 `food_offer` 接受营养 `choice`，与记餐待办编号独立。批查模型投影去除同源重复 profile，持久结果和异常回执保留各项事实。
+- `query_food_nutrition.portion_web` 支持 `search(query)`、`fetch(urls)`、`read_cache(ref)`。同一次可附 `food_query` 定位营养来源，分别返回营养和份量证据。取文接受本消息用户提供的公开 URL 或本消息搜索返回的 URL。搜索和取文共享 3 次实际 HTTP 额度，发送前预留并随原执行恢复，重复请求与缓存复用不产生新 HTTP。官方凭据用 `DEEPSEEK_SEARCH_API_KEY`，推理地址为官方时可复用 `DEEPSEEK_API_KEY`。
+- `record_meal.items[].portion_evidence` 使用本轮正文或已读有效缓存引用，保留逐字引文、食物与单位、可食口径和原数值。工具核验后换算写入快照。可用本会话实际返回的 `source_ref` 定位营养来源。现有待办沿原 `pending_id` 补全，保留日期、餐次与已知数量。精确要求禁用估算。用户证据缓存按原获取时间计，首期有效期七天。
 
 ## 菜单、提案与提醒
 
 - `calculate_meal.scope` 为 `daily`（长期目标）、`full_day`（当日目标）或 `remaining`（当日目标减一次有效摄入）。旧调用省略时按 `remaining`，改稿省略时沿草案范围。餐项含 `item_id/group/servings/portion_basis/assumption/source_ref`，份数只缩放一次。结果含 `targets/consumed/consumed_scope/total/budget_difference/complete/within_tolerance`，未计入项只计已有小计。
 - `fixed` 标注固定组成，`max_grams` 为每份上限。结果保存 `fixed_subtotal/fixed_complete/supplement_gap`，缺口按目标减已计摄入和固定小计计算。初稿与 `adjustment` 的 `replacements/item_id`、`additions` 在同次调用比较，复用固定来源和范围。备选只能替换非固定 `suggested` 项。改动 `user_given` 或 `assumed_takeout` 时整份备选被拒，`selection.rejected_adjustment` 留原因并继续核算原稿。只给新数量、未声明依据的改稿按用户固定量处理。
 - 份量校正、热量容差和宏量选版见[个人规格第 3.6 节](../PERSONAL_CALORIE_SPEC.md#36-饮食计划与草案)。`portion_preference=smaller_portions` 在宏量并列时比较最大每份克重及备餐项数。候选使用来源单位或 10 克档位，建议量距来源整数单位不超过 1 克时按来源精确重量核算。无日常单位且上限不足 10 克时使用正整克。已有版本达容差时不搜索，改稿只调整明确允许的替换项，复用来源且不加食材、外部查询或模型步骤。
-- `selection` 保留各版本实际来源、份量、合计、完整性、容差与偏差以及 `selected/reason/calibration`。模型只取比较指标，动态草案视图省略重复明细及未选审计。公开数量由选中草案渲染，原 `assumption` 保留供审计，公开其定性部分。有组成假设的固定餐标估算。模型补充定性理由使用 `<plan_note>...</plan_note>`，公开正文去掉标签，定量内容由草案统一展示。
+- `selection_mode=compare` 返回本轮候选 `candidate_ref`、餐项、差额和默认建议。采用前不会形成待展示草案。后续 `calculate_meal(candidate_ref=...)` 核对本轮、目标、摄入及依赖后准备选中稿。`use_default_calibration=false` 可关闭默认调量。已选稿的数量由工具事实渲染，定性说明可使用 `<plan_note>...</plan_note>`。
 - `meal_draft_candidate` 保存选中稿的参数、计算、限制及 `draft_id/message_id`，`result.presented_candidates` 只保存实际发布的候选身份。缺来源时用实际 `unfinished.candidates` 形成待选项。终态异常可以交付已核算草案并保留原错误状态。交付后 `mark_reply_presented` 按消息和候选 ID 提升 `meal_draft/food_offer`，旧展示不得覆盖新稿。改稿按 `draft_id+replacements.item_id` 替换指定项，保留其余限制。未找到替换项时保留原稿及主答复。计划和采用草案均不写摄入。
-- 提案保存 `proposal_id`、固定参数、目标摘要和 `response_id`。交付后标记 `presented`，紧邻确认执行同一组参数。修改提案以目标身份、日期、克重、营养、快照、状态和版本计算 `target_version`。相对改量冻结绝对克重，`target_ratio` 保留换算依据。确认须匹配原版本，`prepared` 保存绝对结果。旧提案缺目标版本时需重新发起，已提交动作仍重放原结果。
+- 跨会话续改用 `calculate_meal.draft_ref`，与本会话 `draft_id` 互斥。引用要求已实际交付且保有重算所需食物快照。继承源稿范围，本次指定覆盖。新日期按本次收件或用户指定确定，`remaining` 只扣该日有效摄入一次。`condition_refs` 和 `experience_refs` 分开保存，按有效状态投影；新稿交付后才保存可回查版本及绑定当前会话。
+- 提案保存 `proposal_id`、固定参数、目标版本和 `response_id`，实际交付后标记 `presented`。模型理解当前自然表达，确认或取消绑定紧邻提案及本消息 `authorization_quote`。确认执行原参数，修改参数走明确的新请求。摄入或设置目标变化时拒绝旧确认。相对改量冻结绝对克重，旧准备与已提交动作按原恢复边界处理。
 - 提醒缺条件时保存原规则为关闭，`reminder_pending` 保存 `rule_id`、缺项、启用意图和快照。补缺时重查原规则。取消、禁用或快照冲突会使旧意图失效。
+
+## 个人记忆与经验
+
+- `query_memory.search` 支持关键词排序、原句匹配、按类型浏览、日期和分页。无匹配与旧覆盖状态分别返回。`read` 按 `kind:identity:version` 在归一用户命名空间解析，分别报告未知、已知旧来源未覆盖、撤回和存储错误。主题关联沿同一读操作展开。
+- `update_user_settings.condition` 保存、修订或结束明确条件。`feedback` 可用本消息原话关联并立即停用明确被反证的经验。`memory` 按当前版本撤回，设置变化仍写原权威对象。普通反馈通过 `review_sources` 登记复盘。
+- `memory_object` 按用户与引用保存版本，`memory_index` 保存用户级索引与覆盖状态，`memory_state` 保存现行版本、撤回截止版本、条件／主题入口及派生关联。对话、草案和记忆对象不进入 Bitable 归档。撤回标记约束历史投影、检索、摘要、经验发布和回填。明确重新保存设置会产生新版本。摘要应用额外核对撤回版本。
+- `review_sources` 是模型文本或原生工具响应正文末尾的保留控制区，携带 `[{ref,reason}]`。宿主剥离后绑定 `current_turn` 或本轮已读引用，确认交付后才登记到 `memory_work`。每次维护在摘要和经验中选一项。经验的继续决策、传输及重基准共享累计 20 秒、4,096 生成 token、两次决策与四次只读检索。固定输入、补读摘要及候选持久保存；重投只恢复应用。消息写入者复核用户、来源、版本及补读摘要后原子发布。
+- `calorie_memory_backfill` 是消息写入者的按用户续作入口，参数为 `user_id` 和可选 `limit`（每页 1–100，默认 25）。只接收有交付证据的清洁来源和实际保有的结构化草案，保存进度及缺失范围，禁止从旧回复补造事实或启动经验学习。生产执行须另有授权。
 
 ## Store
 

@@ -5,6 +5,7 @@ import math
 from copy import deepcopy
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from .evidence import bind_legacy_messages
+from .storage import memory
 
 LABELS = {"carbs":"碳水", "protein":"蛋白质", "fat":"脂肪", "kcal":"热量"}
 
@@ -28,7 +29,7 @@ def _food_choice_view(food):
 
 
 def _unfinished_view(item, pending_id=None, *, include_choices=True):
-    result = {k:deepcopy(item[k]) for k in ("pending_id", "food_query", "date", "meal_type", "reason", "grams", "quantity", "unit", "quantity_text", "choice", "offered_message_id", "source_ref", "item_id", "group", "servings", "portion_basis", "assumption", "fixed", "max_grams") if k in item}
+    result = {k:deepcopy(item[k]) for k in ("pending_id", "food_query", "date", "meal_type", "reason", "grams", "quantity", "unit", "quantity_text", "choice", "offered_message_id", "source_ref", "item_id", "group", "servings", "portion_basis", "assumption", "fixed", "max_grams", "portion_cache_refs", "unmet_conditions", "source_error") if k in item}
     if pending_id is not None:
         result["pending_id"] = pending_id
     if item.get("food"):
@@ -66,6 +67,12 @@ def state_view(rt):
     if proposal:
         dates.update((proposal.get("target", {}).get("date"), proposal.get("args", {}).get("date")))
     settings = settings_view(rt.settings)
+    current_text = rt.message["text"]
+    portion_defaults = [{key: item[key] for key in ("food_query", "unit", "eat_weight")}
+                        for item in rt.settings.get("portions", {}).values()
+                        if item.get("food_name") and item["food_name"] in current_text and item.get("food_query") and item.get("unit")]
+    if portion_defaults:
+        settings["portion_defaults"] = portion_defaults[:12]
     relevant_targets = {day:deepcopy(target) for day,target in rt.settings.get("daily_targets", {}).items() if day in dates}
     if relevant_targets:
         settings["daily_targets"] = relevant_targets
@@ -74,6 +81,18 @@ def state_view(rt):
     for key in ("food_offer", "meal_draft", "reminder_pending", "failed_selection", "history_scope"):
         if session.get(key):
             result[key] = deepcopy(session[key])
+            if key == "meal_draft":
+                view = memory.state(rt.store, rt.user_id)
+                if memory.is_withdrawn(view, result[key].get("memory_ref")):
+                    result.pop(key)
+                    continue
+                result[key]["constraints"], result[key]["condition_refs"] = memory.draft_constraints(
+                    rt.store, rt.user_id, result[key], rt.day, view)
+                result[key].pop("food_sources", None)
+                result[key].pop("base_constraints", None)
+                for part in result[key].get("items", []):
+                    if part.get("assumption"):
+                        part["assumption"] = memory.redact_text(view, part["assumption"])
             if key == "meal_draft" and "calculation" in result[key]:
                 data = result[key]["calculation"]
                 result[key]["calculation"] = {k: deepcopy(data[k]) for k in
@@ -91,6 +110,9 @@ def model_view(fact):
             result["source"]=snap.get("food",{}).get("source",snap.get("basis",""))
             if snap.get("meal_id"):
                 result["meal_id"] = snap["meal_id"]
+            if snap.get("portion_evidence"):
+                result["portion_evidence"] = {k: snap["portion_evidence"][k] for k in ("url", "title", "adopted_grams")
+                                              if k in snap["portion_evidence"]}
         if "units" in result:
             result["units"] = [{"unit_name": u.get("unit_name", u.get("unit", u.get("name", ""))),
                                 **({"eat_weight": u["eat_weight"]} if "eat_weight" in u else {})} for u in value["units"]]
@@ -129,7 +151,9 @@ def model_view(fact):
     if fact.get("tool") == "calculate_meal" and "selection" in result.get("data", {}):
         selection = result["data"]["selection"]
         selection["candidates"] = [{k: deepcopy(candidate[k]) for k in
-            ("variant", "total", "budget_difference", "complete", "within_tolerance", "macro_relative_deviation", "worst_macro_relative_deviation", "portion_preference") if k in candidate}
+            ("variant", "candidate_ref", "total", "budget_difference", "complete", "within_tolerance", "macro_relative_deviation", "worst_macro_relative_deviation", "portion_preference") if k in candidate}
+            | ({"items": [{k: item[k] for k in ("matched_name", "item_id", "grams", "group", "servings", "fixed") if k in item}
+                          for item in candidate.get("items", [])]} if "candidate_ref" in candidate else {})
             for candidate in selection.get("candidates", [])]
     if fact.get("tool") in {"record_meal","revise_intake"}:
         def calories(value):
@@ -322,7 +346,15 @@ def progress_reply(facts):
                 if data.get("missing") and not data.get("question"):
                     parts.append("请补充" + "、".join(data["missing"]) + "。")
             elif status == "ok":
-                parts.append("设置已保存。")
+                operation = data.get("operation")
+                if operation == "withdraw":
+                    parts.append("已停止使用这条记忆。")
+                elif data.get("kind") == "feedback":
+                    parts.append("已收到反馈，相关经验已停止使用。" if data.get("stopped_experience") else "已收到反馈。")
+                elif data.get("kind") == "condition":
+                    parts.append("该条件已结束。" if operation == "end" else "已保存这个条件。")
+                else:
+                    parts.append("设置已保存。")
         elif f["tool"]=="query_today" and status=="ok":latest_today=data['total']['kcal']
         elif f["tool"] == "query_history":
             if status == "ok":
@@ -330,6 +362,9 @@ def progress_reply(facts):
             else:
                 parts.append(_history_scope(data) + "查询未完成，尚未取得该范围的统计结果。")
         elif f["tool"] in {"query_food_nutrition", "calculate_meal"}:
+            web = data.get("portion_web", {})
+            if web.get("status") == "service_error":
+                parts.append("份量资料服务暂未返回可核对的正文。")
             for item in data.get("items", []):
                 if item.get("nutrition") and item.get("grams") is not None:
                     parts.append(str(item.get("matched_name", item.get("food_name", "该食物"))) +
@@ -346,6 +381,8 @@ def progress_reply(facts):
                     parts.append(entry["answer"] + "〔" + entry["source"] + "〕")
             if not data.get("entries"):
                 parts.append("这次知识检索未取得可核实原文，相关结论仍需补充依据。")
+        elif f["tool"] == "query_memory" and data.get("reason") == "storage_error":
+            parts.append("记忆存储暂时无法读取。")
         for item in data.get("unfinished",[]):
             parts.append(item.get("food_query","")+"："+item.get("reason","请补充份量"))
             for n, candidate in enumerate(item.get("candidates", []), 1):
@@ -435,11 +472,28 @@ def _receipt_quantity(value, *, pending=False):
     return "（" + "，".join(known) + "）" if known else ""
 
 
+def add_recorded_portion_sources(reply, facts, adjustments):
+    sources = {}
+    for fact in facts:
+        if fact.get("tool") == "record_meal" and fact.get("status") == "ok":
+            for item in fact["data"].get("items", []):
+                evidence = item.get("snapshot", {}).get("portion_evidence", {})
+                if (url := evidence.get("url")) and url not in reply:
+                    sources.setdefault(url, item["matched_name"])
+    if not sources:
+        return reply
+    adjustments.append({"reason": "recorded_portion_sources_added", "urls": list(sources)})
+    return reply + "\n" + "\n".join(f"{food}的可食份量估算依据 {url}" for url, food in sources.items())
+
+
 def _receipt_item(value, *, day=None, nutrients=False):
     _receipt_require(isinstance(value, dict))
     name = value.get("food_name", value.get("matched_name"))
     _receipt_require(isinstance(name, str) and bool(name))
     text = _receipt_place(value, day) + " " + name + _receipt_quantity(value)
+    evidence = value.get("snapshot", {}).get("portion_evidence", {})
+    if evidence.get("url"):
+        text += "（按网页可食重量估算：" + evidence["url"] + "）"
     if nutrients:
         _receipt_require(isinstance(value.get("snapshot"), dict) and isinstance(value["snapshot"].get("estimated"), bool))
         text += "：" + _receipt_nutrition(value.get("nutrition"))

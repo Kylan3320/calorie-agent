@@ -3,12 +3,13 @@ from copy import deepcopy
 import re
 from .meals import from_row, select_rows, resolve_date, explicit_selection
 from .base import positive_grams
+from .portions import personal_unit
 from ..storage.bitable_adapter import stable_uuid
-
-BARE_CONFIRM = {"确认", "好的", "好", "可以", "是", "yes", "ok"}
-BARE_CANCEL = {"取消", "算了", "不要", "不确认"}
+from ..storage import memory
 
 def update_user_settings(rt, p):
+    if p["kind"] in {"condition", "feedback", "memory"}:
+        return memory.update(rt, p["kind"], p["values"])
     if rt.prepared is None:
         settings = deepcopy(rt.settings)
         kind = p["kind"]
@@ -30,8 +31,12 @@ def update_user_settings(rt, p):
             food = exact_food(food_query, rt.store.load_foods())
             if food is None or not values.get("unit") or not positive_grams(values.get("eat_weight")):
                 return {"status": "pending", "data": {"question": "请明确食物、单位及每单位可食克重"}}
-            settings.setdefault("portions", {})[food["food_id"] + ":" + values["unit"]] = {
-                "eat_weight": float(values["eat_weight"]), "source": "user_confirmed"}
+            unit = personal_unit(food, values["unit"], food_query)
+            if not unit:
+                return {"status": "pending", "data": {"question": "食物名与单位的规格不同，请确认适用规格。"}}
+            settings.setdefault("portions", {})[food["food_id"] + ":" + unit] = {
+                "eat_weight": float(values["eat_weight"]), "source": "user_confirmed",
+                "food_name": food["name"], "food_query": food_query, "unit": unit}
         elif kind == "favorite":
             name = str(values.get("name", "")).strip()
             if not name:
@@ -103,6 +108,7 @@ def update_user_settings(rt, p):
     if "feishu_chat_id" in current:
         rt.settings["feishu_chat_id"] = current["feishu_chat_id"]
     rt.store.save_document("user_settings", rt.user_id, "", rt.settings)
+    memory.settings_sources(rt, current, rt.settings, rt.prepared["kind"])
     if rt.prepared["kind"] == "reminder":
         if rt.prepared.get("reminder_pending"):
             rt.session["reminder_pending"] = deepcopy(rt.prepared["reminder_pending"])

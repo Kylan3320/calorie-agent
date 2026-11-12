@@ -89,7 +89,9 @@ def CX01():
     mark_reply_presented(store, "user", "test", delivered)
     model = NativeFake(responses=[AIMessage(content="可以沿用刚才的做法。")])
     run({**message, "message_id": "chat-followup", "text": "刚才那个呢？"}, store=store, config=CONFIG, model=model)
-    assert any(m.content == "可以优先蒸煮。" for m in model.requests[0])
+    history = [json.loads(m.content.split("：", 1)[1]) for m in model.requests[0]
+               if m.additional_kwargs.get("history_turn_id")]
+    assert any({"role": "assistant", "content": "可以优先蒸煮。"} in turn["dialogue"] for turn in history)
 
 
 def CX02():
@@ -252,7 +254,7 @@ def CX03():
         if kind == "user_settings": raise ConnectionError("before settings commit")
         return save(kind, *args, **kwargs)
     with patch.object(store, "save_document", side_effect=fail_settings):
-        first = invoke(store, "confirm", [call("update_user_settings", {"mode": "confirm", "kind": "targets", "values": {"kcal": 999}})], text="ok")
+        first = invoke(store, "confirm", [call("update_user_settings", {"mode": "confirm", "kind": "targets", "proposal_id": proposal["proposal_id"], "authorization_quote": "ok"})], text="ok")
     assert first["status"] == "error"
     invoke(store, "cancel", [done], text="取消")
     store = open_store(store.objects)
@@ -276,7 +278,7 @@ def CX03():
                     raise ConnectionError("after tool result, before atomic commit")
                 return save_session(*args, **kwargs)
             with patch.object(store, "save_session", side_effect=fail_progress):
-                first = invoke(store, "old-completion", [call("record_meal", {"mode": "confirm"})], text="ok")
+                first = invoke(store, "old-completion", [call("record_meal", {"mode": "confirm", "proposal_id": offer["proposal_id"], "authorization_quote": "ok"})], text="ok")
             assert not first["tool_results"]
         else:
             with patch.object(store, "write_intake", side_effect=ConnectionError("before intake commit")):
@@ -326,7 +328,7 @@ def CX03():
                 fact = json.loads(next(m for m in reversed(messages) if isinstance(m, ToolMessage)).content)
                 return call("revise_intake", {"record_id": fact["data"]["items"][0]["record_id"], "grams": 300}, "c2")
             invoke(store, "other-chat", [call("query_history", {"period": "today", "detail": "items"}), revise, done], chat="other")
-        result = invoke(store, "accept-halving", [call("revise_intake", {"mode": "confirm"}), done], text="ok")
+        result = invoke(store, "accept-halving", [call("revise_intake", {"mode": "confirm", "proposal_id": offer["proposal_id"], "authorization_quote": "ok"}), done], text="ok")
         assert result["tool_results"][0]["status"] == ("pending" if changed else "ok")
         assert store.intake_items("user")[0]["grams"] == (300 if changed is True else 100 if changed == "legacy" else 50)
         if changed is False:

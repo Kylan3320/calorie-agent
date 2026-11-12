@@ -265,17 +265,28 @@ class Pipeline:
     def worker(self, event, *, execute=None, send=None, update_send=None, note_send=None):
         attempt_started = time.monotonic()
         worker_started_at = time.time()
+        from agent.config import load_config
+        config = load_config()
+        if event.get("type") in {"calorie_experience", "calorie_memory_backfill"}:
+            if config.preset != "live":
+                return {"status": "skipped_preset"}
+            store = self.store()
+            store.confirm_current()
+            if event["type"] == "calorie_experience":
+                from .experience import apply_candidate
+                return apply_candidate(store, event, config)
+            from .memory_backfill import backfill_user
+            return backfill_user(store, self.inbox(readonly=True), event["user_id"], event.get("limit", 25))
         if event.get("type") == "calorie_summary":
             from .conversation import apply_candidate
             store = self.store()
             store.confirm_current()
             return apply_candidate(store, event)
         from agent import run
-        from agent.config import load_config
         from agent.graph import mark_reply_presented
         from . import feishu_client
         from .reminders import check_reminders
-        if load_config().preset != "live":
+        if config.preset != "live":
             raise ValueError("live writer requires the live preset")
         inbox = self.inbox(readonly=True, minimum_revision=event.get("ingress_revision"))
         requested = inbox.get("receipt:" + event["receipt_id"])

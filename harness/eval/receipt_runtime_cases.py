@@ -87,10 +87,11 @@ def RR01():
     # Candidate presentation is acknowledged through the real delivery binding.
     store = setup()
     partial = {"meal_type": "lunch", "items": [{"food_query": "夹具A", "grams": 200}, {"food_query": "鱼", "grams": 100}, {"food_query": "夹具B"}]}
-    result, model, _ = _send(store, "午餐记录A200克、鱼100克和B", [_finish("record_meal", partial)], "rr-partial")
-    _direct(result, model)
+    result, model, _ = _send(store, "午餐记录A200克、鱼100克和B", [_finish("record_meal", partial),
+        AIMessage(content="已记夹具A200克，午餐已记部分120千卡。鱼目前只找到 1. 鱼（生），是这一种吗？夹具B吃了多少？")], "rr-partial")
+    assert len(model.requests) == 2 and not result["completion"]["adopted"]
     assert result["completion_status"] == "awaiting_user" and len(store.intake) == 1
-    assert all(text in result["reply"] for text in ("120千卡", "尚未记录", "100克", "请选择食物候选", "1. 鱼（生）", "夹具B"))
+    assert all(text in result["reply"] for text in ("120千卡", "1. 鱼（生）", "夹具B"))
     mark_reply_presented(store, "user", "receipt-runtime", result)
     pending = store.load_session("user", "receipt-runtime")["unfinished"]
     fish = next(item for item in pending.values() if item["food_query"] == "鱼")
@@ -113,8 +114,9 @@ def RR01():
     assert "380千卡" in result["reply"] and "260千卡" not in result["reply"] and "2026-10-31午餐" in result["reply"]
     assert not store.load_session("user", "receipt-runtime")["unfinished"]
 
-    result, model, _ = _send(store, "补记10月30日夹具B2袋", [_finish("record_meal", {"date": "2026-10-30", "items": [{"food_query": "夹具B", "quantity": 2, "unit": "袋"}]})], "rr-cancel-source")
-    _direct(result, model)
+    result, model, _ = _send(store, "补记10月30日夹具B2袋", [_finish("record_meal", {"date": "2026-10-30", "items": [{"food_query": "夹具B", "quantity": 2, "unit": "袋"}]}),
+        AIMessage(content="夹具B2袋尚未记录，当前没有每袋可食份量依据。")], "rr-cancel-source")
+    assert len(model.requests) == 2 and not result["completion"]["adopted"]
     assert "尚未记录" in result["reply"] and "2袋" in result["reply"]
     pending_id = next(iter(store.load_session("user", "receipt-runtime")["unfinished"]))
     result, model, _ = _send(store, "取消这项待补充记录", [_finish("record_meal", {"cancel_pending": [pending_id]})], "rr-cancel")

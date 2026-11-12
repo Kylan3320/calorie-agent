@@ -164,10 +164,10 @@ class DeepSeekModel(BaseChatModel):
         entered, epoch = time.monotonic(), time.time()
         step = scope.get("step")
         if step is None:
-            step = {"deadline_at": epoch + min(self.request_timeout, 20 if purpose == "summary" else 40), "attempts": []}
+            step = {"deadline_at": epoch + min(self.request_timeout, 20 if purpose in {"summary", "experience"} else 40), "attempts": []}
         deadline = scope.get("step_deadline")
         if deadline is None:
-            deadline = entered + min(self.request_timeout, 20 if purpose == "summary" else 40,
+            deadline = entered + min(self.request_timeout, 20 if purpose in {"summary", "experience"} else 40,
                                      float(step["deadline_at"]) - epoch)
         deadline = min(deadline, PROCESSING_DEADLINE.get() or float("inf"), WORK_DEADLINE.get() or float("inf"))
         # A fully received, timely response was saved with its attempt. Parsing it
@@ -185,7 +185,7 @@ class DeepSeekModel(BaseChatModel):
         _remaining(deadline)
         if "request_body" not in step:
             step["request_body"] = request_body(self.model_name, messages, kwargs.get("tools"),
-                max_tokens=config.summary_max_tokens if purpose == "summary" else config.output_tokens,
+                max_tokens=scope.get("max_tokens", config.summary_max_tokens if purpose in {"summary", "experience"} else config.output_tokens),
                 tool_choice=kwargs.get("tool_choice"))
             checkpoint()
         body = step["request_body"]
@@ -201,7 +201,7 @@ class DeepSeekModel(BaseChatModel):
         url = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com").rstrip("/") + "/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         wire = json.dumps(body, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
-        maximum = 1 if purpose == "summary" else 2
+        maximum = 1 if purpose in {"summary", "experience"} else 2
         while len(attempts) < maximum:
             _remaining(deadline)
             if attempts:

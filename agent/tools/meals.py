@@ -1,12 +1,14 @@
 """Meal resolution, portions and snapshot operations; all I/O goes through Store."""
 from copy import deepcopy
 from datetime import date, timedelta
+import math
 import re
 from ..storage import boohee_client
 from ..storage.food_match import normalize_food_name, match_food_candidates
 from ..storage.bitable_adapter import stable_uuid, normalize_food_key, _is_valid_intake_status
 from ..storage.timeutil import round_number
 from .base import calculate_food_intake, positive_grams
+from .portions import allow_estimate, cache_portion_evidence, personal_portion, portion_cache_refs, resolve_web_portion
 
 NUTRIENTS = ("carbs", "protein", "fat", "kcal")
 
@@ -41,15 +43,41 @@ def exact_food(query, foods, unit=""):
                if normalize_food_name(u.get("unit_name", u.get("unit", u.get("name", "")))) == normalize_food_name(unit)]
     return food if len(matches) == 1 else None
 
-def resolve_item(rt, item, *, pending=None):
+def _has_macros(food):
+    return all(food.get(key) is not None and math.isfinite(float(food[key])) and float(food[key]) >= 0
+               for key in ("carbs_per_100g", "protein_per_100g", "fat_per_100g"))
+
+
+def _missing(item, code, detail, *, requires_user=False, **facts):
+    condition = {"code": code, "detail": detail}
+    if requires_user:
+        condition["requires_user"] = True
+    return {**item, **facts, "reason": detail, "unmet_conditions": [condition]}
+
+
+def resolve_item(rt, item, *, pending=None, portion_lookup=False, estimate=True):
     """Never accepts model-generated nutrition or unit weights."""
     item = deepcopy(item)
-    query = item["food_query"]
+    evidence = item.pop("portion_evidence", None)
+    query = item.get("food_query", "")
+    portion_query = query
+    quantity_text = item.get("quantity_text", "")
+    if quantity_text not in rt.message.get("text", ""):
+        quantity_text = ""
     candidates = deepcopy((pending or {}).get("candidates", []))
     food = deepcopy((pending or {}).get("food"))
+    if portion_lookup and (ref := item.get("source_ref")):
+        source = rt.session.get("food_sources", {}).get(ref)
+        if not source:
+            return None, _missing({**item, "food_query": query or "食物"}, "food_source_unavailable", "当前会话没有该食物来源引用")
+        selected = source["food"]
+        if query and not exact_food(query, [selected], item.get("unit", "")):
+            return None, _missing(item, "food_source_mismatch", "食物名称与所选来源不一致")
+        food = deepcopy(selected)
+        query = item["food_query"] = selected["name"]
     if item.get("choice") is not None:
         if pending and pending.get("offered_message_id") == rt.message["message_id"]:
-            return None, {**pending, "reason":"请用户选择食物候选", "choice":None}
+            return None, _missing(pending, "food_choice_not_presented", "候选编号尚未向用户展示", choice=None)
         n = item["choice"] - 1
         if not pending or not 0 <= n < len(candidates):
             raise ValueError("choice must refer to displayed pending candidates")
@@ -70,17 +98,22 @@ def resolve_item(rt, item, *, pending=None):
                 item["source_error"] = str(e)
             food = exact_food(query, candidates, item.get("unit", ""))
         if food is None:
-            return None, {**item, "candidates": candidates, "reason": "请选择食物候选" if candidates else "缺可核实的食物营养资料"}
+            return None, _missing(item, "food_identity_unverified" if candidates else "nutrition_source_missing",
+                                  "食物身份尚未核实" if candidates else "缺可核实的食物营养资料", candidates=candidates)
     food.setdefault("food_id", stable_uuid(f"calorie-agent:food:{normalize_food_key(food['name'])}"))
     units = food.get("units", [])
     error = ""
-    if item.get("grams") is None and not units and not food.get("boohee_id"):
-        personal_key = food["food_id"] + ":" + item.get("unit", "")
-        if personal_key not in rt.settings.get("portions", {}):
+    estimate = not portion_lookup or allow_estimate(rt, estimate)
+    needs_portion = item.get("grams") is None and estimate and not evidence
+    missing_macros = portion_lookup and not _has_macros(food)
+    personal = personal_portion(rt.settings, food, item.get("unit", ""), portion_query, quantity_text) if estimate else None
+    if (needs_portion and not units or missing_macros) and not food.get("boohee_id"):
+        if missing_macros or not personal:
             try:
                 remote = exact_food(food["name"], boohee_client.search_food(food["name"]))
                 if remote:
                     food.update({**remote, "food_id": food["food_id"]})
+                    units = food.get("units", [])
             except boohee_client.BooheeError as e:
                 error = str(e)
     if food.get("boohee_id") and not food.get("detail_loaded"):
@@ -95,23 +128,45 @@ def resolve_item(rt, item, *, pending=None):
     grams = positive_grams(item.get("grams"))
     estimated = False
     basis = "user_edible_grams"
-    if grams is None:
+    portion_evidence = None
+    portion_error = ""
+    quantity = None
+    if grams is None and estimate:
         quantity = positive_grams(item.get("quantity"))
         unit = item.get("unit", "")
-        personal = rt.settings.get("portions", {}).get(food["food_id"] + ":" + unit)
         if quantity and personal:
             grams, basis = quantity * personal["eat_weight"], "confirmed_personal_portion"
+        elif portion_lookup and evidence and quantity and _has_macros(food):
+            try:
+                grams, portion_evidence = resolve_web_portion(rt, food, item, quantity, evidence)
+                basis = "web_edible_portion"
+            except ValueError as exc:
+                portion_error = str(exc)
         elif quantity:
             matches = [u for u in units if normalize_food_name(u.get("unit_name", u.get("unit", u.get("name", "")))) == normalize_food_name(unit)]
             if len(matches) == 1 and positive_grams(matches[0].get("eat_weight")):
                 grams, basis = quantity * float(matches[0]["eat_weight"]), "boohee_eat_weight"
         estimated = grams is not None
-    if grams is None:
-        return None, {**item, "food": food, "candidates": candidates, "reason": "请补充可食克重或有依据的份量", "source_error": error}
+    missing_macros = portion_lookup and not _has_macros(food)
+    if grams is None or missing_macros:
+        code, detail = (
+            ("nutrition_source_incomplete", "缺可核实的完整食物营养资料") if missing_macros else
+            ("measured_grams_missing", "本次要求精确，缺实测可食克重") if not estimate else
+            ("portion_evidence_not_applicable", portion_error) if portion_error else
+            ("portion_evidence_missing", "可食份量尚无足够依据") if quantity and item.get("unit") else
+            ("portion_quantity_missing", "缺可核实的食用数量或单位"))
+        missing = _missing(item, code, detail, requires_user=code == "measured_grams_missing",
+                           food=food, candidates=candidates, source_error=error)
+        if portion_lookup and estimate and quantity and item.get("unit") and not missing_macros:
+            if cached := portion_cache_refs(rt, food, item["unit"]):
+                missing["portion_cache_refs"] = cached
+        return None, missing
     snapshot = {"food": food, "quantity_text": item.get("quantity_text", ""),
                 "quantity": item.get("quantity"), "unit": item.get("unit", ""),
                 "basis": basis, "estimated": estimated,
                 "kcal_source": "source" if food.get("kcal_per_100g") is not None else "macro_formula"}
+    if portion_evidence:
+        snapshot["portion_evidence"] = {**portion_evidence, "adopted_grams": round_number(grams)}
     return {"food_id": food["food_id"], "matched_name": food["name"], "grams": round_number(grams),
             "nutrition": calculate_food_intake(food, grams), "snapshot": snapshot}, None
 
@@ -207,7 +262,7 @@ def record_meal(rt, p):
                     cancelled.append(key)
         day = resolve_date(p.get("date"), rt.day)
         meal = p.get("meal_type") or "unknown"
-        items, missing, completed_ids = [], [], []
+        items, cache_refs, completed_ids = [], {}, []
         reuse = p.get("reuse")
         if reuse:
             if reuse.get("favorite"):
@@ -238,12 +293,14 @@ def record_meal(rt, p):
             if pid and original is None:
                 raise ValueError("unfinished item unavailable in this session")
             previous = deepcopy(original or {})
+            web_completion = original is not None and bool(entry.get("portion_evidence"))
             if original:
-                same_query = normalize_food_name(entry["food_query"]) == normalize_food_name(original["food_query"])
+                query = entry.get("food_query") or original["food_query"]
+                same_query = normalize_food_name(query) == normalize_food_name(original["food_query"])
                 known_food = original.get("food")
                 if (not same_query and entry.get("choice") is None
-                        and not (known_food and exact_food(entry["food_query"], [known_food], entry.get("unit", "")))):
-                    for key in ("food", "candidates", "choice", "offered_message_id"):
+                        and not (known_food and exact_food(query, [known_food], entry.get("unit", "")))):
+                    for key in ("food", "candidates", "choice", "offered_message_id", "source_ref"):
                         previous.pop(key, None)
                 if entry.get("grams") is not None:
                     for key in ("quantity", "unit", "quantity_text"):
@@ -252,9 +309,17 @@ def record_meal(rt, p):
                     previous.pop("grams", None)
                     previous.pop("quantity_text", None)
             merged = {**previous, **{k:v for k,v in entry.items() if v is not None}}
-            resolved, unfinished = resolve_item(rt, merged, pending=previous if original else None)
-            entry_day = resolve_date(p.get("date"), rt.day) if p.get("date") else (original or {}).get("date", day)
-            entry_meal = p.get("meal_type") or (original or {}).get("meal_type", meal)
+            if entry.get("source_ref") and not entry.get("food_query"):
+                merged.pop("food_query", None)
+            if web_completion:
+                for key in ("quantity", "unit", "quantity_text"):
+                    if original.get(key) not in (None, ""):
+                        merged[key] = original[key]
+            resolved, unfinished = resolve_item(rt, merged, pending=previous if original else None,
+                                                portion_lookup=True, estimate=p.get("allow_estimate", True))
+            entry_day = (original["date"] if web_completion else
+                         resolve_date(p.get("date"), rt.day) if p.get("date") else (original or {}).get("date", day))
+            entry_meal = original["meal_type"] if web_completion else p.get("meal_type") or (original or {}).get("meal_type", meal)
             if resolved:
                 resolved["snapshot"]["meal_id"] = (original or {}).get("meal_id", rt.action_message["message_id"])
                 items.append({**resolved, "date": entry_day, "meal_type": entry_meal})
@@ -262,6 +327,11 @@ def record_meal(rt, p):
                     completed_ids.append(pid)
             else:
                 pid = pid or f"{rt.action_id}:item:{index + 1}"
+                if refs := unfinished.pop("portion_cache_refs", None):
+                    cache_refs[pid] = refs
+                if any(condition["code"] in {"food_source_unavailable", "food_source_mismatch"}
+                       for condition in unfinished.get("unmet_conditions", [])):
+                    unfinished.pop("source_ref", None)
                 offered = (original or {}).get("offered_message_id")
                 if not original or unfinished.get("candidates", []) != original.get("candidates", []):
                     offered = rt.message["message_id"]
@@ -269,7 +339,6 @@ def record_meal(rt, p):
                                       "offered_message_id": offered,
                                       "meal_id": (original or {}).get("meal_id", rt.action_message["message_id"]),
                                       "raw_text": (original or {}).get("raw_text", rt.message["text"])}
-                missing.append(pending_items[pid])
         for pid in completed_ids:
             pending_items.pop(pid, None)
         for i in items:
@@ -277,7 +346,9 @@ def record_meal(rt, p):
             i.setdefault("meal_type", meal)
             if reuse:
                 i["snapshot"]["meal_id"] = rt.action_message["message_id"]
-        rt.prepare({"items": items, "session": session, "missing": list(pending_items.values()), "cancelled": cancelled, "cancelled_items": cancelled_items})
+        missing = [{**item, **({"portion_cache_refs": cache_refs[pid]} if pid in cache_refs else {})}
+                   for pid, item in pending_items.items()]
+        rt.prepare({"items": items, "session": session, "missing": missing, "cancelled": cancelled, "cancelled_items": cancelled_items})
     prepared = rt.prepared
     items = prepared["items"]
     rt.check_deadline()
@@ -294,10 +365,17 @@ def record_meal(rt, p):
         session["last_meal"] = ids
     rt.session = session
     written = [{**from_row(r), **{k:r[k] for k in ("record_id","message_id","date","meal_type")}} for r in rows]
+    if not p.get("reuse"):
+        for row in written:
+            if evidence := row["snapshot"].get("portion_evidence"):
+                cache_portion_evidence(rt, evidence)
+    conditions = [{**condition, "ref": item["pending_id"]} for item in prepared["missing"]
+                  for condition in item.get("unmet_conditions", [])]
     return {"status": "ok" if items or prepared["cancelled"] else "pending", "data": {
         "items": written, "total": totals(written),
         "meal_totals": meal_totals(rt, written),
         "completed_count": len(items), "unfinished": prepared["missing"], "cancelled": prepared["cancelled"], "cancelled_items": prepared.get("cancelled_items", []),
+        "unmet_conditions": conditions,
         "write_status": write["status"]}}
 
 def revise_intake(rt, p):

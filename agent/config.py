@@ -16,7 +16,7 @@ PRESETS = ("live", "shadow_fakewrite", "shadow_readonly")
 PLANNERS = ("deepseek",)
 DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_TIMEZONE_OFFSET_HOURS = 8.0
-DEFAULT_ALLOWED_TOOLS = ("record_meal", "revise_intake", "query_today", "query_food_nutrition", "query_knowledge", "query_history", "calculate_meal", "update_user_settings")
+DEFAULT_ALLOWED_TOOLS = ("record_meal", "revise_intake", "query_today", "query_food_nutrition", "query_knowledge", "query_history", "calculate_meal", "update_user_settings", "query_memory")
 
 
 @dataclass(frozen=True)

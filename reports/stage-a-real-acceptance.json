@@ -1,0 +1,556 @@
+{
+  "date": "2026-11-12",
+  "environment": "Official DeepSeek model, Search and Fetch; isolated FakeStore and in-memory journal; no production deployment or writes.",
+  "E04": {
+    "status": "pass",
+    "run": "23:48:34 +08:00",
+    "turns": [
+      {
+        "id": "e4a",
+        "user": "先建议将长期热量设为1900千卡，等我确认后再生效。",
+        "reply": "这一提议是先暂存，你确认后才会生效：把长期热量目标设为 1900 千卡。这个设置现在还没写入。\n\n确认就回复“确认”；如果不想设了，回复“取消”也可以。\n要长期目标改为热量1900千卡吗？回复确认即可。",
+        "business_status": "none",
+        "proposal_id": "e4a:agent:1",
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "proposal",
+            "proposal_id": "e4a:agent:1"
+          }
+        ]
+      },
+      {
+        "id": "e4b",
+        "user": "就照你刚才提的目标生效吧。",
+        "reply": "已生效：长期热量目标设为 1900 千卡（蛋白 150 g、碳水 250 g、脂肪 70 g）。",
+        "business_status": "committed",
+        "proposal_id": null,
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "ok",
+            "kind": "targets",
+            "effective_targets": {
+              "carbs": 250.0,
+              "protein": 150.0,
+              "fat": 70.0,
+              "kcal": 1900.0,
+              "source": "fake"
+            },
+            "values": {
+              "kcal": 1900.0
+            }
+          }
+        ]
+      },
+      {
+        "id": "e4c",
+        "user": "再建议设为1800，先问我。",
+        "reply": "建议已提交，等你确认：把长期热量目标设为 **1800 千卡**，其余设置不变。你回复“确认”后，这项改动才会生效。\n要长期目标改为热量1800千卡吗？回复确认即可。",
+        "business_status": "none",
+        "proposal_id": "e4c:agent:1",
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "proposal",
+            "proposal_id": "e4c:agent:1"
+          }
+        ]
+      },
+      {
+        "id": "e4d",
+        "user": "取消",
+        "reply": "已取消那条把长期热量改成 1800 千卡的建议，当前长期目标仍是 1900 千卡，未作改动。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "cancelled"
+          }
+        ]
+      },
+      {
+        "id": "e4e",
+        "user": "好的",
+        "reply": "好的，目前没有待确认的提案。当前长期热量目标为 1900 千卡。需要记录一餐、安排今天的菜单或调整目标，随时告诉我。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 1,
+        "tool_results": []
+      },
+      {
+        "id": "e4g",
+        "user": "再建议设为1800，先问我。",
+        "reply": "已拟好建议：把长期每日热量目标从 1900 千卡改为 1800 千卡。目前尚未生效，你确认后我再执行；如果你不想改，直接说取消也可以。\n要长期目标改为热量1800千卡吗？回复确认即可。",
+        "business_status": "none",
+        "proposal_id": "e4g:agent:1",
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "proposal",
+            "proposal_id": "e4g:agent:1"
+          }
+        ]
+      },
+      {
+        "id": "e4h",
+        "user": "先不讨论目标了。",
+        "reply": "好，目标的事先放着，刚才那个 1800 千卡的待确认提案已经取消。当前长期目标仍是 1900 千卡，没有变动。要记餐或排菜单随时说。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "cancelled"
+          }
+        ]
+      },
+      {
+        "id": "e4i",
+        "user": "好的",
+        "reply": "好的，需要记录饮食、看今天的热量，或安排菜单时再找我就行。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 1,
+        "tool_results": []
+      },
+      {
+        "id": "e4f",
+        "user": "把长期热量改为2000千卡。",
+        "reply": "已把你的长期热量目标改为 2000 千卡，现已生效。",
+        "business_status": "committed",
+        "proposal_id": null,
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "ok",
+            "kind": "targets",
+            "effective_targets": {
+              "carbs": 250.0,
+              "protein": 150.0,
+              "fat": 70.0,
+              "kcal": 2000.0,
+              "source": "fake"
+            },
+            "values": {
+              "kcal": 2000.0
+            }
+          }
+        ]
+      },
+      {
+        "id": "e4a",
+        "user": "先建议将长期热量设为1900千卡，等我确认后再生效。",
+        "reply": "已生成提案：将长期热量目标设为 1900 千卡，尚未生效。你确认后我再执行；如果想改成其他数字，也可以直接说。\n要长期目标改为热量1900千卡吗？回复确认即可。",
+        "business_status": "none",
+        "proposal_id": "e4a:agent:1",
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "proposal",
+            "proposal_id": "e4a:agent:1"
+          }
+        ]
+      },
+      {
+        "id": "e4b",
+        "user": "就照你刚才提的目标生效吧。",
+        "reply": "长期目标已按提案生效：每天 1900 千卡，为长期设置，不覆盖今日已吃部分。需要按这个目标安排今天的餐盘，随时告诉我。",
+        "business_status": "committed",
+        "proposal_id": null,
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "ok",
+            "kind": "targets",
+            "effective_targets": {
+              "carbs": 250.0,
+              "protein": 150.0,
+              "fat": 70.0,
+              "kcal": 1900.0,
+              "source": "fake"
+            },
+            "values": {
+              "kcal": 1900.0
+            }
+          }
+        ]
+      },
+      {
+        "id": "e4c",
+        "user": "再建议设为1800，先问我。",
+        "reply": "我先提一个建议：将长期每日热量目标从 1900 千卡改为 1800 千卡，确认后再生效。你确认要改吗？\n要长期目标改为热量1800千卡吗？回复确认即可。",
+        "business_status": "none",
+        "proposal_id": "e4c:agent:1",
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "proposal",
+            "proposal_id": "e4c:agent:1"
+          }
+        ]
+      },
+      {
+        "id": "e4d",
+        "user": "取消",
+        "reply": "已取消“将长期热量目标设为1800千卡”的提案，长期目标仍保持1900千卡。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "cancelled"
+          }
+        ]
+      },
+      {
+        "id": "e4e",
+        "user": "好的",
+        "reply": "好的，那先保持现状：长期热量目标仍是 1900 千卡，1800 的调整提案已取消。之后想改目标、记餐或做菜单规划，随时告诉我。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 1,
+        "tool_results": []
+      },
+      {
+        "id": "e4g",
+        "user": "再建议设为1800，先问我。",
+        "reply": "已生成提案，等你确认后生效：长期热量目标从 1900 千卡调整为 1800 千卡。确认吗？（回复“确认”或“取消”）\n要长期目标改为热量1800千卡吗？回复确认即可。",
+        "business_status": "none",
+        "proposal_id": "e4g:agent:1",
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "proposal",
+            "proposal_id": "e4g:agent:1"
+          }
+        ]
+      },
+      {
+        "id": "e4h",
+        "user": "先不讨论目标了。",
+        "reply": "好，目标的事先放一放，不再提。之前那个 1800 千卡的提案还没生效，长期目标仍是 1900 千卡；要取消的话说一声，我就撤掉。之后想记餐或做菜单，随时告诉我。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 1,
+        "tool_results": []
+      },
+      {
+        "id": "e4i",
+        "user": "好的",
+        "reply": "好，那就先这样。想记餐、看摄入或做菜单时，随时说一声。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 1,
+        "tool_results": []
+      },
+      {
+        "id": "e4f",
+        "user": "把长期热量改为2000千卡。",
+        "reply": "长期热量目标已改为 2000 千卡，立即生效。",
+        "business_status": "committed",
+        "proposal_id": null,
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "ok",
+            "kind": "targets",
+            "effective_targets": {
+              "carbs": 250.0,
+              "protein": 150.0,
+              "fat": 70.0,
+              "kcal": 2000.0,
+              "source": "fake"
+            },
+            "values": {
+              "kcal": 2000.0
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "E07": {
+    "status": "pass",
+    "run": "23:50:18 +08:00",
+    "turns": [
+      {
+        "id": "stage-a-real-source",
+        "user": "早餐吃了一个大苹果，记下来。我找到一份公开的食物份量资料 https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+        "reply": "已记入早餐：大苹果 1 个，按 FDA 资料「1 large（242 g）」的可食重量计，约 126 kcal（估算值）。\n苹果的可食份量估算依据 https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+        "business_status": "committed",
+        "proposal_id": null,
+        "model_calls": 3,
+        "tool_results": [
+          {
+            "tool": "query_food_nutrition",
+            "status": "pending",
+            "web": {
+              "operation": "fetch",
+              "status": "read",
+              "requests_remaining": 2,
+              "pages": [
+                {
+                  "ref": "portion:a6e8eafc278f384c118ca7f8",
+                  "url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+                  "status": "read"
+                }
+              ]
+            }
+          },
+          {
+            "tool": "record_meal",
+            "status": "ok",
+            "items": [
+              {
+                "matched_name": "苹果",
+                "grams": 242.0,
+                "nutrition": {
+                  "carbs": 33.4,
+                  "protein": 0.6,
+                  "fat": 0.4,
+                  "kcal": 125.8
+                },
+                "basis": "web_edible_portion",
+                "estimated": true,
+                "portion_evidence": {
+                  "ref": "portion:a6e8eafc278f384c118ca7f8",
+                  "quote": "Apple\n1 large\n\n(242 g/\n\n8 oz)",
+                  "source_food": "Apple",
+                  "source_unit": "large",
+                  "applicability": "资料中Apple按“1 large”给出可食重量242g，与用户所说的一个大苹果口径一致（生鲜水果可食部分）",
+                  "basis": "edible_unit",
+                  "weight": 242.0,
+                  "weight_unit": "g",
+                  "table_header": "Fruits Nutrition Facts Raw, Edible Weight Portion",
+                  "url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+                  "title": "Raw Fruits Poster (Text Version / Accessible Version) - Raw Fruits Poster (Text Version / Accessible Version)",
+                  "fetched_at": "2026-11-12T15:50:23.098045+00:00",
+                  "food_id": "acceptance-apple",
+                  "food_name": "苹果",
+                  "quantity": 1.0,
+                  "unit": "大个",
+                  "grams_per_unit": 242.0,
+                  "adopted_grams": 242.0
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "stage-a-personal-size",
+        "user": "以后我说一个大苹果，就用我实测的每个可食220克，帮我保存这个默认份量。",
+        "reply": "已保存：以后你提到“一个大苹果”，默认按每份可食重量 220 克计算。",
+        "business_status": "committed",
+        "proposal_id": null,
+        "model_calls": 2,
+        "tool_results": [
+          {
+            "tool": "update_user_settings",
+            "status": "ok",
+            "kind": "portion",
+            "effective_targets": {
+              "carbs": 250.0,
+              "protein": 150.0,
+              "fat": 70.0,
+              "kcal": 2230.0,
+              "source": "fake"
+            },
+            "values": {
+              "food_query": "大苹果",
+              "unit": "个",
+              "eat_weight": 220.0
+            }
+          }
+        ]
+      },
+      {
+        "id": "stage-a-personal-reuse",
+        "user": "早餐记一个大苹果。",
+        "reply": "已记录：2026-11-12早餐 苹果（1个(大)，可食220克）。\n2026-11-12早餐这餐当前合计114.4千卡。份量含估算。",
+        "business_status": "committed",
+        "proposal_id": null,
+        "model_calls": 1,
+        "tool_results": [
+          {
+            "tool": "record_meal",
+            "status": "ok",
+            "items": [
+              {
+                "matched_name": "苹果",
+                "grams": 220.0,
+                "nutrition": {
+                  "carbs": 30.4,
+                  "protein": 0.6,
+                  "fat": 0.4,
+                  "kcal": 114.4
+                },
+                "basis": "confirmed_personal_portion",
+                "estimated": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "E08": {
+    "status": "pass",
+    "run": "23:48:34 +08:00",
+    "turns": [
+      {
+        "id": "stage-a-lunch",
+        "user": "帮我把米饭150克、鸡蛋可食50克和鸡胸肉100克安排成一份带饭午餐，午休时间短。",
+        "reply": "三项都按你给的量固定了，没有调整。蔬菜查了几次都没在食物库里找到合适的来源，所以暂时没有放进菜单。定量说明未单独核对，份量和营养请见下方实算菜单。\n\n日常完整菜单（长期目标，2026-11-12）：\n午餐：\n- 米饭，每份可食150克×1份（固定餐，用户给定份量），175.1千卡。\n- 鸡蛋，每份可食50克×1份（固定餐，用户给定份量），70.2千卡。\n- 鸡胸肉，每份可食100克×1份（固定餐，用户给定份量），125.5千卡。\n保留条件：带饭午餐，午休时间短，需提前备好、加热即食。\n菜单合计370.8千卡，碳水42克、蛋白质34.8克、脂肪7.2克。\n适用目标：2230千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1859.2千卡，碳水208克，蛋白质115.2克，脂肪62.8克。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 4,
+        "tool_results": [
+          {
+            "tool": "query_food_nutrition",
+            "status": "pending"
+          },
+          {
+            "tool": "query_food_nutrition",
+            "status": "pending"
+          },
+          {
+            "tool": "calculate_meal",
+            "status": "ok"
+          }
+        ]
+      },
+      {
+        "id": "stage-a-first-feedback",
+        "user": "上次试了之后我发现，把饭和菜分开装，午休热饭时只热需要加热的盒子，时间够用了。",
+        "reply": "明白，这个做法很实用：把要加热的米饭和菜放一盒，不加热的另装一盒，午休只热一个盒子，确实省时间。之后备这类带饭午餐，我就按“可加热、免加热分开装”来给你安排。需要我把这餐记进摄入，或者按这个思路继续细化菜单，你告诉我即可。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 1,
+        "tool_results": []
+      },
+      {
+        "id": "stage-a-rephrased",
+        "user": "明天中午只有几分钟能用微波炉，便当怎么准备更省事？",
+        "visible_note_refs": [
+          "note:2310413618425c9245679be9:1"
+        ],
+        "reply": "几个关键做法，都在前一天晚上完成，中午不用临时处理：\n\n1. **分成两盒装**：可加热的一盒（米饭、肉、需复热的菜），免加热的一盒（凉拌菜、卤味、水果、可生食的蔬果）；午休只把第一盒放进微波炉，几分钟就够——你之前试过这样装，时间够用。\n2. **需加热的菜切小块、平铺**：装盒时摊薄，不要压实，到公司后更冷、加热更慢，也就更耗时；分装时留空，盒盖留缝，避免蒸汽闷着。\n3. **免热盒挑不出水、耐放的**：比如卤牛肉、酱鸡、凉拌木耳、小番茄、黄瓜条、面包或饭团，避免中午倒汁、串味，也省了收拾。\n4. **汤水多的菜别和饭混装**：可以单独带小份或干脆不带，混在一起会拉长加热时间，也容易溢出。\n5. **前一晚把饭按一份量分好**：米饭冷藏一夜会变硬，第二天热的时候可以撒一点水、盖上盖子，热出来更松软。\n\n需要的话，我可以按“一盒热、一盒免热”给你排一份明天的便当菜单。",
+        "business_status": "none",
+        "proposal_id": null,
+        "model_calls": 3,
+        "tool_results": [
+          {
+            "tool": "query_memory",
+            "status": "ok",
+            "references": [
+              "theme:2eb72f6dc704a00eecdff4e1:1",
+              "note:2310413618425c9245679be9:1"
+            ]
+          },
+          {
+            "tool": "query_memory",
+            "status": "ok",
+            "references": [
+              "note:2310413618425c9245679be9:1"
+            ]
+          },
+          {
+            "tool": "query_memory",
+            "status": "ok",
+            "references": [
+              "theme:2eb72f6dc704a00eecdff4e1:1"
+            ]
+          }
+        ]
+      }
+    ],
+    "experience": {
+      "status": "ready",
+      "batch_id": "9aa01630ce1862132da1596c35223672f0ad82f2977ffaee48d826983077c6ee",
+      "candidate": {
+        "batch_id": "9aa01630ce1862132da1596c35223672f0ad82f2977ffaee48d826983077c6ee",
+        "user_id": "user",
+        "base_revision": 0,
+        "source_stamp": "76d7031948924cff4bf41ca9bf805c754f562dc49efe7c034a4360ee389bd5cf",
+        "materials": [
+          "turn:9fb827419301a17dc6c67183:1"
+        ],
+        "attempts": 1,
+        "budget": {
+          "elapsed_ms": 3771,
+          "generated_tokens": 614,
+          "reads": 0
+        },
+        "source_reads": [],
+        "status": "ready",
+        "changes": [
+          {
+            "key": "9aa01630ce1862132da1596c35223672f0ad82f2977ffaee48d826983077c6ee/separate-heat-boxes",
+            "status": "usable",
+            "text": "带饭午餐时把可加热的饭和免加热的菜分开装，午休只加热需要复热的盒子，可以节省加热时间。",
+            "kind": "note",
+            "context": "工作日自带午餐、午休需要复热饭菜的情境",
+            "supports": [
+              "turn:9fb827419301a17dc6c67183:1"
+            ],
+            "refutes": [],
+            "conditions": [],
+            "quotes": [
+              {
+                "ref": "turn:9fb827419301a17dc6c67183:1",
+                "text": "上次试了之后我发现，把饭和菜分开装，午休热饭时只热需要加热的盒子，时间够用了。"
+              }
+            ]
+          },
+          {
+            "key": "9aa01630ce1862132da1596c35223672f0ad82f2977ffaee48d826983077c6ee/lunch-packing",
+            "status": "usable",
+            "text": "适用于带饭午餐的分装安排和午休复热参考。",
+            "kind": "theme",
+            "title": "带饭午餐分装与备餐",
+            "links": [
+              {
+                "kind": "note",
+                "key": "9aa01630ce1862132da1596c35223672f0ad82f2977ffaee48d826983077c6ee/separate-heat-boxes"
+              }
+            ]
+          }
+        ],
+        "entries": [
+          {
+            "key": "9aa01630ce1862132da1596c35223672f0ad82f2977ffaee48d826983077c6ee/lunch-packing"
+          }
+        ]
+      }
+    },
+    "publication": [
+      {
+        "status": "applied",
+        "batch_id": "9aa01630ce1862132da1596c35223672f0ad82f2977ffaee48d826983077c6ee"
+      }
+    ]
+  },
+  "search_transport": {
+    "run": "23:39:02 +08:00",
+    "operation": "search",
+    "status": "located",
+    "result_count": 6,
+    "context": "The prior run exercised official Search and Fetch. Personal-portion reuse was fixed and verified in the later E07 run."
+  }
+}

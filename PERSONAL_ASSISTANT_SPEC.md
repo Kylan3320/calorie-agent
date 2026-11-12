@@ -1,6 +1,6 @@
 # 饮食 Agent、记忆与持续目标实施规格
 
-状态：2026-11-12 确认的下一阶段目标，尚未实现或部署。本文件是本轮实施与验收入口；当前能力、接口和生产状态分别见 [需求基线](REQUIREMENTS.md)、[contracts/](contracts/) 和 [生产交付记录](reports/LATENCY_DELIVERY.md)。
+阶段 A 已通过隔离环境真实验收。E04、E07、E08 及官方 Search／Fetch 的证据见[阶段 A 验收记录](reports/stage-a-real-acceptance.json)。当前能力、接口和生产状态分别见[需求基线](REQUIREMENTS.md)、[contracts/](contracts/)和[生产交付记录](reports/LATENCY_DELIVERY.md)。
 
 本规格统一管理新增的份量补证、分层记忆、异步经验沉淀和跨会话菜单接续。原有营养计算、菜单调配、确认与提交规则继续由 [个人规格](PERSONAL_CALORIE_SPEC.md)、[交流规格](CONVERSATION_EXPERIENCE_SPEC.md) 和 contracts 管理，不在这里复制。
 

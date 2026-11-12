@@ -11,6 +11,7 @@ import time
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, messages_from_dict, messages_to_dict
 from ..context import clean_messages, turns, tokens, REQUEST_BUDGET, request_body, check_request
 from ..config import load_config
+from . import memory
 
 SUMMARY_PROMPT = """归并过去对话的话题背景，仅保留用户意图、已给条件、明确纠正与偏好线索。
 当前纠正覆盖旧条件。不要保存摄入合计、目标生效数值、营养结论、业务完成状态或操作授权。
@@ -98,18 +99,18 @@ def _reply_context(store, ident):
 def _model_turn(store, turn, visible):
     reply = _reply_context(store, turn["id"])
     status = reply["reply_status"]
-    visible = visible if status == "已回复" else [m for m in visible if isinstance(m, HumanMessage)]
-    clean = clean_messages(visible)
     # Already-clean sources carry reference facts as historical AI messages;
     # history_messages deliberately does not treat those as assistant prose.
-    references = [ref for m in visible if isinstance(m, AIMessage) and m.additional_kwargs.get("fact_scope") == "historical"
-                  for ref in json.loads(m.content)["data"]["references"]]
+    references = [ref for m in visible if turn["complete"] and isinstance(m, AIMessage) and m.additional_kwargs.get("fact_scope") == "historical"
+                  for ref in json.loads(m.content).get("data", {}).get("references", [])]
+    visible = visible if status == "已回复" else [m for m in visible if isinstance(m, HumanMessage)]
+    clean = clean_messages(visible)
     dialogue, knowledge = [], []
     for message in clean:
         if isinstance(message, AIMessage) and message.additional_kwargs.get("fact_scope") == "knowledge":
             knowledge.append(message)  # Keep actual evidence JSON visible to the citation collector.
         elif isinstance(message, AIMessage) and message.additional_kwargs.get("fact_scope") == "historical":
-            references.extend(json.loads(message.content)["data"]["references"])
+            references.extend(json.loads(message.content).get("data", {}).get("references", []))
         elif isinstance(message, (HumanMessage, AIMessage)):
             dialogue.append({"role": "user" if isinstance(message, HumanMessage) else "assistant", "content": message.content})
     payload = {"turn_id": turn["id"], **reply, "dialogue": dialogue, "references": references}
@@ -119,6 +120,7 @@ def _model_turn(store, turn, visible):
 
 def history(store, user, chat, session=None, *, bounded=False, config=None, before=None, for_model=False):
     value = context(store, user, chat, session)
+    memory_view = memory.state(store, user)
     selected = value["turns"]
     if before is not None:
         index = next((i for i, turn in enumerate(selected) if turn["id"] == before), len(selected))
@@ -137,22 +139,34 @@ def history(store, user, chat, session=None, *, bounded=False, config=None, befo
     for turn in selected:
         source = value["legacy_sources"][turn["id"]] if "legacy_sources" in value else store.load_document("dialogue_turn", user, turn["id"])
         visible = messages_from_dict(source["messages"])
+        if memory_view.get("redaction_revision"):
+            visible = _filter_messages(memory_view, turn["id"], visible)
         if for_model:
             messages.extend(_model_turn(store, turn, visible))
             continue
         if not turn["complete"]:
             visible = [message for message in visible if isinstance(message, HumanMessage)]
         messages.extend(visible)
-    return messages, value["summary"]
+    summary = value["summary"]
+    return messages, summary if summary.get("redaction_revision", 0) == memory_view.get("redaction_revision", 0) else {}
 
 
-def stage_turn(store, user, chat, ident, messages, *, reserve=False):
+def _filter_messages(view, ident, messages):
+    result = []
+    for message in messages:
+        content = memory.turn_text(view, ident, str(message.content), assistant=isinstance(message, AIMessage))
+        if content:
+            result.append(message if message.content == content else message.model_copy(update={"content": content}))
+    return result
+
+
+def stage_turn(store, user, chat, ident, messages, *, reserve=False, metadata=None):
     def save():
         value = context(store, user, chat, write=True)
         previous = next((turn for turn in value["turns"] if turn["id"] == ident), None)
         if previous and previous["complete"]:
             return {"id": ident}
-        source = {"id": ident, "messages": messages_to_dict(clean_messages(messages))}
+        source = {"id": ident, "messages": messages_to_dict(clean_messages(messages)), **(metadata or {})}
         store.save_document("dialogue_turn", user, ident, source)
         if previous:
             previous["tokens"] = tokens(source["messages"])
@@ -173,26 +187,38 @@ def _eligible(value, config):
 
 
 def _register(store, user, chat, value, config):
+    revision = memory.redaction_revision(store, user)
+    summary = value["summary"]
+    if summary.get("redaction_revision", 0) != revision:
+        value["summary"] = {"id": digest([summary["id"], revision]), "text": "", "redaction_revision": revision}
+        value["turns"] = [*summary.get("covered", []), *value["turns"]]
+        store.save_document("conversation_context", user, chat, value)
+    request = store.load_document("summary_request", user, chat)
+    queue = store.load_document("summary_active", "system")
+    if request.get("active") and request.get("redaction_revision", 0) != revision:
+        queue.pop(request["task_id"], None)
+        store.save_document("summary_active", "system", "", queue)
+        request["active"] = False
+        store.save_document("summary_request", user, chat, request)
     eligible = _eligible(value, config)
     if not eligible or sum(turn["tokens"] for turn in eligible) < config.summary_pending_tokens:
         return
     tail = value["turns"][-1]["id"]
     if value.get("failed_at_turn") == tail:
         return
-    request = store.load_document("summary_request", user, chat)
     if request.get("active"):
         request["through"] = eligible[-1]["id"]
     else:
         request = {"active": True, "task_id": digest([user, chat, value["summary"]["id"], eligible[0]["id"], tail]),
                    "user_id": user, "chat_id": chat, "base_id": value["summary"]["id"],
-                   "first": eligible[0]["id"], "through": eligible[-1]["id"], "registered_at": time.time()}
-    queue = store.load_document("summary_active", "system")
+                   "first": eligible[0]["id"], "through": eligible[-1]["id"], "registered_at": time.time(),
+                   "redaction_revision": revision}
     queue[request["task_id"]] = {key: request[key] for key in ("user_id", "chat_id", "registered_at")}
     store.save_document("summary_request", user, chat, request)
     store.save_document("summary_active", "system", "", queue)
 
 
-def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=None):
+def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=None, on_confirm=None):
     if not ident:
         return
     config = config or load_config()
@@ -201,19 +227,24 @@ def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=No
         turn = next((turn for turn in value["turns"] if turn["id"] == ident), None)
         if turn is None:
             return {"missing": True}
+        source = store.load_document("dialogue_turn", user, ident)
         if delivered_messages is not None:
-            source = {"id": ident, "messages": messages_to_dict(clean_messages(delivered_messages))}
+            source["messages"] = messages_to_dict(clean_messages(delivered_messages))
             store.save_document("dialogue_turn", user, ident, source)
             turn["tokens"] = tokens(source["messages"])
         turn["complete"] = True
         store.save_document("conversation_context", user, chat, value)
+        if source.get("messages"):
+            memory.delivered_turn(store, user, chat, ident, source)
+        if on_confirm:
+            on_confirm(source)
         _register(store, user, chat, value, config)
         return {"complete": True}
     return _save_atomic(store, "dialogue-delivered:" + ident, save)
 
 
-def _summary_source(source):
-    messages = messages_from_dict(source["messages"])
+def _summary_source(source, view):
+    messages = _filter_messages(view, source["id"], messages_from_dict(source["messages"]))
     return [{"role": "user" if isinstance(message, HumanMessage) else "assistant", "content": message.content}
             for message in messages if isinstance(message, HumanMessage) or message.additional_kwargs.get("fact_scope") == "dialogue"]
 
@@ -226,11 +257,15 @@ def snapshot(store, request, config):
     if not eligible or eligible[0]["id"] != request["first"]:
         raise ValueError("summary prefix changed")
     sources, ids = [], []
+    view = memory.state(store, request["user_id"])
+    revision = view.get("redaction_revision", 0)
+    if revision != request.get("redaction_revision", 0):
+        raise ValueError("summary redaction revision changed")
     summary = value["summary"].get("text", "")
     for turn in eligible:
         source = store.load_document("dialogue_turn", request["user_id"], turn["id"])
         candidate = [*sources, source]
-        messages = [SystemMessage(content=SUMMARY_PROMPT), HumanMessage(content=json.dumps({"previous": summary, "dialogue": [_summary_source(item) for item in candidate]}, ensure_ascii=False))]
+        messages = [SystemMessage(content=SUMMARY_PROMPT), HumanMessage(content=json.dumps({"previous": summary, "dialogue": [_summary_source(item, view) for item in candidate]}, ensure_ascii=False))]
         measurement = check_request(request_body(config.model, messages, max_tokens=config.summary_max_tokens), config, "summary")
         if sources and measurement["input_tokens"] > config.summary_input_tokens:
             break
@@ -239,7 +274,7 @@ def snapshot(store, request, config):
         if turn["id"] == request["through"] or measurement["input_tokens"] >= config.summary_input_tokens:
             break
     return {"turn_ids": ids, "source_hash": digest(sources), "messages": messages_to_dict([
-        SystemMessage(content=SUMMARY_PROMPT), HumanMessage(content=json.dumps({"previous": summary, "dialogue": [_summary_source(item) for item in sources]}, ensure_ascii=False))])}
+        SystemMessage(content=SUMMARY_PROMPT), HumanMessage(content=json.dumps({"previous": summary, "dialogue": [_summary_source(item, view) for item in sources]}, ensure_ascii=False))])}
 
 
 def apply_candidate(store, event, config=None):
@@ -250,6 +285,10 @@ def apply_candidate(store, event, config=None):
         request = store.load_document("summary_request", user, chat)
         value = context(store, user, chat, write=True)
         if not request.get("active") or request["task_id"] != ident:
+            return {"status": "obsolete"}
+        revision = memory.redaction_revision(store, user)
+        if candidate.get("redaction_revision", 0) != revision:
+            _register(store, user, chat, value, config)
             return {"status": "obsolete"}
         if candidate["base_id"] != request["base_id"] or value["summary"]["id"] != request["base_id"]:
             return {"status": "obsolete"}
@@ -264,7 +303,8 @@ def apply_candidate(store, event, config=None):
             text = candidate["text"].strip()
             if not text or tokens(text) > config.summary_output_tokens:
                 raise ValueError("invalid summary candidate")
-            value["summary"] = {"id": ident, "text": text, "fact_scope": "dialogue", "covered_through": ids[-1]}
+            value["summary"] = {"id": ident, "text": text, "fact_scope": "dialogue", "covered_through": ids[-1],
+                                "redaction_revision": revision, "covered": [*value["summary"].get("covered", []), *prefix]}
             value["turns"] = value["turns"][len(ids):]
         elif candidate["status"] == "failed":
             value["failed_at_turn"] = value["turns"][-1]["id"] if value["turns"] else None
@@ -360,6 +400,7 @@ def run_background(store, progress, *, config=None, model=None, dispatch=None, r
         if state["status"] == "retry":
             return {"status": "retry", "task_id": ident, "attempts": state["attempts"]}
     if dispatch:
-        dispatch({"type": "calorie_summary", "candidate": candidate})
+        dispatch({"type": "calorie_summary", "candidate": {**candidate, "redaction_revision": request.get("redaction_revision", 0)}})
+    candidate = {**candidate, "redaction_revision": request.get("redaction_revision", 0)}
     print(json.dumps({"event": "summary_task", "task_id": ident, "status": state["status"], "attempts": state["attempts"], "duration_ms": state.get("duration_ms"), "measurement": state.get("measurement")}, ensure_ascii=False))
     return {"status": state["status"], "task_id": ident, "candidate": candidate}

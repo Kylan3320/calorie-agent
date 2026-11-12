@@ -5,6 +5,7 @@ import io
 import json
 from unittest.mock import patch
 
+import httpx
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from agent import run
@@ -12,7 +13,7 @@ from agent.context import clean_messages
 from agent.evidence import collect_visible_evidence
 from agent.graph import mark_reply_presented
 from agent.replies import model_view, progress_reply, project_messages, render
-from harness.eval.personal_cases import CONFIG, NativeFake, call, setup
+from harness.eval.personal_cases import CONFIG, NativeFake, call, send, setup
 
 
 SOURCES = {
@@ -161,4 +162,221 @@ def TE04():
     assert "缺" in second["reply"] or "无法" in second["reply"]
 
 
-CHECKS = {"TE01": TE01, "TE02": TE02, "TE03": TE03, "TE04": TE04}
+def TE05():
+    """Web weight must support the count; complete the original item within four decisions."""
+    url = "https://example.org/portion"
+    search = call("query_food_nutrition", {"portion_web": {"operation": "search", "query": "夹具B 可食份量"}}, "c2")
+    fetch = call("query_food_nutrition", {"portion_web": {"operation": "fetch", "urls": [url]}}, "c3")
+    first = call("record_meal", {"date": "2026-10-30", "meal_type": "lunch", "finish_after_tools": True, "items": [
+        {"food_query": "夹具A", "grams": 100}, {"food_query": "夹具B", "quantity": 2, "unit": "个"}]})
+
+    def fact(messages, ident):
+        return json.loads(next(m.content for m in messages if isinstance(m, ToolMessage) and m.tool_call_id == ident))
+
+    for source_food, statement, food_type, rejected in [
+        ("夹具B", "合计", "", ""),
+        ("夹具B", "含钠", "", "未明确支持"),
+        ("夹具B饼", "合计", "", "名称或别名无法对应"),
+        ("生夹具B", "合计", "熟", "生熟口径不同"),
+    ]:
+        quote = f"2个{source_food}的可食部分{statement}150克"
+        store = setup()
+        store.foods[1].update(units=[], detail_loaded=True, type=food_type)
+
+        def search_after_commit(messages):
+            gap, = fact(messages, "c1")["feedback"]["unmet_conditions"]
+            assert gap["code"] == "portion_evidence_missing" and not gap.get("requires_user")
+            assert len(store.intake) == 1 and store.intake[0]["food_name"] == "夹具A"
+            return search
+
+        def complete(messages):
+            unfinished, = fact(messages, "c1")["data"]["unfinished"]
+            page, = fact(messages, "c3")["data"]["portion_web"]["pages"]
+            return call("record_meal", {"date": "2026-10-31", "meal_type": "dinner", "finish_after_tools": True,
+                "items": [{"food_query": "夹具B", "pending_id": unfinished["pending_id"], "quantity": 1, "unit": "个",
+                "portion_evidence": {"ref": page["ref"], "quote": quote, "source_food": source_food, "source_unit": "个",
+                    "applicability": "同一食物和可食部口径", "basis": "edible_total", "weight": 150, "weight_unit": "g", "count": 2}}]}, "c4")
+
+        requests = []
+
+        def provider(request):
+            requests.append(request.url.path.rsplit("/", 1)[-1])
+            if requests[-1] == "search":
+                return httpx.Response(200, json={"results": [{"url": url, "title": "份量"}]})
+            return httpx.Response(200, json={"title": "份量", "content": quote})
+
+        text = "记昨天午饭：夹具A100克、夹具B两个"
+        if rejected:
+            text += "。来源：" + url
+        with patch.dict("os.environ", {"TRACE_ENABLED": "false", "DEEPSEEK_SEARCH_API_KEY": "fixture"}), redirect_stdout(io.StringIO()), \
+                httpx.Client(transport=httpx.MockTransport(provider)) as client, patch("agent.storage.deepseek_web._client", return_value=client):
+            steps = [first, fetch, complete] if rejected else [first, search_after_commit, fetch, complete]
+            result, model = send(store, text, steps, mid="portion-evidence")
+            assert len(model.requests) == 4 and requests == (["fetch"] if rejected else ["search", "fetch"])
+            if not rejected:
+                assert not store.load_session("user", "test")["unfinished"] and len(store.intake) == 2
+                a, b = store.intake
+                assert (b["date"], b["meal_type"], b["grams"], b["nutrition"]["kcal"]) == ("2026-10-30", "lunch", 150, 225)
+                assert b["snapshot"]["meal_id"] == a["snapshot"]["meal_id"]
+                evidence = b["snapshot"]["portion_evidence"]
+                assert (evidence["quote"], evidence["url"], evidence["grams_per_unit"]) == (quote, url, 75)
+                assert b["snapshot"]["estimated"] and url in result["reply"]
+            else:
+                assert len(store.intake) == 1 and len(store.load_session("user", "test")["unfinished"]) == 1
+                assert url not in result["reply"] and rejected in result["reply"]
+            replay, empty = send(store, text, [], mid="portion-evidence")
+            assert replay["reply"] == result["reply"] and not empty.requests and len(requests) == (1 if rejected else 2)
+            if not rejected:
+                send(store, "以后这个夹具B每个按75克估算", [call("update_user_settings", {"kind": "portion",
+                    "values": {"food_query": "夹具B", "unit": "个", "eat_weight": 75}})], mid="portion-personal")
+                reused, model = send(store, "再记两个夹具B", [call("record_meal", {"finish_after_tools": True,
+                    "items": [{"food_query": "夹具B", "quantity": 2, "unit": "个"}]})], mid="portion-other-chat", chat="other")
+                saved = store.intake[-1]
+                assert len(model.requests) == 1 and saved["grams"] == 150
+                assert saved["snapshot"]["basis"] == "confirmed_personal_portion"
+                assert saved["snapshot"]["estimated"] and url not in reused["reply"]
+                assert requests == ["search", "fetch"]
+
+
+def TE06():
+    """A product URL can precede nutrition lookup, and cached proof spends no web requests."""
+    store = setup()
+    store.foods[1].update(units=[], detail_loaded=True)
+    url = "https://example.org/product"
+    quote = "每盒夹具B的可食部分为75克"
+    requests = []
+
+    def provider(request):
+        requests.append(request.url.path.rsplit("/", 1)[-1])
+        return httpx.Response(200, json={"title": "夹具B规格", "content": quote})
+
+    def fact(messages, ident):
+        return json.loads(next(m.content for m in messages if isinstance(m, ToolMessage) and m.tool_call_id == ident))
+
+    def record(messages, *, pending=False):
+        page, = fact(messages, "web")["data"]["portion_web"]["pages"]
+        evidence = {"ref": page["ref"], "quote": quote, "source_food": "夹具B", "source_unit": "盒",
+                    "applicability": "同一食物的每盒可食克重", "basis": "edible_unit", "weight": 75, "weight_unit": "g"}
+        item = {"food_query": "夹具B", "quantity": 2, "unit": "盒", "portion_evidence": evidence}
+        if pending:
+            item["pending_id"] = fact(messages, "miss")["data"]["unfinished"][0]["pending_id"]
+        return call("record_meal", {"finish_after_tools": True, "items": [item]}, "complete")
+
+    def cached(messages):
+        item, = fact(messages, "miss")["data"]["unfinished"]
+        cache, = item["portion_cache_refs"]
+        return call("query_food_nutrition", {"portion_web": {"operation": "read_cache", "ref": cache["ref"]}}, "web")
+
+    with patch.dict("os.environ", {"TRACE_ENABLED": "false", "DEEPSEEK_SEARCH_API_KEY": "fixture"}), redirect_stdout(io.StringIO()), \
+            httpx.Client(transport=httpx.MockTransport(provider)) as client, patch("agent.storage.deepseek_web._client", return_value=client):
+        result, model = send(store, "记夹具B两盒，这是产品资料 " + url, [call("query_food_nutrition", {
+            "portion_web": {"operation": "fetch", "urls": [url]}}, "web"), record], mid="portion-direct")
+        assert len(model.requests) == 2 and result["reply_source"] == "tool_facts" and requests == ["fetch"]
+        assert [item["grams"] for item in store.intake] == [150] and url in result["reply"]
+        result, _ = send(store, "再记夹具B两盒", [call("record_meal", {"items": [
+            {"food_query": "夹具B", "quantity": 2, "unit": "盒"}]}, "miss"), cached,
+            lambda messages: record(messages, pending=True)], mid="portion-cached", chat="other")
+        assert result["tool_results"][1]["data"]["portion_web"]["requests_remaining"] == 3
+        assert requests == ["fetch"] and [item["grams"] for item in store.intake] == [150, 150]
+        denied, _ = send(store, "资料 http://127.0.0.1/product", [call("query_food_nutrition", {"portion_web": {
+            "operation": "fetch", "urls": ["http://127.0.0.1/product", "https://example.org/not-in-request"]}}),
+            AIMessage(content="这两个地址均未读取。")], mid="portion-direct-denied")
+        web = denied["tool_results"][0]["data"]["portion_web"]
+        assert web["status"] == "not_applicable" and web["requests_remaining"] == 3 and requests == ["fetch"]
+
+
+def TE07():
+    """Search reformulation and fetch share one actual HTTP budget across failed calls."""
+    store = setup()
+    url = "https://example.org/reformulated"
+    requests = []
+
+    def provider(request):
+        body = json.loads(request.content)
+        requests.append((request.url.path.rsplit("/", 1)[-1], body))
+        if len(requests) == 1:
+            return httpx.Response(200, json={"results": []})
+        if len(requests) == 2:
+            return httpx.Response(200, json={"results": [{"url": url}]})
+        raise httpx.ReadTimeout("fixture timeout", request=request)
+
+    def web(params, cid):
+        return call("query_food_nutrition", {"portion_web": params}, cid).tool_calls[0]
+
+    steps = [AIMessage(content="", tool_calls=[web({"operation": "search", "query": "  食物 可食  "}, "first")]),
+             AIMessage(content="", tool_calls=[web({"operation": "search", "query": "食物   可食"}, "duplicate"),
+                 web({"operation": "search", "query": "食物 规格"}, "reformulated"),
+                 web({"operation": "fetch", "urls": [url]}, "fetch"),
+                 web({"operation": "search", "query": "第三种搜索"}, "over-budget")]),
+             AIMessage(content="这次未取得可核对的份量。")]
+    with patch.dict("os.environ", {"TRACE_ENABLED": "false", "DEEPSEEK_SEARCH_API_KEY": "fixture"}), redirect_stdout(io.StringIO()), \
+            httpx.Client(transport=httpx.MockTransport(provider)) as client, patch("agent.storage.deepseek_web._client", return_value=client):
+        result, _ = send(store, "看看这种食物可食份量", steps, mid="portion-web-cap")
+        facts = [fact["data"]["portion_web"] for fact in result["tool_results"]]
+        assert [(fact["status"], fact["requests_remaining"]) for fact in facts] == [
+            ("no_results", 2), ("repeated_request", 2), ("located", 1), ("service_error", 0), ("budget_exhausted", 0)]
+        assert [kind for kind, _ in requests] == ["search", "search", "fetch"]
+        replay, model = send(store, "看看这种食物可食份量", [], mid="portion-web-cap")
+        assert replay["reply"] == result["reply"] and not model.requests and len(requests) == 3
+
+    interrupted = []
+
+    def lost(request):
+        interrupted.append(request.url.path)
+        raise RuntimeError("fixture interruption after sending")
+
+    message = {"message_id": "portion-web-recovery", "user_id": "user", "chat_id": "test", "text": "另查一份资料"}
+    with patch.dict("os.environ", {"TRACE_ENABLED": "false", "DEEPSEEK_SEARCH_API_KEY": "fixture"}), redirect_stdout(io.StringIO()), \
+            httpx.Client(transport=httpx.MockTransport(lost)) as client, patch("agent.storage.deepseek_web._client", return_value=client):
+        attempt = run(message, store=store, config=CONFIG, model=NativeFake(responses=steps[:1]))
+        assert attempt["status"] == "error" and not attempt["terminal"]
+        recovered = run(message, store=store, config=CONFIG,
+                        model=NativeFake(responses=[AIMessage(content="网页请求中断，尚未核实份量。")]))
+        web = recovered["tool_results"][0]["data"]["portion_web"]
+        assert recovered["status"] == "ok" and web["reason"] == "lookup_interrupted" and web["requests_remaining"] == 2
+        assert len(interrupted) == 1
+
+
+def TE08():
+    """A wrapped serving row retains its edible scope, and a saved size stays scoped."""
+    from types import SimpleNamespace
+    from agent.replies import add_recorded_portion_sources
+    from agent.tools.portions import personal_portion, personal_unit, resolve_web_portion
+
+    apple = {"food_id": "apple", "name": "苹果", "aliases": ["Apple"], "type": "生"}
+    row = "Apple\n1 large\n\n(242 g/\n\n8 oz)"
+    caption = "Raw fruit. Edible Weight Portion"
+    page = {"ref": "apple-page", "status": "read", "url": "https://example.org/fruit", "title": "Fruit",
+            "fetched_at": "2026-11-12T12:00:00+00:00",
+            "text": f"{caption}\n\nServing\nSize | Calories\n---|---\n{row}\n | 130"}
+    proof = {"ref": page["ref"], "quote": row + " | 130", "source_food": "Apple", "source_unit": "large",
+             "weight": 242, "weight_unit": "g", "basis": "edible_unit"}
+    rt = SimpleNamespace(journal={"calls": [{"result": {"data": {"portion_web": {"pages": [page]}}}}]})
+    grams, evidence = resolve_web_portion(rt, apple, {"unit": "个（大）"}, 1, proof)
+    assert grams == 242 and evidence["table_header"] == caption and evidence["quote"] == row + "\n | 130"
+    written = {"tool": "record_meal", "status": "ok", "data": {"items": [
+        {"matched_name": apple["name"], "snapshot": {"portion_evidence": evidence}}]}}
+    adjustments = []
+    reply = add_recorded_portion_sources("已记早餐。", [written, written], adjustments)
+    assert reply.count(page["url"]) == 1 and adjustments[0]["urls"] == [page["url"]]
+    assert add_recorded_portion_sources(reply, [written], []) == reply
+    assert add_recorded_portion_sources("待确认。", [{**written, "status": "pending"}], []) == "待确认。"
+    for text, wrong in [(page["text"], {**proof, "weight": 130}),
+                        (page["text"].replace(caption, "Package weight only"), proof)]:
+        bad_page = {**page, "text": text}
+        rt.journal["calls"][0]["result"]["data"]["portion_web"]["pages"] = [bad_page]
+        try:
+            resolve_web_portion(rt, apple, {"unit": "个（大）"}, 1, wrong)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unverified edible serving was accepted")
+    unit = personal_unit(apple, "个", "大苹果")
+    settings = {"portions": {f"apple:{unit}": {"eat_weight": 220}}}
+    assert personal_portion(settings, apple, "个（大）")["eat_weight"] == 220
+    assert personal_portion(settings, apple, "个", "大苹果")["eat_weight"] == 220
+    assert personal_portion(settings, apple, "个（小）") is None
+    assert personal_portion(settings, apple, "个") is None
+
+
+CHECKS = {"TE01": TE01, "TE02": TE02, "TE03": TE03, "TE04": TE04, "TE05": TE05, "TE06": TE06, "TE07": TE07, "TE08": TE08}
