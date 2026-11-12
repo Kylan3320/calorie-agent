@@ -81,6 +81,11 @@ def pad(journal, revision):
 @patch("time.time", return_value=1793764800.0)
 def fixture(history, _clock):
     objects = TimedObjects()
+    # This fixture verifies the retained v1 128-commit reader. Stage C's CS01
+    # separately accounts for v2 roots, index pages and point recovery.
+    from agent.storage.cos_journal import encode
+    for role in ('message','ingress'):
+        objects.create(PREFIX+role+'/commits/000000000000.json',encode({'schema':'calorie.cos.v1','revision':0,'previous':-1,'changes':{},'index':{}}))
     store = CosStore(objects, PREFIX)
     store.import_baseline({"baseline_id": "preflight-fixed-v1", "aliases": {}})
     store.write_intake({"message_id": "prior-meal", "user_id": "user", "text": "旧餐"},

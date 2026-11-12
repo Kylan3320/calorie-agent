@@ -100,7 +100,7 @@ def _web_state(rt):
 
 
 def web_requests_remaining(rt):
-    return max(0, WEB_REQUEST_LIMIT - len(_web_state(rt)[0]))
+    return max(0, WEB_REQUEST_LIMIT - len(_web_state(rt)[0]) - rt.journal.get('general_web_requests',0))
 
 
 def _user_urls(rt):

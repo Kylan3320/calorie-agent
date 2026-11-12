@@ -81,7 +81,9 @@ def gateway(wire):
 def _setup(change):
     from agent.storage.cos_journal import Journal
     objects = Objects()
-    state = SimpleNamespace(objects=objects, prefix="archive-test/", journal=SimpleNamespace(state={"archive:intake:item-a": change}))
+    journal = Journal(objects,"archive-test/message/")
+    journal.commit({"archive:intake:item-a":change})
+    state = SimpleNamespace(objects=objects, prefix="archive-test/", journal=journal)
     return state, Journal(objects, "archive-test/sync/")
 
 
@@ -94,7 +96,7 @@ def QA01():
     with gateway(wire) as transport:
         assert cos_archive.archive_pending(store, gateway=transport, progress=progress)["failed"]
         original = deepcopy(progress.get("item:archive:intake:item-a")["inflight"])
-        store.journal.state["archive:intake:item-a"] = {**change, "revision": 3, "value": row(kcal=210)}
+        store.journal.commit({"archive:intake:item-a":{**change, "revision": 3, "value": row(kcal=210)}})
         result = cos_archive.archive_pending(store, gateway=transport, progress=progress)
         assert not result["failed"] and [c["revision"] for c in result["confirmed"]] == [1, 3]
         assert len(wire.rows["intake"]) == 1
@@ -103,7 +105,7 @@ def QA01():
         before = len(wire.calls)
         cos_archive.archive_pending(store, gateway=transport, progress=progress)
         assert len(wire.calls) == before
-        store.journal.state["archive:intake:item-a"] = {**change, "revision": 4, "value": row(kcal=210, status="deleted")}
+        store.journal.commit({"archive:intake:item-a":{**change, "revision": 4, "value": row(kcal=210, status="deleted")}})
         assert not cos_archive.archive_pending(store, gateway=transport, progress=progress)["failed"]
     saved = next(iter(wire.rows["intake"].values()))
     assert saved["agent_revision"] == 4 and saved[_intake_field("status")] == "deleted"
@@ -218,7 +220,7 @@ def QA06():
     change = {"kind": "food", "id": source["food_id"], "revision": 1, "value": source}
     store, progress = _setup(change)
     key = "archive:food:" + source["food_id"]
-    store.journal.state = {key: change}
+    store.journal.commit({"archive:intake:item-a":None,key:change})
     wire = Wire()
     wire.lose_create = True
     with gateway(wire) as transport:
@@ -242,7 +244,7 @@ def QA06():
     # source value cannot confirm it, even when one-decimal rounding would hide
     # the difference. The fixed request remains retryable and unacknowledged.
     store, progress = _setup(change)
-    store.journal.state = {key: change}
+    store.journal.commit({"archive:intake:item-a":None,key:change})
     wire = Wire()
     with gateway(wire) as transport:
         request = transport.prepare(change)

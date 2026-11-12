@@ -229,7 +229,7 @@ class CalorieAgent {
       return { kind: 'completed' }
     }
 
-    const events = Array.isArray(result?.tool_events) ? result.tool_events : []
+    const events = result?.audit_status === 'unavailable' ? [] : (Array.isArray(result?.tool_events) ? result.tool_events : [])
     if (events.length > 0) {
       // Agent-loop contract: the tool-call block lives inside the assistant
       // message content AND as a durable tool/call event; the result cites the

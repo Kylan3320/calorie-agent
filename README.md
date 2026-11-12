@@ -74,3 +74,5 @@ py -3 -m venv .venv
 - [产品范围](REQUIREMENTS.md) · [饮食记录和计划](PERSONAL_CALORIE_SPEC.md) · [对话行为](CONVERSATION_EXPERIENCE_SPEC.md)
 - [本地控制台与 DSH](docs/operations.md#本地控制台与-dsh) · [运行评测](docs/operations.md#运行评测) · [存储和接口](contracts/)
 - [部署记录](reports/LATENCY_DELIVERY.md) · [早期版本](legacy/README.md) · [MIT 许可证](LICENSE)
+
+阶段 C 的通用查证、受限 Worker 与 COS v2 维护为未部署候选，验收／外部缺口见 [交付记录](reports/STAGE_C_DELIVERY.md)。维护入口为 `python deploy/maintain_cos.py --help`；资源模板见 [隔离角色模板](deploy/stage-c-isolated-plan.template.json)。不得对正式前缀运行候选切换或回收。

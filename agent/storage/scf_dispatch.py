@@ -51,7 +51,7 @@ def function_url_headers(request):
             "X-Scf-Cam-Uin": uin, "X-Scf-Cam-Timestamp": str(timestamp), "X-Scf-Cam-Token": token}
 
 
-def dispatch_event(event, headers=None):
+def dispatch_event(event, headers=None, *, target="message"):
     # SCF injects role credentials into HTTP headers; timer/CLI uses environment.
     headers = headers or {}
     secret_id = headers.get("X-Scf-Secret-Id") or os.getenv("TENCENTCLOUD_SECRET_ID") or os.getenv("TENCENTCLOUD_SECRETID", "")
@@ -59,7 +59,7 @@ def dispatch_event(event, headers=None):
     token = headers.get("X-Scf-Session-Token") or os.getenv("TENCENTCLOUD_SESSION_TOKEN") or os.getenv("TENCENTCLOUD_SESSIONTOKEN", "")
     if not secret_id or not secret_key:
         raise RuntimeError("SCF invocation role credentials missing")
-    worker = os.getenv("CALORIE_MESSAGE_FUNCTION", WORKER)
+    worker = os.environ["CALORIE_COMPUTE_FUNCTION"] if target == "compute" else os.environ["CALORIE_INGRESS_FUNCTION"] if target == "ingress" else os.getenv("CALORIE_MESSAGE_FUNCTION", WORKER)
     event = {**event, "handoff_started_epoch_ms": time.time()*1000,
              "ingress_events": list(EVENTS.get() or [])}
     body=json.dumps({"FunctionName":worker,"Namespace":"default","InvocationType":"Event",

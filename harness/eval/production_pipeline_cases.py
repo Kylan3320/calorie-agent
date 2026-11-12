@@ -276,7 +276,9 @@ def P02():
         handler.do_POST()
     def ack(self, body, status=200):
         if status == 200 and body.get("status") == "accepted":
-            assert queued and pipeline.inbox(readonly=True).get("receipt:" + body["receipt_id"])
+            assert queued
+            if 'receipt_id' in body: assert pipeline.inbox(readonly=True).get('receipt:'+body['receipt_id'])
+            else: assert queued[-1]['type']=='calorie_reminder_check'
         responses.append((body, status))
     with httpx.Client(transport=httpx.MockTransport(invoke)) as client, patch.object(scf_dispatch, "_CLIENT", client), patch.multiple(app, configured_pipeline=lambda headers=None: pipeline, load_config=lambda: config, _verify_rollover_style_token=lambda _: True), patch.object(app.Handler, "_send_json", ack):
         health = app.ingress_handler({"httpMethod": "GET", "path": "/health"})
@@ -312,18 +314,17 @@ def P02():
             with patch.object(live_client, "LiveClient", lambda: adapter):
                 accepted_tick = reminders.handler({"Time": "2026-10-31T04:00:00Z"})
             assert accepted_tick["status"] == "accepted"
-            tick = pipeline.inbox(readonly=True).get("receipt:" + accepted_tick["receipt_id"])
-            assert tick["source"] == "timer" and tick["kind"] == "reminder"
-            assert tick["reference"]["scheduled_time"] == "2026-10-31T04:00:00+00:00"
-            assert tick["message"]["user_id"] == "system" and tick["message"]["chat_id"] == "system:reminders"
-            assert not pipeline.result(tick["receipt_id"])
-            assert queued[-1]["receipt_id"] == tick["receipt_id"]
+            assert 'receipt_id' not in accepted_tick
+            assert queued[-1]['type']=='calorie_reminder_check'
+            assert queued[-1]['scheduled_time']=='2026-10-31T04:00:00+00:00'
+            timer_receipts=[key for key in pipeline.inbox(readonly=True).keys('receipt:') if pipeline.inbox(readonly=True).get(key)['source']=='timer']
+            assert not timer_receipts
             cam_env = {"CALORIE_SERVICE_AUTH": "cam", "CALORIE_CLOUD_UIN": "100000000001",
                        "TENCENTCLOUD_SECRET_ID": "function-role", "TENCENTCLOUD_SECRET_KEY": "function-key",
                        "TENCENTCLOUD_SESSION_TOKEN": "function-session"}
             with patch.dict("os.environ", cam_env), patch.object(live_client, "LiveClient", lambda: adapter):
                 cam_tick = reminders.handler({"Time": "2026-10-31T04:00:00Z"})
-            assert cam_tick["status"] == "accepted" and cam_tick["receipt_id"] == accepted_tick["receipt_id"]
+            assert cam_tick["status"] == "accepted" and "receipt_id" not in cam_tick
     # A warm SCF instance must replace its COS client when temporary role
     # credentials rotate, for both injected HTTP headers and Event environment.
     from agent.storage import execution_pipeline as pipeline_module, cos_transport

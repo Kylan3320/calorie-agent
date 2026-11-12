@@ -91,15 +91,16 @@ def _kv_table(rows: list[tuple[str, str, str]]) -> str:
 def dashboard() -> str:
     config = load_config()
     env_rows = [(key, "已设置" if os.getenv(key) else "（未设置）", "环境变量") for key in ENV_KEYS]
+    config_table = _kv_table([
+        ('preset', _esc(config.preset), 'config.yaml / env'),
+        ('planner', _esc(config.planner), 'config.yaml'),
+        ('model', _esc(config.model), 'config.yaml / env'),
+        ('allowed_tools', _esc(', '.join(config.allowed_tools)), 'config.yaml'),
+        ('timezone_offset_hours', _esc(config.timezone_offset_hours), 'config.yaml / env'),
+    ])
     body = (
         f'<div class="grid">'
-        f'<div class="card"><h3>当前配置</h3>{_kv_table([
-            ("preset", _esc(config.preset), "config.yaml / env"),
-            ("planner", _esc(config.planner), "config.yaml"),
-            ("model", _esc(config.model), "config.yaml / env"),
-            ("allowed_tools", _esc(", ".join(config.allowed_tools)), "config.yaml"),
-            ("timezone_offset_hours", _esc(config.timezone_offset_hours), "config.yaml / env"),
-        ])}</div>'
+        f'<div class="card"><h3>当前配置</h3>{config_table}</div>'
         f'<div class="card"><h3>环境变量（只显示设置与否，不显示值）</h3>{_kv_table(env_rows)}</div>'
         f'<div class="card"><h3>快捷入口</h3>'
         f'<p><a href="/playground">Playground 调试</a>（默认假存储，不发飞书消息）</p>'
@@ -372,7 +373,7 @@ def api_agent(payload: dict) -> Any:
     from agent.graph import mark_reply_presented
     if config.preset == "shadow_fakewrite":
         mark_reply_presented(store, _console_user_id(store), f"dsh:{session_id}", result)
-    result["tool_events"] = tool_events
+    result["tool_events"] = [] if result.get('audit_status')=='unavailable' else tool_events
     return result
 
 

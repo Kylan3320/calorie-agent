@@ -1,0 +1,17 @@
+{
+  "status": "unbound-template-no-deployment-performed",
+  "data_scope": "supply only an explicitly authorised isolated bucket and prefix",
+  "runtime": "Python3.10",
+  "same_business_zip": true,
+  "functions": {
+    "ingress": {"handler": "app.ingress_handler", "concurrency": 1},
+    "message": {"handler": "app.message_handler", "concurrency": 1},
+    "sync": {"handler": "app.maintenance_handler", "concurrency": 1},
+    "compute": {"handler": "app.compute_handler", "concurrency": 2, "cos_permissions": []}
+  },
+  "runtime_bindings": ["COS_BUCKET", "COS_REGION", "COS_PREFIX", "CALORIE_INGRESS_FUNCTION", "CALORIE_MESSAGE_FUNCTION", "CALORIE_COMPUTE_FUNCTION", "CALORIE_SERVICE_URL", "CALORIE_SERVICE_TOKEN", "DEEPSEEK_API_KEY"],
+  "generation_access": "provision current and candidate generation ranges before pausing; preserve ingress/message/sync ownership and immutable control decision rights",
+  "compute_access": "only scoped input GET/candidate PUT signatures; no COS role access; service control queries use per-attempt capability and instance identity",
+  "retirement": "maintainer only; deny old-role writes at COS, verify 403 with still-valid old credentials, wait all issued candidate grants to expire, then collect the immutable manifest",
+  "automatic_maintenance": "disabled until isolated validation; CALORIE_MAINTENANCE_VALIDATED=isolated-v2 is an operational gate, not evidence of a passed test"
+}

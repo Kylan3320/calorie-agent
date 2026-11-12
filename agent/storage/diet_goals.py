@@ -6,6 +6,7 @@ import json
 import time
 
 from . import memory
+from .task_control import authorized, stop
 from .bitable_adapter import stable_uuid
 
 
@@ -36,9 +37,7 @@ def save(store, user, goal):
 
 
 def _stop(goal):
-    run = goal.get("run", {})
-    if run.get("status") in {"queued", "running"}:
-        run["status"] = "terminated" if run["status"] == "queued" else "stop_requested"
+    stop(goal.get('run', {}))
 
 
 def _queue(goal, key, kind, detail, now):
@@ -134,7 +133,7 @@ def _check_scope(spec):
 
 def manage(rt, params):
     store, user = rt.store, rt.user_id
-    if not params.get("user_quote") or params["user_quote"] not in rt.message["text"]:
+    if not authorized(rt.message, params.get("user_quote")):
         return {"status": "pending", "data": {"reason": "current_authorization_required"}}
     operation = params["operation"]
     goal = load(store, user, params.get("goal_id", ""))

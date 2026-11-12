@@ -140,6 +140,8 @@ def save(store, user, kind, key, payload, *, view=None, catalog=None, new_versio
     store.save_document("memory_object", user, ref, item)
     catalog.setdefault("items", {})[base] = {k: item[k] for k in
         ("kind", "ref", "date", "chat_id", "text", "status", "turn_id") if k in item}
+    if 'text' in catalog['items'][base]:
+        catalog['items'][base]['text'] = catalog['items'][base]['text'][:320]
     store.save_document("memory_index", user, "", catalog)
     if kind in {"condition", "setting", "note", "theme"}:
         view.setdefault("current", {})[base] = ref
@@ -273,9 +275,9 @@ def _keywords(text):
 def context_view(store, user, day, turn_id, local_draft, text=""):
     view = state(store, user)
     conditions, themes, experiences = [], [], {}
-    for key, ref in view.get("current", {}).items():
-        if not key.startswith("condition:"):
-            continue
+    current = view.get('current', {})
+    conditions_index = current.prefix_items('condition:') if hasattr(current, 'prefix_items') else ((k,v) for k,v in current.items() if k.startswith('condition:'))
+    for key, ref in conditions_index:
         item, status = get(store, user, ref, view=view)
         if status != "ok" or not applicable(item, day, local_draft.get("draft_id")):
             continue
@@ -387,7 +389,8 @@ def _query(rt, params):
     if not kinds or "setting" in kinds:
         items.extend(legacy_settings(store, user, view))
     def score(item):
-        text = redact_text(view, item.get("text", "")).casefold()
+        raw_item = store.load_document('memory_object', user, item['ref']) if phrase and item.get('ref') else item
+        text = redact_text(view, raw_item.get('text', item.get('text', ''))).casefold()
         if not phrase:
             return 1
         if phrase in text:
