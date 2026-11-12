@@ -14,7 +14,6 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
 SERVICE = "scf"
 HOST = "scf.tencentcloudapi.com"
 REGION = os.getenv("SCF_REGION", "ap-shanghai")
@@ -76,7 +75,7 @@ def tc3_request(action: str, payload: dict, version: str = "2018-04-16") -> dict
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Upload the SCF function zip")
     parser.add_argument("--function", required=True, help="SCF function affected by this change")
-    parser.add_argument("zip", nargs="?", type=Path, default=ROOT / "deploy" / "calorie-agent-v4.zip")
+    parser.add_argument("zip", type=Path, help="verified ZIP to upload")
     args = parser.parse_args(argv)
     zip_path = args.zip.expanduser().resolve()
     zip_b64 = base64.b64encode(zip_path.read_bytes()).decode()

@@ -474,24 +474,7 @@ R4受控COS对照与原始输入继续复用，下方“首轮前COS配对”及
 
 ### 正式升级与回退步骤（本轮不执行）
 
-1. 固定以上BUILD/SHA、三类暖证据、原话两轮/知识、归档最终版本及本节试用判定。个人试用例外只适用于该包，需用户针对实际等待和影响明确接受；正式或个人试用部署都另行指令。
-2. 按README在同一进程读取仓库外凭据；inspect三个正式函数，将原代码及私有配置安全备份到仓库外。保留正式前缀/角色/表/源版本/未完成收件，不重跑迁移或COS回收；核对blocked/未知归档及已有inflight，旧请求不自动换键。隔离候选的一次operator修复不授权对正式历史批量处理。
-3. maintenance-on仅暂停正式入口新受理，核对已受理/未知提交；用现有api_deploy.py向三个正式函数显式上传同一冻结ZIP（CodeSource=ZipFile、Code.ZipFile）。保留HTTP受理类型、消息app.message_handler、归档app.maintenance_handler、Python3.10/512MB/120秒/并发1、Layer7及触发配置。
-4. 每次写API已受理后只轮询Active；下载实际代码，核对BUILD及全部成员。HTTP重封装整体SHA不同时逐成员核实，不因容器SHA单独误回退。核对配置指纹、health、回调鉴权后maintenance-off。失败恢复备份原代码/配置并重复读回核对；不得重放已提交业务。
-
-获准发布后，在README所述同一凭据进程中执行；每次上传之间完成上述Active及实际代码核对，不能将以下命令当作无检查的一键脚本：
-
-```powershell
-python -B deploy/production_release.py freeze
-python -B deploy/production_release.py maintenance-on --function calorie-agent-api-v3-test
-python -B deploy/api_deploy.py --function calorie-agent-api-v3-test deploy/calorie-agent-v4.zip
-python -B deploy/api_deploy.py --function calorie-agent-reminder deploy/calorie-agent-v4.zip
-python -B deploy/api_deploy.py --function calorie-agent-archive deploy/calorie-agent-v4.zip
-# 三函数代码、私有配置和health均核对通过后：
-python -B deploy/production_release.py maintenance-off --function calorie-agent-api-v3-test
-```
-
-上述R7为历史候选，当前本机同名ZIP以本文最新R10节为准，不代表正式函数代码。正式仍为 `cos-production-8794be0e62e0015b`，原包/私有配置回退资料见生产交付记录；本节旧发布步骤不构成新包授权。
+R7 当时暂缓试用。现行发布与回退步骤见[运维手册](../docs/operations.md#云函数部署)。
 
 ## 2026-11-04 P0→P2（实现完成，候选部分通过，正式未发布）
 
@@ -565,10 +548,7 @@ R4跨轮替换已通过：从实际展示草案指定draft_id，仅替换I3/I7�
 
 ### 部署步骤（本轮不执行）
 
-1. 对照本节构建/SHA、Linux装配及候选各维度结果；用README加载仓库外CSV，在同一凭据进程运行production_release.py inspect查看三个正式函数。API下载原代码并安全备份原配置作为回退，密钥不进报告。
-2. 更新时maintenance-on暂停正式受理，核对已受理队列；本轮提交格式未迁移，保留原前缀/角色/表/未完任务。按原键恢复，不重放已提交业务。
-3. 用现有 `python deploy/api_deploy.py --function NAME deploy/calorie-agent-v4.zip` 显式分别更新calorie-agent-api-v3-test、calorie-agent-reminder、calorie-agent-archive。上传使用CodeSource=ZipFile和Code.ZipFile；保留HTTP受理类型、消息app.message_handler/归档app.maintenance_handler，Python3.10/512MB/120秒/并发1及Layer7。
-4. 每个写API只调用一次，接受后轮询Active；下载实际包核对BUILD_ID及成员内容。HTTP平台可能重封装ZIP，须记录实际容器SHA并逐成员验证，不能只因整体SHA不同误回退。核对role/env前缀/Layer/触发后检查health和回调鉴权，再maintenance-off。失败回退原包和配置并重新核对。正式发布需后续明确执行，本轮没有上传正式环境。
+该候选未达整包门槛。现行发布与回退步骤见[运维手册](../docs/operations.md#云函数部署)。
 
 ## 历史验收（保留原构建结论）
 

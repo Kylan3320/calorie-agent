@@ -69,7 +69,7 @@ PYTHON=python3.10 bash deploy/build_zip.sh
 python3.10 deploy/check_package.py --package /path/to/candidate.zip --layer /path/to/frozen-layer.zip --output reports/package-check.json
 ```
 
-检查从两个 ZIP 临时解压加载，隔离仓库源码和本机 site-packages，记录业务包和 Layer 的 SHA256、业务包 BUILD_ID 和索引 INDEX_VERSION。该检查证明装配和启动。业务证据按[交流体验规格](../CONVERSATION_EXPERIENCE_SPEC.md#6-验收判据与交付)选取。`production_live.py` 的 `report` 阶段在最终门槛未满足时返回非零，补证后可直接重算报告。
+装配检查核对两个 ZIP 的 SHA256、BUILD_ID、INDEX_VERSION 和隔离启动。`production_live.py` 的 `report` 只判定账本三项、归档和清理。整包判定按[交流体验规格](../CONVERSATION_EXPERIENCE_SPEC.md#6-验收判据与交付)核对规划、知识和行动说明等所需证据。
 
 本机日常更新可直接调用腾讯云 API。部署凭据在仓库外 `%USERPROFILE%\.config\calorie-agent\tencentcloud-credentials.csv`，CSV 列为 `SecretId`、`SecretKey`；文件只允许本机用户和 SYSTEM 访问。不要回显密钥或将文件复制进仓库、报告、部署包。
 
@@ -91,7 +91,7 @@ $releasePackage = 'C:\path\to\approved-candidate.zip'
 
 按实际改动更新受影响函数：受理 Web 函数 `calorie-agent-api-v3-test`、消息 Event 函数 `calorie-agent-reminder`、归档 Event 函数 `calorie-agent-archive`。状态兼容的更新沿用以下步骤：
 
-1. 以发布记录的 BUILD_ID 和 SHA256 为准，用 `Get-FileHash -LiteralPath $releasePackage -Algorithm SHA256` 核对待上传文件一次。检查受影响函数，将原包及私有配置备份到仓库外。
+1. 用 `python deploy/production_release.py freeze --package $releasePackage` 读取待上传包的 BUILD_ID 和 SHA256，与发布记录核对。检查受影响函数，将原包及私有配置备份到仓库外。
 2. 用 `production_release.py maintenance-on --function calorie-agent-api-v3-test` 暂停新受理，核对未完收件及未知提交，保留原任务。
 3. 向受影响函数显式上传同一冻结包，例如 `python deploy/api_deploy.py --function calorie-agent-reminder $releasePackage`。保留角色、前缀、环境、触发及所需 Layer。消息 handler 为 app.message_handler，归档为 app.maintenance_handler。每个已受理更新仅轮询至 Active。
 4. 每个更新的函数下载一次实际代码，核对包身份和所需配置，记录结果。下载 ZIP 的 SHA256 与原包一致即确认代码身份。HTTP 平台重封装导致整体哈希不同时，用同一份下载文件核对 BUILD_ID 及全部成员内容。代码核对结果沿用到本次发布结束，只有代码版本发生变化或出现具体疑点才复查。
@@ -99,15 +99,19 @@ $releasePackage = 'C:\path\to\approved-candidate.zip'
 
 脚本从环境读取 TENCENTCLOUD_SECRET_ID／TENCENTCLOUD_SECRET_KEY，临时凭据另需 TENCENTCLOUD_SESSION_TOKEN；SCF_REGION 默认 ap-shanghai。资源及首次切换记录见 [生产计划](../deploy/cos-production-plan.json)。该计划及 `cloudshell_cutover.py` 保留首次迁移恢复用途；日常更新按上述发布步骤，不重跑首次迁移、COS维护回收或未受影响的候选验收。迁移接口见 [Bitable 契约](../contracts/bitable_schema.md#旧-bitable-状态与迁移)。
 
+## 收件恢复
+
+归档函数 `app.maintenance_handler` 定期唤醒仍可自动恢复的收件。自动恢复耗尽或出现 `needs_attention` 时，先核对原收件、提交状态和交付状态。原因查明后，向同一数据域的消息函数提交原 `calorie_message` 事件，附 `manual_recovery=true`。沿用原 `receipt_id`、`ingress_revision`、`message_id`、`user_id` 和 `chat_id`。
+
 ## 知识维护与发布
 
 日常知识维护在 Bitable 表内编辑。初次建表可用 `python deploy/seed_knowledge.py` 同步内置条目。
 
-在 Linux Python 3.10 环境构建，复用经 SHA256 核验的已发布 Layer 依赖：
+在 Linux Python 3.10 环境构建。用[当前部署记录](../reports/LATENCY_DELIVERY.md#当前部署)中的已发布 Layer ZIP 和 SHA256 替换下列示例值。
 
 ```bash
-export RAG_BASE_LAYER="$PWD/reports/production-candidate/knowledge-source-fix/rag-layer-sourcefix-20261102-69ca0bd3e30f6317.zip"
-export RAG_BASE_LAYER_SHA256="3ac484a780b3adff15d2c2c625a67ac4fd05247994dc1ee6193071e9f7662936"
+export RAG_BASE_LAYER=/path/to/published-layer.zip
+export RAG_BASE_LAYER_SHA256=published-layer-sha256
 export RAG_INDEX_SOURCE="$PWD/deploy/rag_index/$(date -u +%Y%m%d%H%M%S)"
 export RAG_LAYER_OUTPUT="$PWD/deploy/rag-layer-$(date -u +%Y%m%d%H%M%S).zip"
 python3.10 deploy/ingest_knowledge.py --base-layer "$RAG_BASE_LAYER" --base-sha256 "$RAG_BASE_LAYER_SHA256" --output "$RAG_INDEX_SOURCE"

@@ -16,14 +16,16 @@ from deploy import api_deploy, check_package, deploy_rag_layer, ingest_knowledge
 
 def RL01():
     """Explicit targets, preserved credentials/configuration and frozen artifact binding."""
-    for module in (api_deploy, deploy_rag_layer):
+    for module, arguments in ((api_deploy, []), (api_deploy, ["--function", "message-worker"]),
+                              (deploy_rag_layer, []), (production_release, ["freeze"]),
+                              (check_package, ["--layer", "layer.zip"])):
         with contextlib.redirect_stderr(io.StringIO()):
             try:
-                module.main([])
+                module.main(arguments)
             except SystemExit as exc:
                 assert exc.code == 2
             else:
-                raise AssertionError("release without a function target was accepted")
+                raise AssertionError(f"release accepted incomplete arguments: {arguments}")
     with tempfile.TemporaryDirectory() as temporary:
         package = Path(temporary) / "package.zip"
         package.write_bytes(b"frozen-package")
@@ -35,7 +37,7 @@ def RL01():
             api_deploy.main(["--function", "message-worker", str(package)])
         assert [action for action, _ in calls] == ["UpdateFunctionCode", "GetFunction"]
         assert all(payload["FunctionName"] == "message-worker" for _, payload in calls)
-        assert base64.b64decode(calls[0][1]["ZipFile"]) == b"frozen-package"
+        assert base64.b64decode(calls[0][1]["Code"]["ZipFile"]) == b"frozen-package"
     calls = []
     def request(action, payload):
         calls.append((action, payload))
@@ -80,6 +82,10 @@ def RL01():
             archive.writestr("rag_index/INDEX_VERSION", "fixture-index")
             archive.writestr("dependency.py", "frozen dependency")
         body, layer_body = package.read_bytes(), layer.read_bytes()
+        frozen = io.StringIO()
+        with contextlib.redirect_stdout(frozen):
+            production_release.main(["freeze", "--package", str(package)])
+        assert json.loads(frozen.getvalue()) == production_release.package_identity(package, body)
         runtime = {"health": {"build_id": "fixture-build"}, "python": "3.10", "platform": "linux"}
         def run(command, **kwargs):
             assert command[1:3] == ["-I", "-S"] and command[4] == "--runtime"

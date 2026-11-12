@@ -5,7 +5,7 @@
   "namespace": "default",
   "runtime": "Python3.10",
   "package": "deploy/calorie-agent-v4.zip",
-  "freeze_command": "python deploy/production_release.py freeze",
+  "freeze_command": "python deploy/production_release.py freeze --package <verified-frozen-package.zip>",
   "candidate": {
     "prefix": "cos-probe/production-candidate/20261102/",
     "bucket": "calorie-cos-probe-20261101-1440448581",
