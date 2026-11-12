@@ -123,7 +123,7 @@ class Pipeline:
             state["legacy_budget"] = origin is None
             state["budget_started_at"] = origin if origin is not None else time.time()
             state["deadline_at"] = state["budget_started_at"] + load_config().deadline_seconds
-        return {**receipt["message"], "received_at": receipt.get("received_at"),
+        return {**receipt["message"], "received_at": receipt.get("received_at"), "delivery_source": receipt["source"],
                 "budget_started_at": state["budget_started_at"], "legacy_budget": state["legacy_budget"],
                 "deadline_at": state["deadline_at"], "recovery_attempt": state.get("attempts", 0) + state.get("manual_attempts", 0)}
 
@@ -267,6 +267,13 @@ class Pipeline:
         worker_started_at = time.time()
         from agent.config import load_config
         config = load_config()
+        if event.get("type") == "calorie_diet_goal":
+            if config.preset != "live":
+                return {"status": "skipped_preset"}
+            from . import diet_goal_runtime, feishu_client
+            store = self.store()
+            store.confirm_current()
+            return diet_goal_runtime.writer(store, event, config, send=send or feishu_client.send_text)
         if event.get("type") in {"calorie_experience", "calorie_memory_backfill"}:
             if config.preset != "live":
                 return {"status": "skipped_preset"}

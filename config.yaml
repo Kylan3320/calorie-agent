@@ -19,6 +19,8 @@ allowed_tools:
   - calculate_meal
   - update_user_settings
   - query_memory
+  - query_diet_goal
+  - manage_diet_goal
 
 # 本地时区偏移（小时），用于“今天”的口径
 timezone_offset_hours: 8

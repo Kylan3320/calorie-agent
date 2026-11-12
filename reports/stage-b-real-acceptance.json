@@ -1,0 +1,748 @@
+{
+  "run": "2026-11-13T00:25:31+08:00",
+  "environment": "Official DeepSeek model with isolated FakeStore and in-memory journal. Production COS and Feishu were not used.",
+  "E09": {
+    "status": "pass",
+    "turns": [
+      {
+        "id": "goal-start",
+        "status": "ok",
+        "model_calls": 2,
+        "reply": "已建立饮食委托。2026-11-14至2026-11-20，在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。。已排队核算，可稍后查看进度。主动通知关闭。",
+        "user": "请从 2026-11-14 到 2026-11-20 持续帮我跟进每天的午餐，先把七天的午餐都排好。只用家里已有的米饭、鸡胸肉和鸡蛋，这三样都已经煮熟，尽量一起备餐，按我现在的营养目标考虑，午餐大约四百千卡。我反馈食材或设备变化时再调整，平时不用主动通知。",
+        "goal_facts": [
+          {
+            "tool": "manage_diet_goal",
+            "status": "ok",
+            "goal": {
+              "id": "diet-goal:28761f9e-4ccd-4bc6-9d78-4b71cd40178e",
+              "revision": 1,
+              "status": "active",
+              "auto": true,
+              "notify": false,
+              "objective": "在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。",
+              "starts": "2026-11-14",
+              "ends": "2026-11-20",
+              "constraints": [
+                "只用米饭、鸡胸肉和鸡蛋三种食材",
+                "三样食材均已煮熟",
+                "午餐约400千卡",
+                "尽量一起备餐"
+              ],
+              "dated_constraints": {},
+              "locks": [],
+              "done_when": "七天的午餐全部排好并交付；用户反馈食材或设备变化时相应调整",
+              "next_step": "",
+              "waiting_for": "",
+              "last_change": "请从 2026-11-14 到 2026-11-20 持续帮我跟进每天的午餐，先把七天的午餐都排好。只用家里已有的米饭、鸡胸肉和鸡蛋，这三样都已经煮熟，尽量一起备餐，按我现在的营养目标考虑，午餐大约四百千卡。我反馈食材或设备变化时再调整，平时不用主动通知。",
+              "last_check": null,
+              "run": {},
+              "latest": null,
+              "delivered": null,
+              "delivery_status": null,
+              "pending": true,
+              "triggers": [
+                "feedback"
+              ],
+              "check_time": null
+            },
+            "operation": "start"
+          }
+        ]
+      },
+      {
+        "id": "goal-claim",
+        "status": "running",
+        "run_id": "445041d8-2d42-48c9-9e5d-d9bbcdbefa9f"
+      },
+      {
+        "id": "goal-initial-plan",
+        "status": "applied",
+        "latest": 1,
+        "changed": true,
+        "candidate": {
+          "status": "ready",
+          "outcome": "plan",
+          "reason": "限定食材仅米饭、鸡胸肉、鸡蛋且均已煮熟，委托只要求排午餐",
+          "usage": {
+            "decisions": 3,
+            "steps": [
+              {
+                "tool": "query_food_nutrition",
+                "status": "pending"
+              },
+              {
+                "tool": "query_memory",
+                "status": "ok"
+              },
+              {
+                "tool": "calculate_meal",
+                "status": "ok",
+                "days": [
+                  {
+                    "date": "2026-11-14",
+                    "status": "ok",
+                    "draft_id": "draft:c459a1cfdbcd3c326aaf0c76",
+                    "unresolved": []
+                  },
+                  {
+                    "date": "2026-11-15",
+                    "status": "ok",
+                    "draft_id": "draft:6b478c22677049b8115c773d",
+                    "unresolved": []
+                  },
+                  {
+                    "date": "2026-11-16",
+                    "status": "ok",
+                    "draft_id": "draft:efdb5515ce977297196a51fb",
+                    "unresolved": []
+                  },
+                  {
+                    "date": "2026-11-17",
+                    "status": "ok",
+                    "draft_id": "draft:cc137426d022cf96bafbf54b",
+                    "unresolved": []
+                  },
+                  {
+                    "date": "2026-11-18",
+                    "status": "ok",
+                    "draft_id": "draft:9ad24b4a1c191e9f2ee1024a",
+                    "unresolved": []
+                  },
+                  {
+                    "date": "2026-11-19",
+                    "status": "ok",
+                    "draft_id": "draft:dad1ac7578989372badd7661",
+                    "unresolved": []
+                  },
+                  {
+                    "date": "2026-11-20",
+                    "status": "ok",
+                    "draft_id": "draft:a3f52bb7b8a319ab8b471d59",
+                    "unresolved": []
+                  }
+                ]
+              },
+              {
+                "tool": "submit_goal_result",
+                "status": "ok",
+                "outcome": "plan",
+                "dates": [
+                  "2026-11-14",
+                  "2026-11-15",
+                  "2026-11-16",
+                  "2026-11-17",
+                  "2026-11-18",
+                  "2026-11-19",
+                  "2026-11-20"
+                ]
+              }
+            ]
+          },
+          "plans": {
+            "2026-11-14": {
+              "foods": [
+                {
+                  "name": "米饭",
+                  "grams": 170.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡胸肉",
+                  "grams": 100.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡蛋",
+                  "grams": 50.0,
+                  "servings": 1.0
+                }
+              ],
+              "kcal": 399.7,
+              "independent_kcal": 399.7,
+              "daily_target": 1900
+            },
+            "2026-11-15": {
+              "foods": [
+                {
+                  "name": "米饭",
+                  "grams": 170.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡胸肉",
+                  "grams": 100.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡蛋",
+                  "grams": 50.0,
+                  "servings": 1.0
+                }
+              ],
+              "kcal": 399.7,
+              "independent_kcal": 399.7,
+              "daily_target": 1900
+            },
+            "2026-11-16": {
+              "foods": [
+                {
+                  "name": "米饭",
+                  "grams": 170.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡胸肉",
+                  "grams": 100.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡蛋",
+                  "grams": 50.0,
+                  "servings": 1.0
+                }
+              ],
+              "kcal": 399.7,
+              "independent_kcal": 399.7,
+              "daily_target": 1900
+            },
+            "2026-11-17": {
+              "foods": [
+                {
+                  "name": "米饭",
+                  "grams": 170.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡胸肉",
+                  "grams": 100.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡蛋",
+                  "grams": 50.0,
+                  "servings": 1.0
+                }
+              ],
+              "kcal": 399.7,
+              "independent_kcal": 399.7,
+              "daily_target": 1900
+            },
+            "2026-11-18": {
+              "foods": [
+                {
+                  "name": "米饭",
+                  "grams": 170.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡胸肉",
+                  "grams": 100.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡蛋",
+                  "grams": 50.0,
+                  "servings": 1.0
+                }
+              ],
+              "kcal": 399.7,
+              "independent_kcal": 399.7,
+              "daily_target": 1900
+            },
+            "2026-11-19": {
+              "foods": [
+                {
+                  "name": "米饭",
+                  "grams": 170.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡胸肉",
+                  "grams": 100.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡蛋",
+                  "grams": 50.0,
+                  "servings": 1.0
+                }
+              ],
+              "kcal": 399.7,
+              "independent_kcal": 399.7,
+              "daily_target": 1900
+            },
+            "2026-11-20": {
+              "foods": [
+                {
+                  "name": "米饭",
+                  "grams": 170.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡胸肉",
+                  "grams": 100.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡蛋",
+                  "grams": 50.0,
+                  "servings": 1.0
+                }
+              ],
+              "kcal": 399.7,
+              "independent_kcal": 399.7,
+              "daily_target": 1900
+            }
+          }
+        }
+      },
+      {
+        "id": "goal-status",
+        "status": "ok",
+        "model_calls": 2,
+        "reply": "进度：11月14–20日的七天午餐已排定并采用（限定米饭、鸡胸肉、鸡蛋三种食材，均已煮熟，每餐约400千卡、尽量一起备餐）。当前没有待处理任务，也没有等你的信息；后台最近一次检查在11月13日，已完成。\n\n以后调整的触发条件只有一个：你反馈食材或设备变化时，我按天相应调整。目前没有设置定时检查，也没有开启主动通知，所以之后不会定时提醒或主动推送；你想调整时直接告诉我就行。",
+        "user": "我那周的午餐现在安排到哪了？先只告诉我进度和以后什么时候再调整。",
+        "goal_facts": [
+          {
+            "tool": "query_diet_goal",
+            "status": "ok",
+            "goal": {
+              "id": "diet-goal:28761f9e-4ccd-4bc6-9d78-4b71cd40178e",
+              "revision": 1,
+              "status": "active",
+              "auto": true,
+              "notify": false,
+              "objective": "在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。",
+              "starts": "2026-11-14",
+              "ends": "2026-11-20",
+              "constraints": [
+                "只用米饭、鸡胸肉和鸡蛋三种食材",
+                "三样食材均已煮熟",
+                "午餐约400千卡",
+                "尽量一起备餐"
+              ],
+              "dated_constraints": {},
+              "locks": [],
+              "done_when": "七天的午餐全部排好并交付；用户反馈食材或设备变化时相应调整",
+              "next_step": "七天午餐已排定并采用；每餐加热即可。若反馈食材或设备变化，再按天调整。",
+              "waiting_for": "",
+              "last_change": "限定食材仅米饭、鸡胸肉、鸡蛋且均已煮熟，委托只要求排午餐",
+              "last_check": 1794500756.2996843,
+              "run": {
+                "id": "445041d8-2d42-48c9-9e5d-d9bbcdbefa9f",
+                "status": "complete",
+                "day": "2026-11-13"
+              },
+              "latest": 1,
+              "delivered": null,
+              "delivery_status": null,
+              "pending": false,
+              "triggers": [
+                "feedback"
+              ],
+              "check_time": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "goal-show",
+        "status": "ok",
+        "model_calls": 3,
+        "reply": "当日委托安排（2026-11-14）：\n午餐：\n- 米饭，每份可食170克×1份（建议份量），197.2千卡。\n- 鸡胸肉，每份可食100克×1份（建议份量），133千卡。\n- 鸡蛋，每份可食50克×1份（建议份量），69.5千卡。\n保留条件：只用米饭、鸡胸肉和鸡蛋三种食材；三样食材均已煮熟；午餐约400千卡；尽量一起备餐。\n菜单合计估算399.7千卡，碳水64克、蛋白质32克、脂肪3.2克。\n适用目标：1900千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1500.3千卡，碳水186克，蛋白质118克，脂肪66.8克。\n\n当日委托安排（2026-11-15）：\n午餐：\n- 米饭，每份可食170克×1份（建议份量），197.2千卡。\n- 鸡胸肉，每份可食100克×1份（建议份量），133千卡。\n- 鸡蛋，每份可食50克×1份（建议份量），69.5千卡。\n保留条件：只用米饭、鸡胸肉和鸡蛋三种食材；三样食材均已煮熟；午餐约400千卡；尽量一起备餐。\n菜单合计估算399.7千卡，碳水64克、蛋白质32克、脂肪3.2克。\n适用目标：1900千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1500.3千卡，碳水186克，蛋白质118克，脂肪66.8克。\n\n当日委托安排（2026-11-16）：\n午餐：\n- 米饭，每份可食170克×1份（建议份量），197.2千卡。\n- 鸡胸肉，每份可食100克×1份（建议份量），133千卡。\n- 鸡蛋，每份可食50克×1份（建议份量），69.5千卡。\n保留条件：只用米饭、鸡胸肉和鸡蛋三种食材；三样食材均已煮熟；午餐约400千卡；尽量一起备餐。\n菜单合计估算399.7千卡，碳水64克、蛋白质32克、脂肪3.2克。\n适用目标：1900千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1500.3千卡，碳水186克，蛋白质118克，脂肪66.8克。\n\n当日委托安排（2026-11-17）：\n午餐：\n- 米饭，每份可食170克×1份（建议份量），197.2千卡。\n- 鸡胸肉，每份可食100克×1份（建议份量），133千卡。\n- 鸡蛋，每份可食50克×1份（建议份量），69.5千卡。\n保留条件：只用米饭、鸡胸肉和鸡蛋三种食材；三样食材均已煮熟；午餐约400千卡；尽量一起备餐。\n菜单合计估算399.7千卡，碳水64克、蛋白质32克、脂肪3.2克。\n适用目标：1900千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1500.3千卡，碳水186克，蛋白质118克，脂肪66.8克。\n\n当日委托安排（2026-11-18）：\n午餐：\n- 米饭，每份可食170克×1份（建议份量），197.2千卡。\n- 鸡胸肉，每份可食100克×1份（建议份量），133千卡。\n- 鸡蛋，每份可食50克×1份（建议份量），69.5千卡。\n保留条件：只用米饭、鸡胸肉和鸡蛋三种食材；三样食材均已煮熟；午餐约400千卡；尽量一起备餐。\n菜单合计估算399.7千卡，碳水64克、蛋白质32克、脂肪3.2克。\n适用目标：1900千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1500.3千卡，碳水186克，蛋白质118克，脂肪66.8克。\n\n当日委托安排（2026-11-19）：\n午餐：\n- 米饭，每份可食170克×1份（建议份量），197.2千卡。\n- 鸡胸肉，每份可食100克×1份（建议份量），133千卡。\n- 鸡蛋，每份可食50克×1份（建议份量），69.5千卡。\n保留条件：只用米饭、鸡胸肉和鸡蛋三种食材；三样食材均已煮熟；午餐约400千卡；尽量一起备餐。\n菜单合计估算399.7千卡，碳水64克、蛋白质32克、脂肪3.2克。\n适用目标：1900千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1500.3千卡，碳水186克，蛋白质118克，脂肪66.8克。\n\n当日委托安排（2026-11-20）：\n午餐：\n- 米饭，每份可食170克×1份（建议份量），197.2千卡。\n- 鸡胸肉，每份可食100克×1份（建议份量），133千卡。\n- 鸡蛋，每份可食50克×1份（建议份量），69.5千卡。\n保留条件：只用米饭、鸡胸肉和鸡蛋三种食材；三样食材均已煮熟；午餐约400千卡；尽量一起备餐。\n菜单合计估算399.7千卡，碳水64克、蛋白质32克、脂肪3.2克。\n适用目标：1900千卡，碳水250克、蛋白质150克、脂肪70克。\n差额：热量1500.3千卡，碳水186克，蛋白质118克，脂肪66.8克。\n\n下一步 七天午餐已排定并采用；每餐加热即可。若反馈食材或设备变化，再按天调整。\n\n调整依据 限定食材仅米饭、鸡胸肉、鸡蛋且均已煮熟，委托只要求排午餐\n\n备餐方法 冷藏分装",
+        "goal_delivery_ref": {
+          "id": "diet-goal:28761f9e-4ccd-4bc6-9d78-4b71cd40178e",
+          "version": 1
+        },
+        "user": "把现在最新的一周午餐安排给我看看。",
+        "goal_facts": [
+          {
+            "tool": "query_diet_goal",
+            "status": "ok",
+            "goal": {
+              "id": "diet-goal:28761f9e-4ccd-4bc6-9d78-4b71cd40178e",
+              "revision": 1,
+              "status": "active",
+              "auto": true,
+              "notify": false,
+              "objective": "在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。",
+              "starts": "2026-11-14",
+              "ends": "2026-11-20",
+              "constraints": [
+                "只用米饭、鸡胸肉和鸡蛋三种食材",
+                "三样食材均已煮熟",
+                "午餐约400千卡",
+                "尽量一起备餐"
+              ],
+              "dated_constraints": {},
+              "locks": [],
+              "done_when": "七天的午餐全部排好并交付；用户反馈食材或设备变化时相应调整",
+              "next_step": "七天午餐已排定并采用；每餐加热即可。若反馈食材或设备变化，再按天调整。",
+              "waiting_for": "",
+              "last_change": "限定食材仅米饭、鸡胸肉、鸡蛋且均已煮熟，委托只要求排午餐",
+              "last_check": 1794500756.2996843,
+              "run": {
+                "id": "445041d8-2d42-48c9-9e5d-d9bbcdbefa9f",
+                "status": "complete",
+                "day": "2026-11-13"
+              },
+              "latest": 1,
+              "delivered": null,
+              "delivery_status": null,
+              "pending": false,
+              "triggers": [
+                "feedback"
+              ],
+              "check_time": null
+            }
+          },
+          {
+            "tool": "query_memory",
+            "status": "ok"
+          }
+        ]
+      },
+      {
+        "id": "goal-change",
+        "status": "ok",
+        "model_calls": 3,
+        "reply": "已修改饮食委托。2026-11-14至2026-11-20，在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。。已排队核算，可稍后查看进度。主动通知关闭。",
+        "user": "2026-11-14 的午餐我已经备好，锁定别改。只改 2026-11-15 的午餐，那天米饭吃完了，只有鸡胸肉和鸡蛋，能用的设备只有微波炉。其他日期保留原样，仍然不用主动通知。",
+        "goal_facts": [
+          {
+            "tool": "manage_diet_goal",
+            "status": "error"
+          },
+          {
+            "tool": "manage_diet_goal",
+            "status": "ok",
+            "goal": {
+              "id": "diet-goal:28761f9e-4ccd-4bc6-9d78-4b71cd40178e",
+              "revision": 2,
+              "status": "active",
+              "auto": true,
+              "notify": false,
+              "objective": "在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。",
+              "starts": "2026-11-14",
+              "ends": "2026-11-20",
+              "constraints": [
+                "只用米饭、鸡胸肉和鸡蛋三种食材",
+                "三样食材均已煮熟",
+                "午餐约400千卡",
+                "尽量一起备餐"
+              ],
+              "dated_constraints": {
+                "2026-11-15": [
+                  "当天没有米饭，只用鸡胸肉和鸡蛋",
+                  "鸡胸肉和鸡蛋均已煮熟",
+                  "午餐约400千卡",
+                  "备餐设备只有微波炉"
+                ]
+              },
+              "locks": [
+                {
+                  "date": "2026-11-14",
+                  "meal": "lunch"
+                }
+              ],
+              "done_when": "七天的午餐全部排好并交付；用户反馈食材或设备变化时相应调整",
+              "next_step": "七天午餐已排定并采用；每餐加热即可。若反馈食材或设备变化，再按天调整。",
+              "waiting_for": "",
+              "last_change": "2026-11-14 的午餐我已经备好，锁定别改。只改 2026-11-15 的午餐，那天米饭吃完了，只有鸡胸肉和鸡蛋，能用的设备只有微波炉。其他日期保留原样，仍然不用主动通知。",
+              "last_check": 1794500756.2996843,
+              "run": {
+                "id": "445041d8-2d42-48c9-9e5d-d9bbcdbefa9f",
+                "status": "complete",
+                "day": "2026-11-13"
+              },
+              "latest": 1,
+              "delivered": 1,
+              "delivery_status": null,
+              "pending": true,
+              "triggers": [
+                "feedback"
+              ],
+              "check_time": null
+            },
+            "operation": "revise"
+          }
+        ]
+      },
+      {
+        "id": "goal-change-claim",
+        "status": "running",
+        "run_id": "8af08391-137b-411a-b347-de8d5230b2c7"
+      },
+      {
+        "id": "goal-auto-off",
+        "status": "ok",
+        "model_calls": 2,
+        "reply": "已关闭后续自动触发。当前运行继续。",
+        "user": "以后别自动检查或调整了，手头正在做的这次请继续，我以后要改会自己来问。",
+        "goal_facts": [
+          {
+            "tool": "manage_diet_goal",
+            "status": "ok",
+            "goal": {
+              "id": "diet-goal:28761f9e-4ccd-4bc6-9d78-4b71cd40178e",
+              "revision": 2,
+              "status": "active",
+              "auto": false,
+              "notify": false,
+              "objective": "在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。",
+              "starts": "2026-11-14",
+              "ends": "2026-11-20",
+              "constraints": [
+                "只用米饭、鸡胸肉和鸡蛋三种食材",
+                "三样食材均已煮熟",
+                "午餐约400千卡",
+                "尽量一起备餐"
+              ],
+              "dated_constraints": {
+                "2026-11-15": [
+                  "当天没有米饭，只用鸡胸肉和鸡蛋",
+                  "鸡胸肉和鸡蛋均已煮熟",
+                  "午餐约400千卡",
+                  "备餐设备只有微波炉"
+                ]
+              },
+              "locks": [
+                {
+                  "date": "2026-11-14",
+                  "meal": "lunch"
+                }
+              ],
+              "done_when": "七天的午餐全部排好并交付；用户反馈食材或设备变化时相应调整",
+              "next_step": "七天午餐已排定并采用；每餐加热即可。若反馈食材或设备变化，再按天调整。",
+              "waiting_for": "",
+              "last_change": "2026-11-14 的午餐我已经备好，锁定别改。只改 2026-11-15 的午餐，那天米饭吃完了，只有鸡胸肉和鸡蛋，能用的设备只有微波炉。其他日期保留原样，仍然不用主动通知。",
+              "last_check": 1794500756.2996843,
+              "run": {
+                "id": "8af08391-137b-411a-b347-de8d5230b2c7",
+                "status": "running",
+                "day": "2026-11-13"
+              },
+              "latest": 1,
+              "delivered": 1,
+              "delivery_status": null,
+              "pending": false
+            },
+            "operation": "set_auto"
+          }
+        ]
+      },
+      {
+        "id": "goal-updated-plan",
+        "status": "applied",
+        "latest": 2,
+        "changed": true,
+        "candidate": {
+          "status": "ready",
+          "outcome": "plan",
+          "reason": "按用户反馈只改11月15日：当天无米饭，两项均为已熟食材，微波炉加热即可完成。11月14日锁定餐次与其他五天维持原安排不动。",
+          "usage": {
+            "decisions": 3,
+            "steps": [
+              {
+                "tool": "query_food_nutrition",
+                "status": "pending"
+              },
+              {
+                "tool": "calculate_meal",
+                "status": "ok",
+                "days": [
+                  {
+                    "date": "2026-11-15",
+                    "status": "ok",
+                    "draft_id": "draft:1cd86606b8044a6f89b1e3fe",
+                    "unresolved": []
+                  }
+                ]
+              },
+              {
+                "tool": "submit_goal_result",
+                "status": "ok",
+                "outcome": "plan",
+                "dates": [
+                  "2026-11-15"
+                ]
+              }
+            ]
+          },
+          "plans": {
+            "2026-11-15": {
+              "foods": [
+                {
+                  "name": "鸡胸肉",
+                  "grams": 200.0,
+                  "servings": 1.0
+                },
+                {
+                  "name": "鸡蛋",
+                  "grams": 100.0,
+                  "servings": 1.0
+                }
+              ],
+              "kcal": 405.0,
+              "independent_kcal": 405.0,
+              "daily_target": 1900
+            }
+          }
+        }
+      },
+      {
+        "id": "goal-manual-check",
+        "status": "ok",
+        "model_calls": 2,
+        "reply": "已排队手动检查。核算完成后可查看结果。",
+        "user": "现在手动帮我检查一遍这周的安排还合不合适。",
+        "goal_facts": [
+          {
+            "tool": "manage_diet_goal",
+            "status": "ok",
+            "goal": {
+              "id": "diet-goal:28761f9e-4ccd-4bc6-9d78-4b71cd40178e",
+              "revision": 2,
+              "status": "active",
+              "auto": false,
+              "notify": false,
+              "objective": "在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。",
+              "starts": "2026-11-14",
+              "ends": "2026-11-20",
+              "constraints": [
+                "只用米饭、鸡胸肉和鸡蛋三种食材",
+                "三样食材均已煮熟",
+                "午餐约400千卡",
+                "尽量一起备餐"
+              ],
+              "dated_constraints": {
+                "2026-11-15": [
+                  "当天没有米饭，只用鸡胸肉和鸡蛋",
+                  "鸡胸肉和鸡蛋均已煮熟",
+                  "午餐约400千卡",
+                  "备餐设备只有微波炉"
+                ]
+              },
+              "locks": [
+                {
+                  "date": "2026-11-14",
+                  "meal": "lunch"
+                }
+              ],
+              "done_when": "七天的午餐全部排好并交付；用户反馈食材或设备变化时相应调整",
+              "next_step": "其余六天不变；这份草案尚未记入摄入，如需记餐或调整克数请告知。",
+              "waiting_for": "",
+              "last_change": "按用户反馈只改11月15日：当天无米饭，两项均为已熟食材，微波炉加热即可完成。11月14日锁定餐次与其他五天维持原安排不动。",
+              "last_check": 1794500787.91179,
+              "run": {
+                "id": "8af08391-137b-411a-b347-de8d5230b2c7",
+                "status": "complete",
+                "day": "2026-11-13"
+              },
+              "latest": 2,
+              "delivered": 1,
+              "delivery_status": null,
+              "pending": true
+            },
+            "operation": "request_run"
+          }
+        ]
+      },
+      {
+        "id": "goal-manual-claim",
+        "status": "running",
+        "run_id": "d253d376-c6b3-4b38-baa9-d9d410e2d3b3"
+      },
+      {
+        "id": "goal-pause",
+        "status": "ok",
+        "model_calls": 2,
+        "reply": "委托已暂停，保留已有计划。已请求停止当前运行，尚在退出中的调用结果不会采用。",
+        "user": "整个午餐委托先暂停，正在检查的结果先不要采用。",
+        "goal_facts": [
+          {
+            "tool": "manage_diet_goal",
+            "status": "ok",
+            "goal": {
+              "id": "diet-goal:28761f9e-4ccd-4bc6-9d78-4b71cd40178e",
+              "revision": 2,
+              "status": "paused",
+              "auto": false,
+              "notify": false,
+              "objective": "在2026-11-14至2026-11-20连续七天内每天安排午餐，按当前营养目标（每日1900千卡）并把午餐控制在约400千卡。",
+              "starts": "2026-11-14",
+              "ends": "2026-11-20",
+              "constraints": [
+                "只用米饭、鸡胸肉和鸡蛋三种食材",
+                "三样食材均已煮熟",
+                "午餐约400千卡",
+                "尽量一起备餐"
+              ],
+              "dated_constraints": {
+                "2026-11-15": [
+                  "当天没有米饭，只用鸡胸肉和鸡蛋",
+                  "鸡胸肉和鸡蛋均已煮熟",
+                  "午餐约400千卡",
+                  "备餐设备只有微波炉"
+                ]
+              },
+              "locks": [
+                {
+                  "date": "2026-11-14",
+                  "meal": "lunch"
+                }
+              ],
+              "done_when": "七天的午餐全部排好并交付；用户反馈食材或设备变化时相应调整",
+              "next_step": "其余六天不变；这份草案尚未记入摄入，如需记餐或调整克数请告知。",
+              "waiting_for": "",
+              "last_change": "按用户反馈只改11月15日：当天无米饭，两项均为已熟食材，微波炉加热即可完成。11月14日锁定餐次与其他五天维持原安排不动。",
+              "last_check": 1794500787.91179,
+              "run": {
+                "id": "d253d376-c6b3-4b38-baa9-d9d410e2d3b3",
+                "status": "stop_requested",
+                "day": "2026-11-13"
+              },
+              "latest": 2,
+              "delivered": 1,
+              "delivery_status": null,
+              "pending": false
+            },
+            "operation": "pause"
+          }
+        ]
+      },
+      {
+        "id": "goal-late-candidate",
+        "status": "obsolete"
+      },
+      {
+        "id": "goal-paused",
+        "status": "idle"
+      }
+    ],
+    "intake_changes": 0,
+    "settings_changes": 0
+  },
+  "stage_a_regression": {
+    "run": "2026-11-13T00:18:58+08:00",
+    "E04": "pass",
+    "E07": "pass",
+    "E08": "pass"
+  },
+  "offline": {
+    "passed": [
+      "DG01",
+      "DG02",
+      "P01",
+      "P02",
+      "P03",
+      "P04",
+      "CX08",
+      "QA02",
+      "U06",
+      "RR01"
+    ],
+    "cos_handoff_smoke": "pass with the maintenance handler, message writer and isolated object transport"
+  }
+}

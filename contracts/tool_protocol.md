@@ -2,11 +2,11 @@
 
 回复、整轮完成和恢复规则见[交流体验规格第 2 节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。字段的观测口径见 [Trace 契约](trace_schema.md)。
 
-本文记录阶段 A 的仓库接口。控制权、份量补证及记忆行为见[统一规格](../PERSONAL_ASSISTANT_SPEC.md)，生产能力以[交付记录](../reports/LATENCY_DELIVERY.md)为准。持续委托见统一规格阶段 B。
+控制权、份量补证、记忆与持续委托的产品行为见[统一规格](../PERSONAL_ASSISTANT_SPEC.md)。生产能力以[交付记录](../reports/LATENCY_DELIVERY.md)为准。
 
 ## 工具注册与执行
 
-- `agent/tools/registry.py` 定义名称、说明、Pydantic 参数、`metadata.risk` 和执行函数。每次 `create_agent` 请求按预设选用注册对象。九个工具为 `record_meal`、`revise_intake`、`query_today`、`query_history`、`query_food_nutrition`、`query_knowledge`、`calculate_meal`、`update_user_settings`、`query_memory`。三个修改工具的风险依次为 `write`、`destructive`、`write`。其余为 `read_only`，在可写预设中可以缓存食物资料，不能创建摄入或设置。
+- `agent/tools/registry.py` 定义名称、说明、Pydantic 参数、`metadata.risk` 和执行函数。每次 `create_agent` 请求按预设选用注册对象。`record_meal`、`update_user_settings`、`manage_diet_goal` 为 `write`，`revise_intake` 为 `destructive`。其余为 `read_only`，在可写预设中可以缓存食物资料。`submit_goal_result` 仅由受限委托运行装载。
 - 原生工具返回 `{tool,call_id,action_id,status,data,error?}`。整批先保存原生调用和固定序号，再执行。完整结果存于 `calls.result`。本轮 `ToolMessage` 按 `model_view` 投影并保留配对 `call_id`。参数错误以结构化 `error` 返回，允许在原预算内纠正。旧框架 `ToolMessage.status=error` 的纯文本按错误身份包装，保留原文审计。网络或存储异常中止后续排队动作，原固定动作可恢复。
 - 投影附 `feedback.{outcome,unmet_conditions,remaining}`，给出事实进度、缺口代码及关联引用、剩余决策／工具／网页请求与时间。模型选择下一步。发现尚需语义判断的新缺口时，本批原有完成声明不自动生效。
 - 每条消息累计最多 4 次主决策和 8 次工具执行。超过上限的固定调用按持久 `index` 保存 `limit` 和终结原因，跳过业务执行。预算确定超限时保存终态回执和未执行原因，交付后推进游标。重投返回原回执。
@@ -45,6 +45,14 @@
 - `memory_object` 按用户与引用保存版本，`memory_index` 保存用户级索引与覆盖状态，`memory_state` 保存现行版本、撤回截止版本、条件／主题入口及派生关联。对话、草案和记忆对象不进入 Bitable 归档。撤回标记约束历史投影、检索、摘要、经验发布和回填。明确重新保存设置会产生新版本。摘要应用额外核对撤回版本。
 - `review_sources` 是模型文本或原生工具响应正文末尾的保留控制区，携带 `[{ref,reason}]`。宿主剥离后绑定 `current_turn` 或本轮已读引用，确认交付后才登记到 `memory_work`。每次维护在摘要和经验中选一项。经验的继续决策、传输及重基准共享累计 20 秒、4,096 生成 token、两次决策与四次只读检索。固定输入、补读摘要及候选持久保存；重投只恢复应用。消息写入者复核用户、来源、版本及补读摘要后原子发布。
 - `calorie_memory_backfill` 是消息写入者的按用户续作入口，参数为 `user_id` 和可选 `limit`（每页 1–100，默认 25）。只接收有交付证据的清洁来源和实际保有的结构化草案，保存进度及缺失范围，禁止从旧回复补造事实或启动经验学习。生产执行须另有授权。
+
+## 持续饮食委托
+
+- `manage_diet_goal` 用当前 `user_quote` 授权。宿主绑定本轮看见的 `goal_id` 与 `revision`，实际提交仍核对归一用户和版本。`start` 接收委托目的、日期、完成标准、条件、偏好、授权触发和可选通知目的地。资料不足时保存筹备并给出缺口。`revise` 可用 `change_dates` 限定本次核算和条件。新锁定餐次累加，解除需 `unlock`。`stop_run`、`set_auto`、`pause`、`resume`、`set_notifications`、`end` 各有独立效果。`request_run` 可在关闭自动触发时发起检查。
+- `query_diet_goal` 默认只查状态和版本。`show_latest` / `show_delivered` 使用当前用户明确要求查看的 `view_quote`，由实际已算的计划渲染正文。`goal_delivery_ref` 随显示最新版的回复保存，只有相应回复交付确认后才推进可接续版本。
+- 委托状态、归属、运行与计划版本存 `diet_goal`、`diet_goal_owner`、`diet_goal_run` 和 `diet_goal_plan`；`diet_goal_active` 供维护扫描，`diet_goal_event` 按触发来源去重。消息写入者提交 `claim` 和 `begin`。维护复用原生循环，只装载授权读／计算和 `submit_goal_result`，在独立 `sync/` 进度键保留原期限、模型调用和草案。后台通过 `calorie_diet_goal` 交回候选，写入者检查运行身份、委托版本、输入版本和业务事实摘要。
+- `calculate_meal.days` 仅委托后台使用。一次最多七个不同日期，各自使用原计算器核对当天目标、摄入及份量。接受的日期在授权范围内，已有锁定或已食用餐次从原计划保留。`submit_goal_result` 引用本次确实完成的逐日草案，未完成范围与待决事项保留。
+- 触发只排入授权范围的实际实例。终止、暂停或来源变化会拒绝迟到结果。通知另验目的地、最新有效版本、授权与来源，失败以同一投递 UUID 恢复，当前交付版本以确认送达为准。所有维护工作仍让位于现有恢复和归档；委托使用自己的 90 秒、4 次决策和 8 次工具预算。
 
 ## Store
 
