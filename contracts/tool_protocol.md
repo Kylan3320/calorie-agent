@@ -2,6 +2,8 @@
 
 回复、整轮完成和恢复规则见[交流体验规格第 2 节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。字段的观测口径见 [Trace 契约](trace_schema.md)。
 
+本文以下记录当前实现接口。[省心饮食与跨会话记忆规格](../PERSONAL_ASSISTANT_SPEC.md) 定义尚未实现的增量：query_memory、份量证据、条件生命周期及跨会话源草案。下游随实现更新本契约；当前八工具、source_ref 会话绑定和本会话草案接口不能据目标文档推定已支持新能力。
+
 ## 工具注册与执行
 
 - `agent/tools/registry.py` 定义名称、说明、Pydantic 参数、`metadata.risk` 和执行函数。每次 `create_agent` 请求按预设选用注册对象。八个工具为 `record_meal`、`revise_intake`、`query_today`、`query_history`、`query_food_nutrition`、`query_knowledge`、`calculate_meal`、`update_user_settings`。三个修改工具的风险依次为 `write`、`destructive`、`write`。其余为 `read_only`，在可写预设中可以缓存食物资料，不能创建摄入或设置。
