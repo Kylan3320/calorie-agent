@@ -924,14 +924,21 @@ class Runtime(AgentMiddleware):
             result["goal_delivery_ref"] = {"id": goal_artifact["id"], "version": goal_artifact["version"]}
         if not error or terminal:
             self.journal["result"] = {k:v for k,v in result.items() if k not in {"model_requests", "native_calls", "tool_results"}}
-        self.persist(completed=not error or terminal)
+        def save_final():
+            self.persist(completed=not error or terminal)
+            if not error or terminal:
+                _stage_saved_dialogue(self.store,self.message,self.journal,atomic=False)
+            if not self.session_superseded:
+                clean, _ = conversation.history(self.store,self.user_id,self.message["chat_id"],bounded=True,config=self.config)
+                from .context import turns
+                if not error or terminal:
+                    self.session["messages"] = messages_to_dict([message for group in turns(clean)[-self.config.recent_turns:] for message in group])
+                self.store.save_session(self.user_id,self.message["chat_id"],self.session)
+            return {"completed":True}
         if self.preset.allow_write and (not error or terminal):
-            _stage_saved_dialogue(self.store, self.message, self.journal)
-        if self.preset.allow_write and not self.session_superseded:
-            clean, summary = conversation.history(self.store, self.user_id, self.message["chat_id"], bounded=True, config=self.config)
-            from .context import turns
-            self.session["messages"] = messages_to_dict([message for group in turns(clean)[-self.config.recent_turns:] for message in group]) if not error or terminal else self.session["messages"]
-            self.store.save_session(self.user_id,self.message["chat_id"],self.session)
+            self.store.commit_action("dialogue-stage:"+self.human_id,save_final)
+        elif self.preset.allow_write:
+            save_final()
         trace = {"schema_version": "calorie_agent_trace.v2", "created_at": datetime.now(timezone.utc).isoformat(),
             **self.message, "raw_text": self.message["text"], "preset": self.preset.name, "model": self.config.model,
             "retriever": self.config.knowledge_retriever, **result}
@@ -1048,7 +1055,7 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
 __all__ = ["run", "session_lock"]
 
 
-def _stage_saved_dialogue(store, message, journal):
+def _stage_saved_dialogue(store, message, journal, *, atomic=True):
     """Publish only the immutable final result; replay repairs a missed stage."""
     result = journal["result"]
     ident = result.get("dialogue_turn_id")
@@ -1065,7 +1072,8 @@ def _stage_saved_dialogue(store, message, journal):
         messages.append(AIMessage(content="本次请求已结束，未执行的动作已终止；如需继续，请提出新的请求。",
                                   additional_kwargs={"fact_scope": "dialogue", "execution_terminated": True}))
     metadata = {"date": journal.get("day", ""), "received_at": journal.get("budget_started_at"),
-                "assistant_reply": result.get("reply", "")}
+                "assistant_reply": result.get("reply", ""),
+                "execution": conversation.execution_summary(_saved_result(journal))}
     if not result.get("terminal"):
         marks = {mark["ref"]: mark for step in journal.get("model_steps", []) for mark in step.get("review_sources", [])}
         if marks:
@@ -1073,7 +1081,7 @@ def _stage_saved_dialogue(store, message, journal):
     draft = journal.get("session", {}).get("meal_draft_candidate", {})
     if draft and result.get("presented_candidates", {}).get("meal_draft_candidate") == draft["draft_id"]:
         metadata["draft"] = draft
-    conversation.stage_turn(store, message["user_id"], message["chat_id"], ident, messages, metadata=metadata)
+    conversation.stage_turn(store, message["user_id"], message["chat_id"], ident, messages, metadata=metadata,atomic=atomic)
 
 
 def mark_reply_presented(store, user_id, chat_id, result):

@@ -634,6 +634,31 @@ def router_final_synthesis():
 CHECKS['CG11']=router_final_synthesis
 
 
+def compact_dialogue_projection():
+    """Delivered history reads its own summary and retains tool facts after audit expiry."""
+    from agent.storage import conversation,retention
+    from agent.storage.fake_store import FakeStore
+    from langchain_core.messages import HumanMessage,AIMessage
+    store=FakeStore()
+    ident='calorie-user:meal-query'
+    result={'business_status':'none','tool_results':[{'tool':'query_today','status':'ok','data':{}}],
+            'native_calls':[{'tool':'query_today'}]}
+    messages=[HumanMessage(content='查今天摄入',id=ident),AIMessage(content='已查询。')]
+    conversation.stage_turn(store,'user','chat',ident,messages,metadata={'execution':conversation.execution_summary(result)})
+    conversation.confirm_turn(store,'user','chat',ident)
+    load = store.load_document
+    def no_receipt(kind,*args):
+        assert kind != 'receipt_state'
+        return load(kind,*args)
+    with patch.object(store,'load_document',side_effect=no_receipt):
+        history,_=conversation.history(store,'user','chat',for_model=True)
+    assert 'query_today' in history[0].content
+    assert 'effect' not in conversation.execution_summary(retention.compact_result(result))
+
+
+CHECKS['CS11']=compact_dialogue_projection
+
+
 def cancelled_maintenance_resume():
     """S3: a published cancellation resumes temporary cleanup on the next timer without new threshold candidates."""
     from agent.storage.generations import maintenance_tick

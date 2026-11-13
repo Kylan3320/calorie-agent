@@ -518,7 +518,8 @@ class Pipeline:
                             state["delivery"].update(mode="action_note_edit", message_id=notice["message_id"])
                         else:
                             state["delivery"]["mode"] = "send"
-                        store.save_document("receipt_state", "system", rid, state)
+                        if receipt["source"] == "feishu":
+                            store.save_document("receipt_state", "system", rid, state)
                     self.deliver(store, receipt, state, send, update_send)
                     if state.get("work_status") == "needs_attention":
                         store.save_document("receipt_state", "system", rid, state)
