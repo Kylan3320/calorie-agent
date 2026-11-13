@@ -441,6 +441,9 @@ class Runtime(AgentMiddleware):
         state["execution_budget"] = {"model_decision": self.journal["model_calls"], **self.remaining_resources()}
         if (self.goal_run and getattr(self.goal_run,'router',False)
                 and not state['execution_budget']['model_decisions_after_this']):
+            state['delegation']['required_action'] = (
+                '本次必须调用 submit_task_result 提交可用清单。不要输出聊天答复或再次取文。'
+                '逐字引用已有来源，正文中的数字须出现在相应引文中。未知条件放入 unresolved。')
             request = request.override(tools=[self.tool_registry['submit_task_result']])
         projected, measurement = select_messages(history, summary, native, prompt, state,
             [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)

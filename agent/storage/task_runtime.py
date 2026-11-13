@@ -22,7 +22,8 @@ PROMPT = '''完成动态状态中的已授权只读工作，方法由你依据�
 
 ROUTER_PROMPT = PROMPT + '''
 对照父委托逐项整理可执行的清单，注明时间条件、备选和待核实项。优先用已有原文和子结果。
-可以给明确标为建议的行动；用户已经提供的约束可引用其原话。未知条件应单列，仍要提交有依据的行动。'''
+可以给明确标为建议的行动；用户已经提供的约束可引用其原话。未知条件应单列，仍要提交有依据的行动。
+交付须通过 submit_task_result。工具参数校验失败可能无法再修订：逐字复制引文，正文只使用引文已含的数字，未知写在 unresolved。'''
 WORKER_CLAIM_WINDOW = 15
 
 
@@ -63,7 +64,8 @@ class WorkerRun:
             'tools':sum(call['index'] <= self.snapshot['limits']['tools'] for call in rt.journal['calls']),
             'web':rt.journal.get('general_web_requests',0)}}
     def audit(self,calls):
-        return [{'tool':c['tool'],'status':c.get('result',{}).get('status','unfinished')} for c in calls]
+        return [{'tool':c['tool'],'status':c.get('result',{}).get('status','unfinished'),
+                 'reason':c.get('result',{}).get('data',{}).get('reason')} for c in calls]
 
 
 class SnapshotStore:
@@ -375,6 +377,9 @@ def _worker_handler(event,context=None,*,model=None,get=None,put=None,claim=None
             except ObsoleteGoalRun:
                 dispatch_event({'type':'calorie_task','operation':'exit',**query})
                 return {'status':'stopped'}
+            with span('task_compute_result',role=snapshot.get('role','worker'),outcome=result['goal_candidate']['outcome'],
+                      tool_steps=result['goal_steps']):
+                pass
             candidate = encode({**result['goal_candidate'],'instance_id':instance})
             if len(candidate)>128000: raise ValueError('candidate too large')
             if put: put(candidate)

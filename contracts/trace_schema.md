@@ -51,4 +51,4 @@
 - 终态瘦身返回 `audit_status=unavailable`、`audit_reason=retention_expired`，`tool_results/native_calls/model_requests/tool_events` 为空；这表示过程已到保留期，不表示原动作未发生。原终态、最终正文、交付 UUID 及业务映射保留。CLI／DSH／控制台沿结果字段显示，不制造旧工具卡片或重新运行。
 - 代切换／删除证据记录源／目标前缀、三域冻结版本、唯一决议、暂停起止、清单摘要及恢复进度；真实 COS 403 与注入传输的拒绝分开。实现候选和外部验收缺口见 [阶段 C 交付](../reports/STAGE_C_DELIVERY.md)。
 
-`worker_compute` 只记录 task／worker／attempt 身份、状态和耗时；用量保存在运行时生成的候选中。计算 trace 不打印输入、能力令牌、签名或完整模型交换。
+`worker_compute` 记录 task／worker／attempt 身份、状态和耗时。`task_compute_result` 记录计算角色、候选状态和工具名称／状态／原因码。用量保存在运行时生成的候选中。计算 trace 不打印输入、能力令牌、签名或完整模型交换。
