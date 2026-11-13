@@ -76,6 +76,10 @@ class CosObjects:
             raise ValueError('COS commit bucket must have versioning disabled')
 
     def get(self, key):
+        raw, _ = self.read_object(key)
+        return raw
+
+    def read_object(self, key):
         from qcloud_cos.cos_exception import CosServiceError
         try:
             with span('cos_get', key=key) as event:
@@ -84,10 +88,10 @@ class CosObjects:
                 try:
                     raw = stream.read()
                     event['bytes'] = len(raw)
-                    return raw
+                    return raw, response.get('Last-Modified')
                 finally: stream.close()
         except CosServiceError as exc:
-            if exc.get_error_code() == 'NoSuchKey': return None
+            if exc.get_error_code() == 'NoSuchKey': return None, None
             raise
 
     def create(self, key, body):

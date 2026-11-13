@@ -248,7 +248,7 @@ def ingress_handler(event, context=None):
 
 def message_handler(event, context=None):
     if load_config().preset!='live':return {'status':'skipped_preset'}
-    events_token = EVENTS.set(list(event.get("ingress_events", [])))
+    events_token = EVENTS.set([])
     message_token = MESSAGE_ID.set(event.get("message_id"))
     try:
         from agent.storage.timeutil import execution_deadline
@@ -291,16 +291,6 @@ def maintenance_handler(event, context=None):
         summary = {"status": "skipped_maintenance_error"}
         goal = {"status": "skipped_maintenance_error"}
         if not archive["failed"] and not recovery.get("blocked"):
-            from agent.storage.tasks import load as load_task
-            active_tasks=store.load_document('task_active','system')
-            pending_workers=store.load_document('worker_active','system')
-            if active_tasks or pending_workers:dispatch_event({'type':'calorie_task_tick'})
-            for user,ident in active_tasks.items():
-                task = load_task(store,user,ident)
-                if task.get('cycle',{}).get('router_pending'):
-                    dispatch_event({'type':'calorie_task','operation':'resume','user_id':user,'task_id':ident})
-                for wid in task.get('cycle',{}).get('attempts',[]):
-                    dispatch_event({'type':'calorie_task','operation':'report','user_id':user,'task_id':ident,'worker_id':wid})
             goal = run_goal(store, progress, load_config(), dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
             summary = run_next(store, progress, dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
         return {"maintenance":maintenance,"recovery": recovery, "archive": archive, "summary": summary, "diet_goal": goal}

@@ -205,7 +205,7 @@ def watchdog():
 
 def delegation():
     """C1: two native Workers overlap, foreground query, scoped control, duplicate and cancelled late candidate."""
-    from agent.storage.task_runtime import dispatch_pending, worker_handler, writer, continue_router
+    from agent.storage.task_runtime import dispatch_pending, worker_handler, writer
     from agent.tools.general import validate_claims
     objects=Objects();store=CosStore(objects,'isolated/stage-c/tasks')
     config=replace(CONFIG,preset='live')
@@ -222,9 +222,11 @@ def delegation():
         {'objective':'核对交通','done_when':'交通条件','source_refs':[s2['ref']]}]}))
     ids=delegated['data']['workers'];lock=threading.RLock();barrier=threading.Barrier(3);release=threading.Event();intervals={}
     dispatches=[]
+    events={}
     def dispatch(event, *, target):
         assert target == 'compute'
         dispatches.append(event['worker_id'])
+        events[event['worker_id']]=event
     def sign(attempt, expires):
         return {'input_url':'fixture-input','candidate_url':'fixture-candidate'}
     assert not dispatch_pending(store,dispatch=dispatch,sign=sign,user_id='another-user')
@@ -241,7 +243,7 @@ def delegation():
     candidates={}
     def one(index):
         wid=ids[index];snapshot=store.load_document('task_input','user',wid);attempt=store.load_document('worker_attempt','user',wid)
-        ev={'user_id':'user','task_id':ident,'worker_id':wid,'deadline_at':attempt['deadline_at'],'input_digest':attempt['input_digest']}
+        ev=events[wid]
         src=(s1,s2)[index]
         params={'outcome':'complete','items':[{'text':src['text'],'evidence':[{'ref':src['ref'],'quote':src['text']}]}]}
         def claim(q):
@@ -269,8 +271,15 @@ def delegation():
     assert first['status']=='completed' and duplicate['status']=='duplicate' and late['status']=='rejected'
     # Router sees the valid part and genuinely missing transport, never erases it.
     parent={'outcome':'partial','items':candidates[ids[0]]['items'],'unresolved':['交通分项已停止，待用户决定是否继续']}
-    result=continue_router(store,'user',ident,config,model=NativeFake(responses=[call('submit_task_result',parent)]))
-    assert result['status']=='published', result
+    router_id=dispatch_pending(store,dispatch=dispatch,sign=sign)[0]
+    router=store.load_document('worker_attempt','user',router_id)
+    snapshot=store.load_document('task_input','user',router_id)
+    result=worker_handler(events[router_id],get=lambda:encode(snapshot),
+        put=lambda raw:objects.create(router['generation']+router['candidate_key'],raw),
+        claim=lambda q:writer(store,{'operation':'claim',**q},config),control=lambda q:tasks.control(store,q),
+        report=lambda q:writer(store,{'operation':'report',**q},config),
+        model=NativeFake(responses=[call('submit_task_result',parent)]))
+    assert result['status']=='candidate_saved', result
     final=tasks.load(store,'user',ident)
     artifact=store.load_document('task_artifact','user',final['latest'])
     assert artifact['outcome']=='partial' and len(artifact['items'])==1 and final['status']=='active', artifact
@@ -542,6 +551,60 @@ def acquired_sources_survive_foreground_budget():
 CHECKS['CG09']=acquired_sources_survive_foreground_budget
 
 
+def delegated_handoff_recovery():
+    """A failed wake, expired claim and cancelled child do not strand or revive a cycle."""
+    from agent.storage import task_runtime
+    from agent.storage.scf_dispatch import HandoffRejected
+    from agent.storage.fake_store import FakeStore
+    from datetime import datetime, timedelta, timezone
+    store = FakeStore()
+    config = replace(CONFIG,preset='live')
+    now = time.time()
+    text = '核对公开活动资料。'
+    rt = SimpleNamespace(store=store,user_id='user',action_id='wake:1',day=store.today_string(),goal_run=None,
+        message={'text':text,'message_id':'wake','chat_id':'chat'},journal={'model_calls':1,'calls':[{}]},session={})
+    end = (datetime.now(timezone.utc)+timedelta(hours=1)).isoformat()
+    def manage(operation,**args):
+        return store.commit_action(rt.action_id,lambda:tasks.manage(rt,{'operation':operation,'user_quote':text,**args}))
+    task = manage('start',spec={'objective':text,'done_when':'提供出处','ends':end})['data']['task']
+    ident,cycle = task['id'],task['cycle']['id']
+    rt.action_id='wake:2'
+    child = store.commit_action(rt.action_id,lambda:tasks.delegate(rt,{'task_id':ident,'revision':1,
+        'jobs':[{'objective':'核对','done_when':'有原文'}]}))['data']['workers'][0]
+    rt.action_id='wake:3'
+    manage('stop_worker',task_id=ident,revision=1,worker_id=child)
+    assert tasks.load(store,'user',ident)['cycle']['router_pending']
+    sent=[]
+    def dispatch(event,**kw):
+        sent.append(event)
+        if len(sent)==1:
+            raise HandoffRejected('unknown acknowledgement')
+    def sign(*args):return {}
+    with patch('time.time',return_value=now+1):
+        assert not task_runtime.dispatch_pending(store,dispatch=dispatch,sign=sign)
+        assert not task_runtime.dispatch_pending(store,dispatch=dispatch,sign=sign)
+    first = sent[0]
+    wid = first['worker_id']
+    snapshot = store.load_document('task_input','user',wid)
+    claim = {'operation':'claim','user_id':'user','task_id':ident,'worker_id':wid,
+             'control_token':snapshot['runtime_control_token'],'instance_id':'old',
+             'dispatch_id':first['dispatch_id']}
+    with patch('time.time',return_value=first['claim_until']+1):
+        assert task_runtime.writer(store,claim,config)['status']=='expired_claim'
+        assert task_runtime.dispatch_pending(store,dispatch=dispatch,sign=sign)==[wid]
+        assert task_runtime.writer(store,claim,config)['status']=='expired_claim'
+        assert task_runtime.writer(store,{**claim,'dispatch_id':sent[-1]['dispatch_id'],'instance_id':'new'},config)['status']=='claimed'
+    assert store.load_document('worker_attempt','user',wid)['instance_id']=='new'
+    rt.action_id='wake:4'
+    new_cycle = manage('revise',task_id=ident,revision=1,spec={'objective':'核对修订后的资料'})['data']['task']['cycle']['id']
+    assert new_cycle != cycle
+    assert task_runtime.writer(store,{'operation':'resume','user_id':'user','task_id':ident,'cycle_id':cycle},config)['status']=='skipped'
+    assert not tasks.load(store,'user',ident)['cycle'].get('router_attempt')
+
+
+CHECKS['CG10']=delegated_handoff_recovery
+
+
 def cancelled_maintenance_resume():
     """S3: a published cancellation resumes temporary cleanup on the next timer without new threshold candidates."""
     from agent.storage.generations import maintenance_tick
@@ -627,13 +690,11 @@ def expired_parent_reception():
     assert not store.load_document('task_active','system') and ids[1] in store.load_document('worker_active','system')
     attempt=store.load_document('worker_attempt','user',ids[1])
     objects.create(attempt['generation']+attempt['candidate_key'],encode(candidate(ids[1])))
-    import app
-    wakeups=[]
-    with patch.object(app,'configured_pipeline',return_value=Pipeline(objects,store.prefix)), patch('agent.storage.cos_archive.archive_pending',return_value={'failed':[]}), patch('agent.storage.scf_dispatch.dispatch_event',side_effect=lambda event,**kw:wakeups.append(event)):
-        app.maintenance_handler({})
-    assert any(event['type']=='calorie_task_tick' for event in wakeups),'ended parents still need registered candidate recovery'
     def forbidden(*a,**kw):raise AssertionError('expired parent must not dispatch computation or delivery')
-    with patch('time.time',return_value=expired):dispatch_pending(store,dispatch=forbidden)
+    with patch('time.time',return_value=expired),patch('agent.storage.scf_dispatch.dispatch_event',side_effect=forbidden):
+        Pipeline(objects,store.prefix).worker({'type':'calorie_reminder_check',
+            'scheduled_time':datetime.fromtimestamp(expired,timezone.utc).isoformat()})
+    store.confirm_current()
     assert not store.load_document('worker_active','system')
     assert not tasks.load(store,'user',ident).get('latest')
     EVIDENCE['expired_parent']={'control_after_authorisation_end':'denied','late_results':'rejected','independent_reception':'closed_after_fixed_key_read','new_artifact':False}
@@ -684,7 +745,8 @@ def control_transport_privacy():
         raise httpx.HTTPStatusError('signed transport failure '+signed,request=request,response=httpx.Response(403,request=request))
     hidden=io.StringIO()
     with contextlib.redirect_stdout(hidden):
-        failure=worker_handler({'user_id':'user','task_id':'task','worker_id':'worker','deadline_at':time.time()+30,'input_digest':'unused'},get=unavailable)
+        failure=worker_handler({'user_id':'user','task_id':'task','worker_id':'worker','deadline_at':time.time()+30,
+                                'claim_until':time.time()+15,'input_digest':'unused'},get=unavailable)
     assert failure['status']=='transport_failed' and 'private-fixture-signature' not in hidden.getvalue()
     EVIDENCE['control_transport']={'capability_location':'header','url_and_public_logs':'no_capability','scoped_identity_fields':4,'signed_transport_error':'redacted'}
 
@@ -716,7 +778,7 @@ CHECKS['CS08']=sequence_rebuild_append
 
 def delegated_memory_versions():
     """C1: delegated memory is usable, invalid quotes get feedback, and later revisions fence candidates and published projections."""
-    from agent.storage.task_runtime import worker_handler,writer
+    from agent.storage.task_runtime import dispatch_pending,worker_handler,writer
     objects=Objects();store=CosStore(objects,'isolated/stage-c/memory-version/');day=store.today_string()
     old=memory.save(store,'user','condition','equipment',{'text':'只能用微波炉','status':'active','starts':day,'ends':'2027-01-01'})
     text='持续核对这些个人条件，到2027年1月1日结束。'
@@ -731,7 +793,9 @@ def delegated_memory_versions():
         return result['data']['workers'][-1]
     wid=delegate('memory:agent:2');attempt=store.load_document('worker_attempt','user',wid);snapshot=store.load_document('task_input','user',wid)
     config=replace(CONFIG,preset='live');saved=[]
-    event={'user_id':'user','task_id':goal['id'],'worker_id':wid,'deadline_at':attempt['deadline_at'],'input_digest':attempt['input_digest']}
+    events=[]
+    dispatch_pending(store,dispatch=lambda event,**kw:events.append(event),sign=lambda *_:{})
+    event=events[0]
     candidate={'outcome':'complete','items':[{'text':old['text'],'evidence':[{'ref':old['ref'],'quote':old['text']}]}]}
     bad=deepcopy(candidate);bad['items'][0]['evidence'][0]['quote']='并不存在的引用'
     result=worker_handler(event,get=lambda:encode(snapshot),put=lambda body:saved.append(json.loads(body)),
