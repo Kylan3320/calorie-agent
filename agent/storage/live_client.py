@@ -34,7 +34,13 @@ class LiveClient:
                 accepted = self._request("POST", "/internal/intake", json={"message": message, "source": source})
                 rid = accepted["receipt_id"]
                 while True:
-                    state = self._request("GET", "/internal/result", params={"receipt_id": rid})
+                    try:
+                        state = self._request("GET", "/internal/result", params={"receipt_id": rid})
+                    except httpx.HTTPStatusError as exc:
+                        if exc.response.status_code not in {429, 432}:
+                            raise
+                        time.sleep(min(1, remaining()))
+                        continue
                     if state.get("result"):
                         digest = state["delivery"].get("result_digest")
                         return {**state["result"], "delivery_reference": {

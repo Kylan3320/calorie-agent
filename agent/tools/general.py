@@ -28,6 +28,8 @@ def sources(rt, p):
             return {'status':'pending','data':{'reason':'current_user_quote_required'}}
         item = source(quote, title='用户提供资料', origin='user')
         saved[item['ref']] = item
+        from ..storage.tasks import retain_acquired_source
+        retain_acquired_source(rt,item)
         return {'status':'ok','data':{'source':item}}
     def reserve():
         used = rt.journal.get('general_web_requests', 0)
@@ -47,12 +49,17 @@ def sources(rt, p):
         url = deepseek_web.public_url(p.get('url'))
         if not url:
             return {'status':'pending','data':{'reason':'public_url_required'}}
+        known = next((item for item in saved.values() if item.get('origin') == 'web' and item.get('url') == url), None)
+        if known:
+            return {'status':'ok','data':{'source':deepcopy(known)}}
         page = deepseek_web.fetch(url, deadline=rt.deadline, reserve=reserve)
         if not page:
             return {'status':'pending','data':{'reason':'source_unreadable','url':url}}
         item = source(page['text'], title=page['title'], url=url)
         item['truncated'] = page.get('truncated',False)
         saved[item['ref']] = item
+        from ..storage.tasks import retain_acquired_source
+        retain_acquired_source(rt,item)
         return {'status':'ok','data':{'source':item}}
     except deepseek_web.WebLookupError as exc:
         return {'status':'error','error':exc.code,'data':{'reason':exc.code}}

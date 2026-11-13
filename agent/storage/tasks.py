@@ -36,6 +36,18 @@ def keep_sources(store,user,task,values):
     task.pop('sources',None)
 
 
+def retain_acquired_source(rt,item):
+    if rt.goal_run or not rt.preset.allow_write:
+        return
+    bound=rt.journal.get('task_binding') or getattr(rt,'task_binding',None)
+    if not bound:
+        return
+    task=load(rt.store,rt.user_id,bound['task_id'])
+    if task.get('cycle',{}).get('id') == bound['cycle_id']:
+        keep_sources(rt.store,rt.user_id,task,{item['ref']:item})
+        save(rt.store,rt.user_id,task)
+
+
 def within_authorization(task,now):
     try:return now<datetime.fromisoformat(task['spec']['ends'].replace('Z','+00:00')).timestamp()
     except (KeyError,ValueError,TypeError):return False
@@ -46,10 +58,13 @@ def close_worker_index(store,user,task,attempt,now):
     if attempt.get('candidate_digest') or now>=attempt['deadline_at']:
         active.pop(attempt['id'],None)
         store.save_document('worker_active','system','',active)
-    if all(store.load_document('worker_attempt',user,i).get('status') in {'completed','rejected','terminated','failed'} for i in task['cycle']['attempts']):
-        if task.get('status') in {'ended','paused'} or task['cycle'].get('status')=='stop_requested':
-            task['cycle'].update(status='terminated',completed_at=now,router_pending=False)
-        else:task['cycle']['router_pending']=True
+    cycle = task['cycle']
+    if (attempt['cycle_id'] == cycle['id'] and cycle['status'] in {'queued','running','stop_requested'}
+            and all(store.load_document('worker_attempt',user,i).get('status') in {'completed','rejected','terminated','failed'}
+                    for i in cycle['attempts'])):
+        if task.get('status') in {'ended','paused'} or cycle['status']=='stop_requested':
+            cycle.update(status='terminated',completed_at=now,router_pending=False)
+        else:cycle['router_pending']=True
 
 
 def memory_stamp(store,user,ref):
@@ -71,6 +86,8 @@ def project_artifact(store,user,artifact):
     sources=artifact.get('sources',{})
     invalid={ref for ref,src in sources.items() if src.get('origin')=='memory' and memory_stamp(store,user,src.get('memory_ref',''))!=src.get('memory_stamp')}
     if not invalid:return artifact
+    while derived := {ref for ref,src in sources.items() if ref not in invalid and invalid.intersection(src.get('input_refs', []))}:
+        invalid.update(derived)
     return {**artifact,'items':[item for item in artifact.get('items',[]) if not any(e['ref'] in invalid for e in item.get('evidence',[]))],
         'sources':{ref:src for ref,src in sources.items() if ref not in invalid},'outcome':'partial',
         'unresolved':['部分个人来源已变化，相关结果需要重新核对。'],'next_step':'重新核对变化的个人来源'}
@@ -105,6 +122,7 @@ def _cycle(task,user,store,trigger,now):
 def status(task,store,user):
     value = {k:deepcopy(v) for k,v in task.items() if k not in {'sources','materials','authorization','history'}}
     cycle = value.get('cycle',{})
+    value['next_step'] = task.get('next_step','')
     if value.get('status')=='ended' or not within_authorization(task,time.time()):
         value.update(status='ended',auto=False,notify=False)
     cycle['workers'] = [{k:attempt.get(k) for k in ('id','status','objective','claimed_at','completed_at','diagnostic')}
@@ -201,9 +219,24 @@ def query(rt,p):
         artifact=project_artifact(rt.store,rt.user_id,artifact)
         if not p.get('artifact_ref') and task.get('artifact_revision')!=task['revision']:
             return {'status':'pending','data':{'reason':'revised_result_not_ready','task':result['task']}}
+        if not artifact or artifact.get('task_id') != task['id']:
+            return {'status':'pending','data':{'reason':'artifact_not_found','task':result['task']}}
         result['artifact'] = {**artifact,'task_id':task['id']}
         if artifact: result['artifact']['reply'] = render(artifact)
     return {'status':'ok','data':result}
+
+
+def control_receipt(data):
+    from .diet_goals import control_receipt as goal_receipt
+    task = data['task']
+    cycle = task.get('cycle', {})
+    operation = data['operation']
+    if operation == 'stop_worker':
+        return '已提交停止该子任务的请求。其他工作按当前委托继续。'
+    if operation in {'start','revise'}:
+        action = '已建立' if operation == 'start' else '已更新'
+        return action + '研究委托。' + task['spec']['objective'].rstrip('。') + '。已安排处理，可稍后查看进度。'
+    return goal_receipt({'operation':operation,'goal':{**task,'run':cycle,'pending':cycle.get('status')=='queued'}})
 
 
 def delegate(rt,p):
@@ -221,9 +254,12 @@ def delegate(rt,p):
     if any(cycle['reserved'][key]+len(jobs)*CHILD_LIMIT[key]>cycle.get('limits',LIMITS)[key] for key in CHILD_LIMIT):
         return {'status':'pending','data':{'reason':'shared_cycle_reservation_exhausted'}}
     known = {**sources(store,user,task), **rt.session.get('general_sources',{})}
+    from .deepseek_web import public_url
     for job in jobs:
         if any(ref not in known for ref in job.get('source_refs',[])):
             return {'status':'pending','data':{'reason':'unknown_input_source'}}
+        if any(not public_url(url) or url not in task['materials'] for url in job.get('urls',[])):
+            return {'status':'pending','data':{'reason':'unknown_input_url'}}
     if not bind_runtime(rt,task):
         return {'status':'pending','data':{'reason':'shared_parent_budget_exhausted'}}
     # Validate every snapshot before staging any child document.
@@ -238,7 +274,8 @@ def delegate(rt,p):
         snapshot = {'schema':'calorie.worker-input.v1','allowed_tools':['query_sources','calculate_values','query_memory','submit_task_result'],
             'return_schema':'calorie.task-candidate.v1','binding':{k:child[k] for k in ('id','attempt','task_id','revision','cycle_id','redaction_revision','generation')},
             'objective':child['objective'],'done_when':child['done_when'], 'limits':child['limits'],
-            'deadline_at':child['deadline_at'],'sources':{ref:known[ref] for ref in child['source_refs']},'memory':{}}
+            'deadline_at':child['deadline_at'],'sources':{ref:known[ref] for ref in child['source_refs']},
+            'urls':job.get('urls',[]),'memory':{}}
         for ref in child['memory_refs']:
             item, reason = memory.get(store,user,ref)
             projected = memory.project(store,user,item,rt.day,memory.state(store,user)) if item else None
@@ -306,14 +343,20 @@ def _publish(store,event,now=None):
         attempt.update(status='rejected',candidate_digest=digest,diagnostic='stale_or_cancelled',completed_at=now)
     else:
         sources = candidate.get('sources',{})
-        validate_claims(candidate,sources)
-        usage = candidate['usage']
-        if any(not isinstance(usage.get(k),int) or not 0 <= usage[k] <= attempt['limits'][k] for k in CHILD_LIMIT):
-            raise ValueError('runtime usage out of reserved bounds')
-        ref = 'artifact:' + digest[:24]
-        store.save_document('task_artifact',user,ref,{**candidate,'ref':ref,'published_at':now})
-        attempt.update(status='completed',candidate_digest=digest,artifact_ref=ref,usage=usage,completed_at=now)
-        task.setdefault('parts',{})[ident] = ref
+        try:
+            validate_claims(candidate,sources)
+            usage = candidate['usage']
+            if any(type(usage.get(k)) is not int or not 0 <= usage[k] <= attempt['limits'][k] for k in CHILD_LIMIT):
+                raise ValueError('runtime usage out of reserved bounds')
+        except (AttributeError, KeyError, TypeError, ValueError):
+            attempt.update(status='rejected',candidate_digest=digest,diagnostic='candidate_contract_invalid',completed_at=now)
+        else:
+            ref = 'artifact:' + digest[:24]
+            store.save_document('task_artifact',user,ref,{**candidate,'ref':ref,'task_id':task['id'],'published_at':now})
+            outcome = candidate['outcome']
+            attempt.update(status='failed' if outcome == 'failed' else 'completed',outcome=outcome,
+                           candidate_digest=digest,artifact_ref=ref,usage=usage,completed_at=now)
+            task.setdefault('parts',{})[ident] = ref
     store.save_document('worker_attempt',user,ident,attempt)
     close_worker_index(store,user,task,attempt,now)
     save(store,user,task)
@@ -330,7 +373,14 @@ def submit(rt,p):
     try:validate_claims(p,known)
     except (ValueError,KeyError,TypeError) as error:
         return {'status':'pending','data':{'reason':'candidate_evidence_invalid','detail':str(error)[:160]}}
-    rt.session['goal_candidate'] = {**p,'sources':deepcopy(rt.session.get('general_sources',{}))}
+    used = {e['ref'] for item in p.get('items',[]) for e in item['evidence']}
+    pending = list(used)
+    while pending:
+        for ref in known[pending.pop()].get('input_refs', []):
+            if ref in known and ref not in used:
+                used.add(ref)
+                pending.append(ref)
+    rt.session['goal_candidate'] = {**p,'sources':{ref:deepcopy(known[ref]) for ref in sorted(used)}}
     return {'status':'ok','data':{'outcome':p['outcome']}}
 
 
@@ -344,18 +394,22 @@ def _apply_result(store,user,ident,cycle_id,candidate,now=None):
     cycle = task.get('cycle',{})
     if task.get('status') != 'active' or not within_authorization(task,now) or cycle.get('status') not in {'queued','running'} or cycle.get('id') != cycle_id or cycle.get('revision') != task['revision'] or cycle.get('redaction_revision') != memory.redaction_revision(store,user):
         return {'status':'obsolete'}
-    ref = 'artifact:' + hashlib.sha256(encode(candidate)).hexdigest()[:24]
-    if task.get('latest') == ref:
-        return {'status':'duplicate'}
-    store.save_document('task_artifact',user,ref,{**candidate,'ref':ref,'published_at':now})
-    task['latest'] = ref
-    task['artifact_revision']=task['revision']
-    cycle.update(status='completed',completed_at=now,router_pending=False)
+    ref = 'artifact:' + hashlib.sha256(encode([ident, candidate])).hexdigest()[:24]
+    outcome = candidate['outcome']
+    unchanged = task.get('latest') == ref
+    if outcome != 'failed':
+        if not unchanged:
+            store.save_document('task_artifact',user,ref,{**candidate,'ref':ref,'task_id':ident,'published_at':now})
+        task['latest'] = ref
+        task['artifact_revision']=task['revision']
+    cycle.update(status={'waiting':'waiting','failed':'failed'}.get(outcome,'completed'), outcome=outcome,
+                 completed_at=now,router_pending=False)
     task['waiting_for'] = candidate.get('unresolved',[])
-    if task['notify']:
-        task['delivery'] = {'id':stable_uuid(cycle_id+':'+ref),'status':'pending','artifact_ref':ref}
+    task['next_step'] = candidate.get('next_step','')
+    if task['notify'] and outcome != 'failed' and not unchanged:
+        task['delivery'] = {'id':stable_uuid(cycle_id+':'+ref),'status':'pending','artifact_ref':ref,'revision':task['revision']}
     save(store,user,task)
-    return {'status':'published','artifact_ref':ref}
+    return {'status':'failed'} if outcome == 'failed' else {'status':'unchanged' if unchanged else 'published','artifact_ref':ref}
 
 
 def render(artifact):
@@ -440,11 +494,17 @@ def mark_delivered(store,user,ident,ref):
 def deliver(store,user,ident,send):
     task=load(store,user,ident);delivery=task.get('delivery',{})
     if not delivery or delivery.get('status')!='pending':return {'status':'no_delivery'}
-    if task['status']!='active' or not task['notify'] or delivery['artifact_ref']!=task.get('latest'):
+    if (task['status']!='active' or not task['notify'] or not within_authorization(task,time.time())
+            or delivery['artifact_ref']!=task.get('latest') or delivery.get('revision')!=task['revision']):
         delivery['status']='superseded';save(store,user,task);return {'status':'suppressed'}
     artifact=store.load_document('task_artifact',user,delivery['artifact_ref'])
+    projected=project_artifact(store,user,artifact)
+    if not artifact or projected is not artifact:
+        delivery['status']='superseded';save(store,user,task);return {'status':'suppressed'}
     text=render(artifact)
     result=send(task['destination'],text,uuid_key=delivery['id'])
+    if not result.get('data',{}).get('message_id'):
+        raise RuntimeError('task notification delivery not confirmed')
     delivery.update(status='delivered',delivered_at=time.time(),send_result=result)
     task['delivered']=delivery['artifact_ref'];save(store,user,task)
     return {'status':'delivered'}
