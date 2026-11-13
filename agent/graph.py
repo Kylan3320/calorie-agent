@@ -261,6 +261,13 @@ class Runtime(AgentMiddleware):
                     and (final['tool']=='delegate_task' or final['args'].get('operation') not in {'start','revise'})):
                 self.journal['direct_reply']='\n'.join(controls)
                 return True
+            bound = self.journal.get('task_binding')
+            if bound and controls and self.journal['model_calls'] >= self.config.max_model_calls-1:
+                from .storage import tasks
+                task = tasks.load(self.store,self.user_id,bound['task_id'])
+                if task.get('cycle',{}).get('id') == bound['cycle_id'] and task['cycle'].get('router_pending'):
+                    self.journal['direct_reply'] = '\n'.join(controls)
+                    return True
         if not calls or not calls[-1].get("batch_id"):
             return False
         batch = [entry for entry in calls if entry.get("batch_id") == calls[-1]["batch_id"]]
@@ -449,7 +456,7 @@ class Runtime(AgentMiddleware):
                 '{"outcome":"partial","items":[{"text":"有依据的行动","evidence":[{"ref":"实际来源ID","quote":"逐字原文"}]}],'
                 '"unresolved":["待核实事项"],"next_step":"下一步"}。'
                 '逐字引用已有来源，正文中的数字须出现在相应引文中。未知条件放入 unresolved。'
-                '使用原文日期和时间即可，无需为说明行程计算日期差。')
+                '时间可直接沿用原文写法。涉及两个日期时引用两处原文，或仅写已核实的时间。')
             request = request.override(tools=[],model_settings={**request.model_settings,'response_format':{'type':'json_object'}})
         projected, measurement = select_messages(history, summary, native, prompt, state,
             [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)
