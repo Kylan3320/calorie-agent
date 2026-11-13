@@ -642,13 +642,18 @@ def control_transport_privacy():
         seen.append(str(request.url))
         assert capability not in str(request.url)
         assert request.headers['X-Calorie-Worker-Token']==capability
+        from harness.eval.production_pipeline_cases import assert_cam_request
+        assert_cam_request(request)
         response=app.ingress_handler({'httpMethod':'GET','path':request.url.path,'rawQueryString':request.url.query.decode(),
             'headers':dict(request.headers)})
         return httpx.Response(response['statusCode'],json=json.loads(response['body']))
     pipeline=SimpleNamespace(readonly_store=lambda:None)
     query={'user_id':'user','task_id':'task','worker_id':'worker','instance_id':'instance','control_token':capability}
     output=io.StringIO()
-    with patch.dict(os.environ,{'CALORIE_SERVICE_URL':'https://fixture','CALORIE_SERVICE_TOKEN':'fixture-service-token','CALORIE_SERVICE_AUTH':'bearer'}), patch.object(app,'configured_pipeline',return_value=pipeline),patch.object(tasks,'control',side_effect=lambda store,p:queries.append(p) or {'allowed':True}), httpx.Client(transport=httpx.MockTransport(http)) as transport, contextlib.redirect_stdout(output):
+    cam={'CALORIE_SERVICE_URL':'https://fixture','CALORIE_SERVICE_TOKEN':'fixture-service-token','CALORIE_SERVICE_AUTH':'cam',
+         'CALORIE_CLOUD_UIN':'100000000001','TENCENTCLOUD_SECRET_ID':'function-role','TENCENTCLOUD_SECRET_KEY':'function-key',
+         'TENCENTCLOUD_SESSION_TOKEN':'function-session'}
+    with patch.dict(os.environ,cam), patch.object(app,'configured_pipeline',return_value=pipeline),patch.object(tasks,'control',side_effect=lambda store,p:queries.append(p) or {'allowed':True}), httpx.Client(transport=httpx.MockTransport(http)) as transport, contextlib.redirect_stdout(output):
         assert read_control(query,LiveClient(client=transport))['allowed']
     assert queries[0]['control_token']==capability and capability not in output.getvalue()
     from agent.storage.task_runtime import worker_handler

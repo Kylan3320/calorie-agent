@@ -62,6 +62,7 @@ def assert_cam_request(request):
     scope = day + "/scf/tc3_request"
     path = request.url.raw_path.split(b"?", 1)[0].decode("ascii")
     query = "&".join(sorted(request.url.query.decode("ascii").split("&")))
+    assert request.url.query.decode("ascii") == query
     canonical = "\n".join([request.method, path, query,
         "content-type:" + request.headers["Content-Type"] + "\nhost:" + request.headers["Host"] + "\n",
         "content-type;host", hashlib.sha256(request.content).hexdigest()])
