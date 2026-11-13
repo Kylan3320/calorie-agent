@@ -88,7 +88,7 @@ class CosObjects:
                 try:
                     raw = stream.read()
                     event['bytes'] = len(raw)
-                    return raw, response.get('Last-Modified')
+                    return raw, response.get('last-modified')
                 finally: stream.close()
         except CosServiceError as exc:
             if exc.get_error_code() == 'NoSuchKey': return None, None
