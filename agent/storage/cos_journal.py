@@ -240,14 +240,15 @@ class Journal:
             self.unavailable = True
             raise
 
-    def _append(self, changes):
+    def _append(self, changes, documents=None):
         if self.guard:
             self.guard()
         number = self.revision + 1
         envelope = {'schema': 'calorie.cos.v1', 'revision': number, 'previous': self.revision, 'changes': changes}
+        pages = {}
         if self.format != 1:
             index = self.index if isinstance(self.index, RadixIndex) else RadixIndex(self)
-            updated = index.changed(changes) if changes else index
+            updated, pages = index.changed(changes) if changes else (index, {})
             envelope.update(schema='calorie.cos.v2', root=updated.root)
         elif number % 128 == 0:
             # Legacy readers stay usable before explicit generation upgrade.
@@ -255,6 +256,14 @@ class Journal:
             for k,v in changes.items():
                 if v is None: index.pop(k, None)
             envelope['index'] = index
+        # The commit is the only visibility boundary. Content-addressed
+        # documents and index pages can all transfer in the same bounded batch.
+        def publish(transfer):
+            writer, item = transfer
+            writer(item)
+        transfers = [(self._publish_document, (ref, raw)) for ref, (raw, _) in (documents or {}).items()]
+        transfers.extend((updated.publish, (ref, raw)) for ref, (raw, _) in pages.items())
+        _transfer_batch(publish, transfers)
         try:
             created = self.objects.create(self.key(number), encode(envelope))
         except BaseException:
@@ -262,6 +271,10 @@ class Journal:
             raise
         if not created:
             return False
+        for ref, (raw, value) in (documents or {}).items():
+            self.cache_document(ref, value, len(raw))
+        for ref, (raw, node) in pages.items():
+            self.cache_document(ref, node, len(raw))
         if envelope['schema'] == 'calorie.cos.v2':
             self.index, self.format = updated, 2
         else:
@@ -296,12 +309,7 @@ class Journal:
             if self.index.get(key) == ref: continue
             documents[ref] = (raw, deepcopy(value))
             refs[key] = ref
-        # Immutable payloads are independent. Their manifest is the sole visible
-        # commit, and is appended only after all uploads have succeeded.
-        _transfer_batch(self._publish_document, [(ref, raw) for ref, (raw, _) in documents.items()])
-        for ref, (raw, value) in documents.items():
-            self.cache_document(ref, value, len(raw))
-        if refs and not self._append(refs):
+        if refs and not self._append(refs, documents):
             self.unavailable = True
             raise CommitUnavailable('writer changed; refresh and recover original action')
         return self.revision

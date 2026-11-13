@@ -33,16 +33,12 @@ class RadixIndex(Mapping):
         j.cache_document(ref, node, len(raw))
         return node
 
-    def _write(self, node):
-        from .cos_journal import encode, CommitUnavailable
-        raw = encode(node)
-        ref = hashlib.sha256(raw).hexdigest()
+    def publish(self, page):
+        from .cos_journal import CommitUnavailable
+        ref, raw = page
         key = self.journal.prefix + 'indexes/' + ref + '.json'
-        if ref not in self.journal.cache:
-            if not self.journal.objects.create(key, raw) and self.journal.objects.get(key) != raw:
-                raise CommitUnavailable('immutable index page mismatch')
-            self.journal.cache_document(ref, node, len(raw))
-        return ref
+        if not self.journal.objects.create(key, raw) and self.journal.objects.get(key) != raw:
+            raise CommitUnavailable('immutable index page mismatch')
 
     @staticmethod
     def path(key):
@@ -91,8 +87,23 @@ class RadixIndex(Mapping):
         yield from walk(self.root, 0)
 
     def changed(self, changes):
+        from .cos_journal import encode
+        pages = {}
+
+        def read(ref):
+            if ref in pages:
+                return pages[ref][1]
+            return self._read(ref)
+
+        def stage(node):
+            raw = encode(node)
+            ref = hashlib.sha256(raw).hexdigest()
+            if ref not in self.journal.cache:
+                pages[ref] = (raw, node)
+            return ref
+
         def update(ref, changes, depth):
-            node = self._read(ref)
+            node = read(ref)
             if 'items' in node:
                 values = dict(node['items'])
                 for key, value in changes.items():
@@ -101,7 +112,7 @@ class RadixIndex(Mapping):
                     else:
                         values[key] = value
                 if len(values) <= PAGE_SIZE:
-                    return self._write({'items': sorted(values.items())}) if values else None, len(values)
+                    return stage({'items': sorted(values.items())}) if values else None, len(values)
                 paths=[self.path(key)[depth:] for key in values]
                 first,last=min(paths),max(paths)
                 length=0
@@ -118,7 +129,7 @@ class RadixIndex(Mapping):
                 # A new key diverges inside a compressed path. Retain the old
                 # subtree and copy only this split plus the changed descendant.
                 old={**node,'skip':skip[common+1:]}
-                node={'children':{skip[common]:self._write(old)},'skip':skip[:common]}
+                node={'children':{skip[common]:stage(old)},'skip':skip[:common]}
                 skip=skip[:common]
             depth+=len(skip)
             groups = {}
@@ -131,11 +142,11 @@ class RadixIndex(Mapping):
                     children[digit] = child
                 else:
                     children.pop(digit, None)
-            counts = [self._read(child) for child in children.values()]
+            counts = [read(child) for child in children.values()]
             count = sum(len(n['items']) if 'items' in n else n['count'] for n in counts)
-            return (self._write({'children': children, 'skip':skip, 'count': count}) if count else None), count
+            return (stage({'children': children, 'skip':skip, 'count': count}) if count else None), count
         root, _ = update(self.root, changes, 0)
-        return RadixIndex(self.journal, root)
+        return RadixIndex(self.journal, root), pages
 
     def physical_pages(self):
         seen = set()

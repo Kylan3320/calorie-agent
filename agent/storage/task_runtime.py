@@ -141,7 +141,7 @@ def continue_router(store,user,ident,config,*,model=None):
     return tasks.apply_result(store,user,ident,cycle['id'],candidate)
 
 
-def dispatch_pending(store,*,dispatch=None,sign=None):
+def dispatch_pending(store,*,dispatch=None,sign=None,user_id=None):
     from .scf_dispatch import dispatch_event
     dispatch = dispatch or dispatch_event
     outcomes = []
@@ -150,6 +150,8 @@ def dispatch_pending(store,*,dispatch=None,sign=None):
     # expires, so a late PUT cannot strand an old-generation reference.
     for wid,owner in list(store.load_document('worker_active','system').items()):
         user,ident=owner['user_id'],owner['task_id']
+        if user_id is not None and user != user_id:
+            continue
         task=tasks.load(store,user,ident)
         attempt=store.load_document('worker_attempt',user,wid)
         raw=store.objects.get(attempt['generation']+attempt['candidate_key']) if hasattr(store,'objects') else None
@@ -163,6 +165,8 @@ def dispatch_pending(store,*,dispatch=None,sign=None):
             tasks.close_worker_index(store,user,task,attempt,time.time())
             tasks.save(store,user,task)
     for user,ident in store.load_document('task_active','system').items():
+        if user_id is not None and user != user_id:
+            continue
         task = tasks.load(store,user,ident)
         cycle = task.get('cycle',{})
         if task.get('status') != 'active': continue
@@ -180,14 +184,6 @@ def dispatch_pending(store,*,dispatch=None,sign=None):
         for wid in cycle.get('attempts',[]):
             attempt = store.load_document('worker_attempt',user,wid)
             if attempt['status'] not in {'queued','running','stop_requested'}: continue
-            # Lost notification: read exactly its registered key, never LIST an
-            # unbounded candidates prefix. A stopped result is still audited.
-            physical = attempt['generation']+attempt['candidate_key']
-            raw = store.objects.get(physical) if hasattr(store,'objects') else None
-            if raw:
-                if len(raw)>128000: raise ValueError('worker candidate size exceeded')
-                tasks.publish(store,{'user_id':user,'task_id':ident,'worker_id':wid,'candidate':json.loads(raw)})
-                continue
             if attempt['status'] != 'queued' or not tasks.valid(store,user,task,attempt,time.time()): continue
             if time.time() < attempt.get('dispatch_retry_at', 0): continue
             snapshot = store.load_document('task_input',user,wid)
@@ -195,10 +191,11 @@ def dispatch_pending(store,*,dispatch=None,sign=None):
             if len(raw)>64000: raise ValueError('worker input size exceeded')
             if not hasattr(store,'objects') and not sign: continue
             input_key = attempt['generation']+attempt['input_key']
+            candidate_key = attempt['generation']+attempt['candidate_key']
             if hasattr(store,'objects') and not store.objects.create(input_key,raw) and store.objects.get(input_key)!=raw:
                 raise ValueError('fixed worker input differs')
             expires = max(1,int(attempt['deadline_at']-time.time()))
-            signed = sign(attempt,expires) if sign else store.objects.worker_urls(input_key,physical,expires)
+            signed = sign(attempt,expires) if sign else store.objects.worker_urls(input_key,candidate_key,expires)
             # Record the window before handing off so concurrent callbacks and
             # uncertain dispatch acknowledgements don't flood the compute slots.
             attempt['dispatch_retry_at'] = time.time() + WORKER_CLAIM_WINDOW
