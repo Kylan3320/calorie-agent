@@ -380,6 +380,7 @@ class Runtime(AgentMiddleware):
         self.check_deadline()
         if self.goal_run:
             self.goal_run.check()
+        native_transport = isinstance(self.model, DeepSeekModel)
         steps = self.journal["model_steps"]
         step = steps[-1] if steps and steps[-1].get("status") == "reserved" else None
         if step is None:
@@ -391,7 +392,6 @@ class Runtime(AgentMiddleware):
                     "status": "reserved", "attempts": []}
             steps.append(step)
             self.journal["model_calls"] += 1
-            self.persist()
         step_deadline = time.monotonic() + step["deadline_at"] - time.time()
         cached = "response" in step
         if step_deadline <= time.monotonic() and not cached:
@@ -452,11 +452,12 @@ class Runtime(AgentMiddleware):
                              "projection_ms": round((time.monotonic() - projection_started) * 1000, 3)}
             self.journal["model_requests"].append(saved_request)
         measurement = saved_request["budget"]
-        self.persist()
+        if not native_transport:
+            self.persist()
         self.check_deadline()
         if time.monotonic() >= step_deadline and not cached:
             raise ModelRequestFailed("model_step_deadline")
-        if isinstance(self.model, DeepSeekModel):
+        if native_transport:
             self.model.request_timeout = self.config.model_step_seconds
         def checkpoint():
             try:

@@ -205,7 +205,7 @@ def watchdog():
 
 def delegation():
     """C1: two native Workers overlap, foreground query, scoped control, duplicate and cancelled late candidate."""
-    from agent.storage.task_runtime import worker_handler, writer, continue_router
+    from agent.storage.task_runtime import dispatch_pending, worker_handler, writer, continue_router
     from agent.tools.general import validate_claims
     objects=Objects();store=CosStore(objects,'isolated/stage-c/tasks')
     config=replace(CONFIG,preset='live')
@@ -221,6 +221,15 @@ def delegation():
         {'objective':'核对活动','done_when':'活动时间与地点','source_refs':[s1['ref']]},
         {'objective':'核对交通','done_when':'交通条件','source_refs':[s2['ref']]}]}))
     ids=delegated['data']['workers'];lock=threading.RLock();barrier=threading.Barrier(3);release=threading.Event();intervals={}
+    dispatches=[]
+    def dispatch(event, *, target):
+        assert target == 'compute'
+        dispatches.append(event['worker_id'])
+    def sign(attempt, expires):
+        return {'input_url':'fixture-input','candidate_url':'fixture-candidate'}
+    assert dispatch_pending(store,dispatch=dispatch,sign=sign)==ids
+    assert not dispatch_pending(store,dispatch=dispatch,sign=sign)
+    assert dispatches==ids
     class Blocking(NativeFake):
         def _generate(self,*a,**kw):
             ident=threading.current_thread().name
@@ -656,6 +665,17 @@ def control_transport_privacy():
     with patch.dict(os.environ,cam), patch.object(app,'configured_pipeline',return_value=pipeline),patch.object(tasks,'control',side_effect=lambda store,p:queries.append(p) or {'allowed':True}), httpx.Client(transport=httpx.MockTransport(http)) as transport, contextlib.redirect_stdout(output):
         assert read_control(query,LiveClient(client=transport))['allowed']
     assert queries[0]['control_token']==capability and capability not in output.getvalue()
+    from urllib.parse import parse_qs, urlsplit
+    from qcloud_cos import CosS3Client
+    from agent.storage.cos_transport import CosObjects
+    with patch.object(CosS3Client,'get_bucket_versioning',return_value={}):
+        objects=CosObjects('calorie-fixture-1234567890','ap-shanghai',credentials=('fixture-id','fixture-key','temporary-session'))
+    urls=objects.worker_urls('workers/input.json','workers/candidate.json',30)
+    for url in urls.values():
+        params=parse_qs(urlsplit(url).query)
+        assert params['x-cos-security-token']==['temporary-session']
+        assert 'x-cos-security-token' in params['q-url-param-list'][0].split(';')
+    assert 'x-cos-forbid-overwrite' in parse_qs(urlsplit(urls['candidate_url']).query)['q-header-list'][0].split(';')
     from agent.storage.task_runtime import worker_handler
     signed='https://fixture/input?q-signature=private-fixture-signature'
     def unavailable():

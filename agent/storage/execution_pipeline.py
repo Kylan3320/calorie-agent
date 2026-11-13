@@ -331,7 +331,8 @@ class Pipeline:
             store.confirm_current()
             from . import feishu_client
             result = writer(store,event,config,send=send or feishu_client.send_text)
-            dispatch_pending(store)
+            if event['operation'] != 'claim':
+                dispatch_pending(store)
             return result
         if event.get('type') == 'calorie_maintenance_pause':
             from .cos_journal import Journal

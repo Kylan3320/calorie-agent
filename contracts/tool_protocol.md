@@ -90,7 +90,7 @@
 ## 上下文、预算与恢复日志
 
 - 动态状态每次重建。完整请求预算按最终 HTTP body 计量，供应商 usage 独立保存。默认值见 `config.yaml`，编码身份见 `agent/encoding/version.json`。固定 `deadline_at/legacy_budget/model_steps` 与累计次数随执行持久，`execution_budget.model_decision/model_decisions_after_this/tool_calls_remaining` 从该计数投影。
-- `journal.messages` 保存原生恢复交换，`model_steps[].request_body` 保存实际 HTTP 输入，响应及原请求供恢复使用。业务状态在 `session/prepared.session`，结果元数据在 `result`，重放用 `calls` 重建完整工具事实。`previous_session_message_id` 与会话 `last_message_id/last_execution_complete` 阻止旧任务回写。`offered_message_id` 绑定实际展示候选。
+- `journal.messages` 保存原生恢复交换。DeepSeek 首次发出 HTTP 前，同一检查点持久保存决策计数、`model_steps[].request_body` 实际输入和尝试预留；响应及原请求供恢复使用。业务状态在 `session/prepared.session`，结果元数据在 `result`，重放用 `calls` 重建完整工具事实。`previous_session_message_id` 与会话 `last_message_id/last_execution_complete` 阻止旧任务回写。`offered_message_id` 绑定实际展示候选。
 - `conversation.history(for_model=True)` 将历史轮次投影为含 `turn_id/reply_status/execution/dialogue/references` 的 SystemMessage 背景组，当前原话及本轮原生配对保持独立。`reply_status` 只依据确认的 dialogue-delivered 或 receipt_state 最终交付。`execution` 从原保存结果提取业务状态、原生调用和工具状态，明确无调用且无提交时标仅回复，缺执行依据标未知。仅为已展示草案保留对象引用，旧账本正文和数字不回填。已回复仅表示交付。分组不写回原来源。
 - `conversation_context` 保存摘要身份、`fact_scope=dialogue`、覆盖游标和未覆盖轮次。 `dialogue_turn` 按固定用户消息 ID 保存清洁轮次，`agent_session.messages` 保留近期兼容视图。旧有效 dialogue 摘要及现有清洁轮次可作初次基准和后缀，无来源标记或错误占位不可作为基准。无 `fact_scope` 且无知识工具来源的旧正文不进入新输入。知识原文沿证据身份投影一份，规则见[知识契约](knowledge_schema.md)。
 - 交付确认后将轮次标记 complete，并保存 `summary_request(user,chat)` 及 `summary_active(system)`。sync Journal 保存计算进度、连续前缀快照和候选。候选含 `task_id/user_id/chat_id/base_id/turn_ids/source_hash`。`calorie_summary` 控制事件由消息写入者验证基准及完整前缀，再按应用动作键原子去重。事件不经业务受理，不推进用户轮次、业务序号、展示状态或主预算。调度按[后台摘要规则](../CONVERSATION_EXPERIENCE_SPEC.md#5-后台话题摘要)。
@@ -104,7 +104,7 @@
 - `delegate_task.jobs[].urls` 携带用户已提供的未取文公开链接，`source_refs` 绑定工具已核对的原文。父周期取到的正文按独立引用保存，跨入口或额度耗尽可保留来源。失败周期不覆盖已有成果，通知绑定当前委托版本和实际投递确认。
 - 父周期绝对截止从受理起 180 秒，父与两个 Worker 总上限为 12 决策／24 工具／9 网页 HTTP。当前分配是父与每子各预留 4／8／3，最多两个子任务；预留与固定身份在消息写入者的原动作提交中保存。未知退出不归还预留，重启不重新领额度。配置初值见 `task_cycle_*`；单次计算仍受原 90 秒和平台剩余时间限制。通用与食品网页共享父侧 HTTP 余量。前台按原消息键累计，后续状态／控制消息不重置本周期父侧用量；Router 从同一剩余额度续作。
 - `task/task_owner/task_active/worker_active/task_source/task_artifact/task_input/worker_attempt/task_event/task_router_execution/task_run_audit` 均由原消息写入者写入。正文来源和成果独立保存；状态中仅保存引用。Worker 使用同一模型和 `create_agent`，从固定输入快照获取相关来源及已授权记忆，快照 SHA256 绑定本次尝试。
-- `app.compute_handler` 是受限计算入口，部署要求并发 2、角色没有 COS 权限。消息写入者先登记固定 input／candidate 键，再签发原截止内的 GET／禁止覆盖 PUT。签名不进模型或 trace。认领由消息入口串行处理；后续 `/internal/worker-control` 是只读查询，绑定用户、父子身份、运行实例和每次尝试的独立能力令牌，令牌只经 `X-Calorie-Worker-Token` 请求头传输；无法读取控制即停止。HTTP 签名错误只记录错误类别，不把带签名 URL 写到公开日志。
+- `app.compute_handler` 是受限计算入口，部署要求并发 2、角色没有 COS 权限。消息写入者先登记固定 input／candidate 键，再签发原截止内的 GET／禁止覆盖 PUT。使用 SCF 临时凭据签发时，将 COS 会话令牌作为签名查询参数。签名不进模型或 trace。消息写入者在派发前持久记录 15 秒认领窗口，同一窗口内不重发；未认领可由后续维护重发同一尝试。认领由消息入口串行处理；后续 `/internal/worker-control` 是只读查询，绑定用户、父子身份、运行实例和每次尝试的独立能力令牌，令牌只经 `X-Calorie-Worker-Token` 请求头传输；无法读取控制即停止。HTTP 签名错误只记录错误类别，不把带签名 URL 写到公开日志。
 - 候选按固定键读取并检查 128 KB 上限、身份、委托／撤回版本、截止、取消、实际引文、数值和运行时用量。发布与父状态更新走原 `commit_action`。同摘要重投返回 duplicate，异摘要拒绝；迟到／撤回候选仅审计。丢失回报时按已登记键发现，不扫描候选前缀。委托记忆逐项绑定当前可见内容散列，普通版本变化和撤回均使旧候选失效；已保存成果读取时也按当前来源投影。`worker_active` 独立于父活动索引，父结束后仍保留已登记候选接收，直至消费或原签名过期。子任务失败不丢弃另一项成果；Router 使用父侧剩余额度核对覆盖和未决。
 
 ### COS v2 与保留接口

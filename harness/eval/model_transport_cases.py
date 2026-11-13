@@ -95,6 +95,7 @@ def MT01():
         assert requests[0] == requests[1]
         assert len(clock.sleeps) == 1 and .74 < clock.sleeps[0] < .76
         assert saved[0]["request_body"]["messages"][-1]["content"] == "original"
+        assert [attempt["state"] for attempt in saved[0]["attempts"]] == ["reserved"]
         assert [event["status_code"] for event in events] == [503, 200]
         assert [event["provider_request_id"] for event in events] == ["request-1", "request-2"]
         assert all(event["kind"] == "model_http" and event["purpose"] == "main" for event in events)
@@ -162,13 +163,14 @@ def MT04():
         failure(model, "model_step_deadline")
         assert len(requests) == len(events) == 1 and "response" not in step
         assert events[0]["first_nonempty_response_byte_ms"] is None
-    for reservation in (False, True):
-        def expire(clock, step):
-            if bool(step["attempts"]) == reservation:
-                clock.now += 3
-        with scenario(lambda request, clock, number: httpx.Response(200, json=PAYLOAD), seconds=2, checkpoint=expire) as (model, step, requests, events, *_):
-            failure(model, "model_step_deadline")
-            assert not requests and not events
+    def expire(clock, step):
+        if step["attempts"][0]["state"] == "reserved":
+            assert step["request_body"]
+            clock.now += 3
+    with scenario(lambda request, clock, number: httpx.Response(200, json=PAYLOAD), seconds=2, checkpoint=expire) as (model, step, requests, events, *_):
+        failure(model, "model_step_deadline")
+        assert not requests and not events
+        assert step["attempts"][0]["state"] == "failed"
 
 
 def MT05():
