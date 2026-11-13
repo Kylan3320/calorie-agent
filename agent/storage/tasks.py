@@ -421,9 +421,24 @@ def submit(rt,p):
         result=call.get('result',{})
         item=result.get('data',{}).get('item') if call.get('tool')=='query_memory' and result.get('status')=='ok' else None
         if item and (src:=memory_source(item)):known[src['ref']]=src
-    try:validate_claims(p,known)
+    try:
+        validate_claims(p,known)
     except (ValueError,KeyError,TypeError) as error:
-        return {'status':'pending','data':{'reason':'candidate_evidence_invalid','detail':str(error)[:160]}}
+        # Each item has independent evidence. A single invalid claim must
+        # not discard an otherwise usable checklist.
+        if not getattr(rt.goal_run,'router',False):
+            return {'status':'pending','data':{'reason':'candidate_evidence_invalid','detail':str(error)[:160]}}
+        valid_items = []
+        for item in p['items']:
+            try:
+                validate_claims({'outcome':'partial','items':[item]},known)
+            except (ValueError,KeyError,TypeError):
+                continue
+            valid_items.append(item)
+        if not valid_items:
+            return {'status':'pending','data':{'reason':'candidate_evidence_invalid','detail':str(error)[:160]}}
+        unresolved = list(dict.fromkeys([*p['unresolved'],'有行动项未通过引文校验，需继续核对。']))
+        p = {**p,'outcome':'partial','items':valid_items,'unresolved':unresolved[:20]}
     used = {e['ref'] for item in p.get('items',[]) for e in item['evidence']}
     pending = list(used)
     while pending:
