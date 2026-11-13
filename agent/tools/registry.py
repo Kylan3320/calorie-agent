@@ -22,7 +22,7 @@ class ToolArgs(Args):
 class Item(Args):
     food_query: str = Field("", description="完整食物名称，保留种类、生熟、品牌和规格。已有核实的同会话营养引用时可省略。")
     source_ref: str = Field("", description="本会话实际返回的营养来源引用，与候选编号互斥")
-    grams: float | None = Field(None, gt=0, description="用户明确的可食克重")
+    grams: float | None = Field(None, gt=0, description="用户明确的可食克重。直接给克数即可，portion_basis 属于菜单核算工具。")
     quantity: float | None = Field(None, gt=0, description="用户原文数量；同时传unit")
     unit: str = Field("", description="与quantity一起传用户原文单位，如个、只(中)；工具读取已有资料换算")
     quantity_text: str = ""
@@ -54,7 +54,7 @@ class Write(ToolArgs):
     authorization_quote: str = Field("", max_length=500, description="确认、取消或明确改写待确认动作时，引用当前用户授权的原话")
 
 class LedgerFinish(ToolArgs):
-    finish_after_tools: bool = Field(False, description="本批结果已足以回应整条用户请求（含必要缺项问询）时显式设true；本批每个调用均需声明。仍需后续查询、改量、解释、知识或建议时不能结束；默认false，继续原生循环。这是批次控制信息，不是业务参数。")
+    finish_after_tools: bool = Field(False, description="单纯记餐、指定项改量或查账，工具结果足够答复时设 true，系统会直接生成回执。批次每项都需声明。用户另要查询、解释、知识或建议时保留 false，继续处理。")
 
 class Record(Write, LedgerFinish):
     items: list[Item] = []
