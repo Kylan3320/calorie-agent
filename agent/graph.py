@@ -236,7 +236,9 @@ class Runtime(AgentMiddleware):
             self.store.save_execution(self.task, self.journal, completed=completed)
             return
 
+        task = None
         def start():
+            nonlocal task
             if self.on_execution_start:
                 self.on_execution_start()
             if not completed:
@@ -251,7 +253,7 @@ class Runtime(AgentMiddleware):
             self.store.commit_action("execution-start:" + self.human_id, start)
         else:
             start()
-        self.task = self.store.load_execution(self.message)
+        self.task = task if task is not None else self.store.load_execution(self.message)
 
     def check_deadline(self):
         if time.monotonic() >= self.deadline:

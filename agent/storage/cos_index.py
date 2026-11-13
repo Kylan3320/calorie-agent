@@ -153,7 +153,17 @@ class RadixIndex(Mapping):
             count = sum(counts.values())
             return (stage({'children': children, 'child_counts': counts, 'skip':skip, 'count': count}) if count else None), count
         root, _ = update(self.root, changes, 0)
-        return RadixIndex(self.journal, root), pages
+        # Splitting a full leaf can stage intermediate pages before later
+        # updates in this batch replace them. Upload only the final tree.
+        reachable = {}
+        pending = [root]
+        while pending:
+            ref = pending.pop()
+            if ref in reachable or ref not in pages:
+                continue
+            reachable[ref] = pages[ref]
+            pending.extend(pages[ref][1].get('children', {}).values())
+        return RadixIndex(self.journal, root), reachable
 
     def physical_pages(self):
         seen = set()
