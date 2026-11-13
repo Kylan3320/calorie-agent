@@ -69,6 +69,7 @@ class CosObjects:
         self.client = CosS3Client(CosConfig(
             Region=region or os.getenv('COS_REGION', 'ap-shanghai'),
             SecretId=secret_id, SecretKey=secret_key, Token=token, Scheme='https', Timeout=8), retry=0, session=_cos_session())
+        self._token = token
         with span('cos_versioning'):
             versioning = self.client.get_bucket_versioning(Bucket=self.bucket)
         if versioning.get('Status') in {'Enabled', 'Suspended'}:
@@ -123,7 +124,8 @@ class CosObjects:
     def worker_urls(self, input_key, candidate_key, expires):
         if not 0 < expires <= 180:
             raise ValueError('worker signature exceeds cycle deadline')
+        params = {'x-cos-security-token': self._token} if self._token else {}
         return {
-            'input_url':self.client.get_presigned_url(Bucket=self.bucket,Key=input_key,Method='GET',Expired=expires),
-            'candidate_url':self.client.get_presigned_url(Bucket=self.bucket,Key=candidate_key,Method='PUT',Expired=expires,
+            'input_url':self.client.get_presigned_url(Bucket=self.bucket,Key=input_key,Method='GET',Expired=expires,Params=params),
+            'candidate_url':self.client.get_presigned_url(Bucket=self.bucket,Key=candidate_key,Method='PUT',Expired=expires,Params=params,
                 Headers={'x-cos-forbid-overwrite':'true','Content-Type':'application/json'})}

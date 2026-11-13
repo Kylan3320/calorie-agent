@@ -187,7 +187,6 @@ class DeepSeekModel(BaseChatModel):
             step["request_body"] = request_body(self.model_name, messages, kwargs.get("tools"),
                 max_tokens=scope.get("max_tokens", config.summary_max_tokens if purpose in {"summary", "experience"} else config.output_tokens),
                 tool_choice=kwargs.get("tool_choice"))
-            checkpoint()
         body = step["request_body"]
         measurement = check_request(body, config, purpose)
         attempts = step.setdefault("attempts", [])
@@ -224,7 +223,9 @@ class DeepSeekModel(BaseChatModel):
                        "response_headers_ms": None, "first_nonempty_response_byte_ms": None,
                        "completed_ms": None, "status_code": None, "provider_request_id": None, "usage": {}}
             attempts.append(attempt)
-            checkpoint()  # A process death consumes this reservation, too.
+            # The decision, exact request and transport attempt share one
+            # durable boundary. A process death still consumes the reservation.
+            checkpoint()
             try:
                 _remaining(deadline)  # A slow checkpoint cannot authorize a late POST.
                 data, result = self._attempt(url, wire, headers, deadline, attempt, measurement)

@@ -1,30 +1,39 @@
 """Immutable execution fragments shared by progress versions and result readers."""
 import hashlib
 import json
-from .cos_journal import encode, CommitUnavailable
+from .cos_journal import encode, CommitUnavailable, _transfer_batch
 
 
 def freeze(journal, value):
     """Split audit lists and large dictionaries, leaving only bounded references."""
-    def publish(value):
+    fragments = {}
+
+    def reference(value):
         raw = encode(value)
         ref = hashlib.sha256(raw).hexdigest()
         if ref not in journal.cache:
-            journal._publish_document((ref, raw))
-            journal.cache_document(ref, value, len(raw))
+            fragments[ref] = (raw, value)
         return {'$artifact': ref}
+
     def visit(value, depth=0):
         if isinstance(value, list):
             parts = [visit(v, depth + 1) for v in value]
             # One immutable fragment per exchange/call/request, not per save.
-            return [publish(v) if isinstance(v, (dict, list)) and len(encode(v)) > 512 else v for v in parts]
+            return [reference(v) if isinstance(v, (dict, list)) and len(encode(v)) > 512 else v for v in parts]
         if isinstance(value, dict):
             parts = {k: visit(v, depth + 1) for k,v in value.items()}
-            return publish(parts) if depth > 1 and len(encode(parts)) > 2048 else parts
+            return reference(parts) if depth > 1 and len(encode(parts)) > 2048 else parts
         if isinstance(value,str) and depth>1 and len(value.encode())>1024:
-            return publish(value)
+            return reference(value)
         return value
-    return visit(value)
+
+    packed = visit(value)
+    # Fragments are content-addressed. Readers only see them after the parent
+    # commit, so children and parent fragments can transfer together.
+    _transfer_batch(journal._publish_document, [(ref, raw) for ref, (raw, _) in fragments.items()])
+    for ref, (raw, value) in fragments.items():
+        journal.cache_document(ref, value, len(raw))
+    return packed
 
 
 def thaw(journal, value):

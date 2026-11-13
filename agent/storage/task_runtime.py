@@ -16,6 +16,8 @@ PROMPT = '''完成动态状态中的已授权只读工作，方法由你依据�
 已有引用可直接read或fetch；search结果只作定位。用submit_task_result提交事实与逐条引文、实际覆盖和未决。余量只够一次决策时，提交已核实的部分和真实缺口。
 不能预订、购买、发信、改日历、账本或设置，也不能再生成Worker。完成本轮研究不等于结束长期委托。'''
 
+WORKER_CLAIM_WINDOW = 15
+
 
 class WorkerRun:
     general = True
@@ -187,6 +189,7 @@ def dispatch_pending(store,*,dispatch=None,sign=None):
                 tasks.publish(store,{'user_id':user,'task_id':ident,'worker_id':wid,'candidate':json.loads(raw)})
                 continue
             if attempt['status'] != 'queued' or not tasks.valid(store,user,task,attempt,time.time()): continue
+            if time.time() < attempt.get('dispatch_retry_at', 0): continue
             snapshot = store.load_document('task_input',user,wid)
             raw = encode(snapshot)
             if len(raw)>64000: raise ValueError('worker input size exceeded')
@@ -196,6 +199,10 @@ def dispatch_pending(store,*,dispatch=None,sign=None):
                 raise ValueError('fixed worker input differs')
             expires = max(1,int(attempt['deadline_at']-time.time()))
             signed = sign(attempt,expires) if sign else store.objects.worker_urls(input_key,physical,expires)
+            # Record the window before handing off so concurrent callbacks and
+            # uncertain dispatch acknowledgements don't flood the compute slots.
+            attempt['dispatch_retry_at'] = time.time() + WORKER_CLAIM_WINDOW
+            store.save_document('worker_attempt',user,wid,attempt)
             dispatch({'type':'calorie_isolated_worker','user_id':user,'task_id':ident,'worker_id':wid,
                 'input_digest':attempt['input_digest'],'deadline_at':attempt['deadline_at'],**signed},target='compute')
             outcomes.append(wid)
@@ -247,13 +254,13 @@ def read_control(query,client=None):
 
 def _check_control(checker, query):
     from .timeutil import remaining_timeout
-    for attempt in range(3):
+    for delay in (.25, .5, 1, 2, None):
         try:
             return checker(query)
         except httpx.HTTPStatusError as exc:
-            if exc.response.status_code not in {429, 432} or attempt == 2:
+            if exc.response.status_code not in {429, 432} or delay is None:
                 raise
-            time.sleep(remaining_timeout(.2 * (attempt + 1)))
+            time.sleep(remaining_timeout(delay))
 
 
 def _worker_handler(event,context=None,*,model=None,get=None,put=None,claim=None,control=None,report=None):
@@ -283,13 +290,14 @@ def _worker_handler(event,context=None,*,model=None,get=None,put=None,claim=None
             # Runtime capabilities remain outside snapshot context and traces.
             (claim or (lambda q:dispatch_event({'type':'calorie_task','operation':'claim',**q})))(query)
             checker = control or read_control
-            allowed = False
-            for _ in range(10):
+            claim_until = min(deadline, time.time() + WORKER_CLAIM_WINDOW)
+            while True:
                 state = _check_control(checker,query)
-                if state.get('allowed'): allowed=True; break
-                if state.get('status') in {'running','completed','failed','rejected','terminated','stop_requested'}: break
-                time.sleep(min(.2,max(0,deadline-time.time())))
-            if not allowed: return {'status':'control_denied'}
+                if state.get('allowed'): break
+                wait = claim_until - time.time()
+                if state.get('status') != 'queued' or wait <= 0:
+                    return {'status':'control_denied'}
+                time.sleep(min(.5, wait))
             adapter = WorkerRun(snapshot,lambda:_check_control(checker,query).get('allowed',False))
             config = replace(load_config(),max_model_calls=snapshot['limits']['decisions'],max_tool_calls=snapshot['limits']['tools'])
             try:
