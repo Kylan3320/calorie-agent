@@ -605,6 +605,35 @@ def delegated_handoff_recovery():
 CHECKS['CG10']=delegated_handoff_recovery
 
 
+def router_final_synthesis():
+    """Last Router decision uses the existing model budget for a validated JSON checklist."""
+    import httpx
+    import os
+    from agent import graph,model
+    from agent.storage.task_runtime import SnapshotStore,WorkerRun
+    from harness.eval.model_transport_cases import PAYLOAD
+    item=source('展期从一月开始。',url='https://www.shanghai.gov.cn/')
+    valid={'text':'按展期安排参展。','evidence':[{'ref':item['ref'],'quote':item['text']}]}
+    invalid={'text':'交通费用是50。','evidence':[{'ref':item['ref'],'quote':item['text']}]}
+    answer={'outcome':'complete','items':[valid,invalid],'unresolved':[]}
+    snapshot={'role':'router','binding':{},'sources':{item['ref']:item},'limits':{'decisions':1,'tools':1,'web':0},
+              'objective':'核对展期','done_when':'整理清单','deadline_at':time.time()+50}
+    def respond(request):
+        body=json.loads(request.content)
+        assert body['response_format']=={'type':'json_object'} and not body.get('tools')
+        return httpx.Response(200,json={**PAYLOAD,'choices':[{'finish_reason':'stop','message':{'content':json.dumps(answer)}}]})
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client, patch.object(model,'_CLIENT',client), patch.dict(os.environ,{'DEEPSEEK_API_KEY':'fixture'}):
+        result=graph.run({'message_id':'router-final','user_id':'user','chat_id':'chat','text':'核对展期'},
+            config=replace(CONFIG,preset='live',max_model_calls=1,max_tool_calls=1),model=model.DeepSeekModel(),
+            store=SnapshotStore(snapshot),goal_run=WorkerRun(snapshot,lambda:True))
+    candidate=result['goal_candidate']
+    assert candidate['outcome']=='partial' and candidate['items']==[valid] and candidate['unresolved']
+    assert candidate['usage']=={'decisions':1,'tools':0,'web':0}
+
+
+CHECKS['CG11']=router_final_synthesis
+
+
 def cancelled_maintenance_resume():
     """S3: a published cancellation resumes temporary cleanup on the next timer without new threshold candidates."""
     from agent.storage.generations import maintenance_tick

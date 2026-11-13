@@ -186,7 +186,7 @@ class DeepSeekModel(BaseChatModel):
         if "request_body" not in step:
             step["request_body"] = request_body(self.model_name, messages, kwargs.get("tools"),
                 max_tokens=scope.get("max_tokens", config.summary_max_tokens if purpose in {"summary", "experience"} else config.output_tokens),
-                tool_choice=kwargs.get("tool_choice"))
+                tool_choice=kwargs.get("tool_choice"), response_format=kwargs.get("response_format"))
         body = step["request_body"]
         measurement = check_request(body, config, purpose)
         attempts = step.setdefault("attempts", [])
