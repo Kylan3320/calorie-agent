@@ -67,12 +67,14 @@ def wire_messages(messages):
     return wire
 
 
-def request_body(model, messages, tools=None, *, max_tokens=8192, tool_choice=None):
+def request_body(model, messages, tools=None, *, max_tokens=8192, tool_choice=None, response_format=None):
     body = {"model": model, "messages": wire_messages(messages), "temperature": 0, "max_tokens": max_tokens}
     if tools:
         body.update(tools=tools, parallel_tool_calls=False)
     if tool_choice is not None:
         body["tool_choice"] = tool_choice
+    if response_format is not None:
+        body["response_format"] = response_format
     return body
 
 

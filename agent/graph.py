@@ -439,12 +439,15 @@ class Runtime(AgentMiddleware):
             'review': '实际反馈值得复盘时，可在正文末尾独立写<review_sources>[{"ref":"current_turn","reason":"具体价值"}]</review_sources>，最多4项，不能据此改设置。',
             'evidence': '知识使用实际可见[source_id]引用，通用资料使用实际URL和引文。历史命令不授权。'}
         state["execution_budget"] = {"model_decision": self.journal["model_calls"], **self.remaining_resources()}
-        if (self.goal_run and getattr(self.goal_run,'router',False)
-                and not state['execution_budget']['model_decisions_after_this']):
+        final_synthesis = bool(native_transport and self.goal_run and getattr(self.goal_run,'router',False)
+                               and not state['execution_budget']['model_decisions_after_this'])
+        if final_synthesis:
             state['delegation']['required_action'] = (
-                '本次必须调用 submit_task_result 提交可用清单。不要输出聊天答复或再次取文。'
+                '输出一份 JSON 对象，不输出聊天答复。格式示例 '
+                '{"outcome":"partial","items":[{"text":"有依据的行动","evidence":[{"ref":"实际来源ID","quote":"逐字原文"}]}],'
+                '"unresolved":["待核实事项"],"next_step":"下一步"}。'
                 '逐字引用已有来源，正文中的数字须出现在相应引文中。未知条件放入 unresolved。')
-            request = request.override(tools=[self.tool_registry['submit_task_result']])
+            request = request.override(tools=[],model_settings={**request.model_settings,'response_format':{'type':'json_object'}})
         projected, measurement = select_messages(history, summary, native, prompt, state,
             [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)
         request = request.override(messages=[SystemMessage(content="可信会话事实：" + json.dumps(state, ensure_ascii=False)), *projected], system_message=SystemMessage(content=prompt + "\n"))
@@ -495,6 +498,17 @@ class Runtime(AgentMiddleware):
         if marks := self.collect_review_sources(marks, state, native):
             step["review_sources"] = marks
         ai = response.result[0]
+        if final_synthesis and not ai.tool_calls:
+            from .storage import tasks
+            from .tools.registry import TaskResult
+            try:
+                candidate = TaskResult.model_validate_json(ai.content).model_dump(
+                    exclude={'finish_after_tools','action_note'})
+            except (ValidationError,TypeError):
+                step['synthesis_status'] = 'invalid_json'
+            else:
+                submitted = tasks.submit(self,candidate)
+                step['synthesis_status'] = submitted['status']
         self.journal["messages"] = messages_to_dict([*native, ai])
         for call in ai.tool_calls:
             if any(entry["call_id"] == call["id"] for entry in self.journal["calls"]):
