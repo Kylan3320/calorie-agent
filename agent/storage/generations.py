@@ -207,11 +207,12 @@ def upgrade_values(domain, values, *, target_ingress=None, source_ingress=None):
                         if entry['position'] >= copied:
                             values['receipt:'+entry['receipt_id']]['session_position'] = entry['position']
     if domain == 'message':
+        from .cos_store import CATALOG_KINDS
         for key, value in list(values.items()):
             if key.startswith('document:') and value is not None:
-                kind, user = value['intent'], value['user_id']
-                values['catalog:' + kind + ':' + key] = {'key':key}
-                values['user_catalog:' + user + ':' + kind + ':' + key] = {'key':key}
+                kind = value['intent']
+                if kind in CATALOG_KINDS:
+                    values['catalog:' + kind + ':' + key] = {'key':key}
                 if kind == 'ingress_cursor' and source_ingress:
                     entries = source_ingress.get('session:'+value['chat_id'], [])
                     if isinstance(entries, list):
@@ -219,7 +220,8 @@ def upgrade_values(domain, values, *, target_ingress=None, source_ingress=None):
                         value['payload']['position'] = bisect_right(entries, sequence, key=lambda entry: entry['sequence']) - 1
             elif key.startswith('pending:') and value is not None and value.get('status') == 'pending':
                 values['active_pending:' + key.removeprefix('pending:')] = {'key':key}
-            elif key.startswith('document_index:'):
+            elif key.startswith(('document_index:', 'user_catalog:')) or (
+                    key.startswith('catalog:') and key.split(':', 2)[1] not in CATALOG_KINDS):
                 values.pop(key)
     return values
 

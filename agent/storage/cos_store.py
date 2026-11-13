@@ -13,6 +13,9 @@ from .bitable_adapter import (stable_uuid, message_key, intake_client_token,
     DEFAULT_DAILY_STANDARD, _is_valid_intake_status, normalize_food_key)
 from .timeutil import today_string, round_number, BUSINESS_DATE
 
+# Only these kinds have a cross-user runtime enumeration.
+CATALOG_KINDS = frozenset({'user_settings', 'worker_attempt'})
+
 
 class CosStore(StateStore):
     def __init__(self, objects=None, prefix=None, offset_hours=8, readonly=False, controlled=True):
@@ -143,9 +146,8 @@ class CosStore(StateStore):
         if self.journal.format == 2:
             packed = paged_document.pack(self, kind, key, payload)
             changes = {key:{'intent':kind,'user_id':user_id,'chat_id':scope,'payload':packed}}
-            if not ((self._changes is not None and key in self._changes) or key in self.journal.index):
+            if kind in CATALOG_KINDS and not ((self._changes is not None and key in self._changes) or key in self.journal.index):
                 changes['catalog:' + kind + ':' + key] = {'key': key}
-                changes['user_catalog:' + user_id + ':' + kind + ':' + key] = {'key': key}
         else:
             keys = self._document_keys(kind)
             changes = {key:{'intent':kind,'user_id':user_id,'chat_id':scope,'payload':deepcopy(payload)}}
@@ -163,7 +165,11 @@ class CosStore(StateStore):
 
     def _document_keys(self, kind):
         if self.journal.format == 2:
-            return [self._get(k)['key'] for k in self._keys('catalog:' + kind + ':')]
+            if kind in CATALOG_KINDS:
+                return [self._get(k)['key'] for k in self._keys('catalog:' + kind + ':')]
+            # Explicit inspection still includes older and newer point records.
+            return [key for key in self._keys('document:')
+                    if self.journal.get(key, {}).get('intent') == kind]
         document_keys = self._keys('document:')
         coverage = hashlib.sha256(encode(document_keys)).hexdigest()
         if self._get('document_index:ready') == coverage:
