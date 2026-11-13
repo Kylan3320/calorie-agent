@@ -143,7 +143,7 @@ class CosStore(StateStore):
         if self.journal.format == 2:
             packed = paged_document.pack(self, kind, key, payload)
             changes = {key:{'intent':kind,'user_id':user_id,'chat_id':scope,'payload':packed}}
-            if self._get(key) is None:
+            if not ((self._changes is not None and key in self._changes) or key in self.journal.index):
                 changes['catalog:' + kind + ':' + key] = {'key': key}
                 changes['user_catalog:' + user_id + ':' + kind + ':' + key] = {'key': key}
         else:
