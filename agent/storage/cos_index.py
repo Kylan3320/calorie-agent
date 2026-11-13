@@ -104,6 +104,7 @@ class RadixIndex(Mapping):
 
         def update(ref, changes, depth):
             node = read(ref)
+            child_counts = node.get('child_counts', {})
             if 'items' in node:
                 values = dict(node['items'])
                 for key, value in changes.items():
@@ -130,21 +131,27 @@ class RadixIndex(Mapping):
                 # subtree and copy only this split plus the changed descendant.
                 old={**node,'skip':skip[common+1:]}
                 node={'children':{skip[common]:stage(old)},'skip':skip[:common]}
+                child_counts = {skip[common]: old['count']}
                 skip=skip[:common]
             depth+=len(skip)
             groups = {}
             for key, value in changes.items():
                 groups.setdefault(self.path(key)[depth], {})[key] = value
             children = dict(node['children'])
+            counts = dict(child_counts)
             for digit, updates in groups.items():
-                child, _ = update(children.get(digit), updates, depth + 1)
+                child, count = update(children.get(digit), updates, depth + 1)
                 if child:
                     children[digit] = child
+                    counts[digit] = count
                 else:
                     children.pop(digit, None)
-            counts = [read(child) for child in children.values()]
-            count = sum(len(n['items']) if 'items' in n else n['count'] for n in counts)
-            return (stage({'children': children, 'skip':skip, 'count': count}) if count else None), count
+                    counts.pop(digit, None)
+            for digit in children.keys() - counts.keys():
+                child = read(children[digit])
+                counts[digit] = len(child['items']) if 'items' in child else child['count']
+            count = sum(counts.values())
+            return (stage({'children': children, 'child_counts': counts, 'skip':skip, 'count': count}) if count else None), count
         root, _ = update(self.root, changes, 0)
         return RadixIndex(self.journal, root), pages
 

@@ -446,7 +446,8 @@ class TaskSpec(Args):
     notify_here: bool = False
 
 class ManageTask(ToolArgs):
-    operation: Literal['start','revise','request_run','stop_run','stop_worker','pause','resume','end','set_auto','set_notifications']
+    operation: Literal['start','revise','request_run','stop_run','stop_worker','pause','resume','end','set_auto','set_notifications'] = Field(
+        description='stop_run只停本轮并保留委托和未来触发。撤回整项授权、永久关闭委托或停止当前及今后所有运行用end，关闭未来触发和通知。pause可恢复；stop_worker仅停止指定子任务。')
     task_id: str = ''
     revision: int | None = None
     worker_id: str = ''

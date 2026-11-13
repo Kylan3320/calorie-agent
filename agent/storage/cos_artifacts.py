@@ -11,7 +11,7 @@ def freeze(journal, value):
     def reference(value):
         raw = encode(value)
         ref = hashlib.sha256(raw).hexdigest()
-        if ref not in journal.cache:
+        if ref not in journal.cache and ref not in fragments:
             fragments[ref] = (raw, value)
         return {'$artifact': ref}
 
@@ -21,15 +21,17 @@ def freeze(journal, value):
             # One immutable fragment per exchange/call/request, not per save.
             return [reference(v) if isinstance(v, (dict, list)) and len(encode(v)) > 512 else v for v in parts]
         if isinstance(value, dict):
-            parts = {k: visit(v, depth + 1) for k,v in value.items()}
+            # The exact request and timings are consumed as units. Fragmenting
+            # individual tool schemas or trace spans amplifies every checkpoint.
+            parts = {k: reference(v) if k in {'request_body', 'latency_events'}
+                     and isinstance(v, (dict, list)) and len(encode(v)) > 512
+                     else visit(v, depth + 1) for k,v in value.items()}
             return reference(parts) if depth > 1 and len(encode(parts)) > 2048 else parts
         if isinstance(value,str) and depth>1 and len(value.encode())>1024:
             return reference(value)
         return value
 
     packed = visit(value)
-    # Fragments are content-addressed. Readers only see them after the parent
-    # commit, so children and parent fragments can transfer together.
     _transfer_batch(journal._publish_document, [(ref, raw) for ref, (raw, _) in fragments.items()])
     for ref, (raw, value) in fragments.items():
         journal.cache_document(ref, value, len(raw))

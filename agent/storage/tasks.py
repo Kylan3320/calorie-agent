@@ -196,7 +196,7 @@ def manage(rt,p):
         elif op in {'stop_run','pause','end'}:
             stop(task.get('cycle',{})); _cancel_children(store,user,task)
             if op == 'pause': task['status'] = 'paused'
-            if op == 'end': task['status'] = 'ended'
+            if op == 'end': task.update(status='ended',auto=False,notify=False)
             advance_cycle(store,user,task,now)
         elif op == 'stop_worker':
             if p.get('worker_id') not in task.get('cycle',{}).get('attempts',[]):

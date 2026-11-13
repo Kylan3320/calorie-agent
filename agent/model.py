@@ -246,7 +246,10 @@ class DeepSeekModel(BaseChatModel):
                 if len(attempts) >= maximum:
                     raise ModelRequestFailed("model_retry_exhausted", _diagnostic(exc)) from exc
             else:
-                checkpoint()
+                # The graph saves the raw reply and parsed calls together
+                # before tools run. Standalone callers own their checkpoint.
+                if not scope.get("checkpoint_success_in_graph"):
+                    checkpoint()
                 if scope.get("measurement") is not None:
                     scope["measurement"].update(measurement)
                 return result
