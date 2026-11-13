@@ -356,6 +356,12 @@ class Pipeline:
             from .reminders import check_reminders
             store = self.store()
             store.confirm_current()
+            from . import tasks
+            from .task_runtime import dispatch_pending
+            # Reuse the one-minute message timer. Recovery is independent of archive.
+            if store.load_document('task_active','system') or store.load_document('worker_active','system'):
+                tasks.tick(store,config)
+                dispatch_pending(store)
             return check_reminders(store, datetime.fromisoformat(event['scheduled_time']), send)
         if event.get("type") == "calorie_diet_goal":
             if config.preset != "live":
@@ -413,6 +419,8 @@ class Pipeline:
         if event.get("manual_recovery") and requested_state.get("work_status") == "needs_attention" and requested_state.get("result") and requested["kind"] == "message":
             return self.recover_result(store, requested, requested_state, execute, send, update_send)
         if requested_state.get("status") in {"completed", "awaiting_presentation"}:
+            from .task_runtime import dispatch_pending
+            dispatch_pending(store,user_id=requested['message']['user_id'])
             return {**requested_state, "duplicate": True}
         session_id = receipt_id(requested["message"]["user_id"], requested["message"]["chat_id"])
         cursor = store.load_document("ingress_cursor", "system", session_id).get("sequence", 0)
@@ -545,7 +553,7 @@ class Pipeline:
             finally:
                 PROCESSING_DEADLINE.reset(deadline)
         from .task_runtime import dispatch_pending
-        dispatch_pending(store,user_id=receipt['message']['user_id'])
+        dispatch_pending(store,user_id=requested['message']['user_id'])
         return requested_state or {"status": "completed", "duplicate": True}
 
     def recover(self, *, wake=None):

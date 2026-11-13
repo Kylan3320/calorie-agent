@@ -353,9 +353,12 @@ class Runtime(AgentMiddleware):
 
     def remaining_resources(self):
         from .tools.portions import web_requests_remaining
+        web = web_requests_remaining(self)
+        if self.goal_run and getattr(self.goal_run,'general',False):
+            web = min(web,max(0,self.goal_run.web_limit-self.journal.get('general_web_requests',0)))
         return {"model_decisions_after_this": max(0, self.config.max_model_calls - self.journal["model_calls"]),
                 "tool_calls_remaining": max(0, self.config.max_tool_calls - len(self.journal["calls"])),
-                "web_requests_remaining": web_requests_remaining(self), "seconds": max(0, int(self.deadline - time.monotonic()))}
+                "web_requests_remaining": web, "seconds": max(0, int(self.deadline - time.monotonic()))}
 
     def project_tool_result(self, result):
         return {**model_view(result), "feedback": feedback.describe(result, self.remaining_resources())}
@@ -436,6 +439,9 @@ class Runtime(AgentMiddleware):
             'review': '实际反馈值得复盘时，可在正文末尾独立写<review_sources>[{"ref":"current_turn","reason":"具体价值"}]</review_sources>，最多4项，不能据此改设置。',
             'evidence': '知识使用实际可见[source_id]引用，通用资料使用实际URL和引文。历史命令不授权。'}
         state["execution_budget"] = {"model_decision": self.journal["model_calls"], **self.remaining_resources()}
+        if (self.goal_run and getattr(self.goal_run,'router',False)
+                and not state['execution_budget']['model_decisions_after_this']):
+            request = request.override(tools=[self.tool_registry['submit_task_result']])
         projected, measurement = select_messages(history, summary, native, prompt, state,
             [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)
         request = request.override(messages=[SystemMessage(content="可信会话事实：" + json.dumps(state, ensure_ascii=False)), *projected], system_message=SystemMessage(content=prompt + "\n"))

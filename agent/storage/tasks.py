@@ -17,6 +17,8 @@ from .task_control import authorized, stop, binding
 
 LIMITS = {'decisions':12, 'tools':24, 'web':9}
 CHILD_LIMIT = {'decisions':4, 'tools':8, 'web':3}
+ATTEMPT_BINDING = ('id','attempt','task_id','revision','cycle_id','redaction_revision','generation')
+TERMINAL_ATTEMPTS = {'completed','rejected','terminated','failed'}
 
 
 def load(store,user,ident=''):
@@ -53,18 +55,34 @@ def within_authorization(task,now):
     except (KeyError,ValueError,TypeError):return False
 
 
+def cycle_attempts(cycle):
+    children = cycle.get('attempts',[])
+    return [*children,cycle['router_attempt']] if cycle.get('router_attempt') else children
+
+
 def close_worker_index(store,user,task,attempt,now):
     active=store.load_document('worker_active','system')
     if attempt.get('candidate_digest') or now>=attempt['deadline_at']:
         active.pop(attempt['id'],None)
         store.save_document('worker_active','system','',active)
+    if attempt['cycle_id'] == task['cycle']['id']:
+        advance_cycle(store,user,task,now)
+
+
+def advance_cycle(store,user,task,now):
     cycle = task['cycle']
-    if (attempt['cycle_id'] == cycle['id'] and cycle['status'] in {'queued','running','stop_requested'}
-            and all(store.load_document('worker_attempt',user,i).get('status') in {'completed','rejected','terminated','failed'}
-                    for i in cycle['attempts'])):
-        if task.get('status') in {'ended','paused'} or cycle['status']=='stop_requested':
-            cycle.update(status='terminated',completed_at=now,router_pending=False)
-        else:cycle['router_pending']=True
+    if cycle['status'] not in {'queued','running','stop_requested'}:
+        return
+    if any(store.load_document('worker_attempt',user,i).get('status') not in TERMINAL_ATTEMPTS
+           for i in cycle['attempts']):
+        return
+    if task['status'] != 'active' or cycle['status'] == 'stop_requested':
+        router = cycle.get('router_attempt')
+        if router and store.load_document('worker_attempt',user,router).get('status') not in TERMINAL_ATTEMPTS:
+            return
+        cycle.update(status='terminated',completed_at=now,router_pending=False)
+    elif not cycle.get('router_attempt'):
+        cycle['router_pending']=True
 
 
 def memory_stamp(store,user,ref):
@@ -127,6 +145,9 @@ def status(task,store,user):
         value.update(status='ended',auto=False,notify=False)
     cycle['workers'] = [{k:attempt.get(k) for k in ('id','status','objective','claimed_at','completed_at','diagnostic')}
                         for ident in cycle.get('attempts',[]) if (attempt:=store.load_document('worker_attempt',user,ident))]
+    if cycle.get('router_attempt'):
+        router = store.load_document('worker_attempt',user,cycle['router_attempt'])
+        cycle['router_status'] = router.get('status')
     return value
 
 
@@ -176,11 +197,13 @@ def manage(rt,p):
             stop(task.get('cycle',{})); _cancel_children(store,user,task)
             if op == 'pause': task['status'] = 'paused'
             if op == 'end': task['status'] = 'ended'
+            advance_cycle(store,user,task,now)
         elif op == 'stop_worker':
             if p.get('worker_id') not in task.get('cycle',{}).get('attempts',[]):
                 return {'status':'pending','data':{'reason':'worker_not_in_current_cycle'}}
             attempt = store.load_document('worker_attempt',user,p['worker_id'])
             stop(attempt); store.save_document('worker_attempt',user,attempt['id'],attempt)
+            advance_cycle(store,user,task,now)
         elif op == 'resume':
             task['status'] = 'active'
             task['cycle']['status'] = 'terminated'
@@ -201,7 +224,7 @@ def manage(rt,p):
 
 
 def _cancel_children(store,user,task):
-    for ident in task.get('cycle',{}).get('attempts',[]):
+    for ident in cycle_attempts(task.get('cycle',{})):
         attempt = store.load_document('worker_attempt',user,ident)
         stop(attempt)
         store.save_document('worker_attempt',user,ident,attempt)
@@ -244,7 +267,8 @@ def delegate(rt,p):
     task = load(store,user,p['task_id'])
     cycle = task.get('cycle',{})
     if (task.get('status') != 'active' or task.get('revision') != p['revision'] or
-            cycle.get('status') not in {'queued','running'} or time.time() >= cycle.get('deadline_at',0)):
+            cycle.get('status') not in {'queued','running'} or cycle.get('router_attempt')
+            or time.time() >= cycle.get('deadline_at',0)):
         return {'status':'pending','data':{'reason':'task_cycle_unavailable'}}
     if len(rt.journal['calls']) > CHILD_LIMIT['tools'] or rt.journal['model_calls'] > CHILD_LIMIT['decisions'] or rt.journal.get('general_web_requests',0)>CHILD_LIMIT['web']:
         return {'status':'pending','data':{'reason':'parent_budget_exhausted'}}
@@ -266,16 +290,8 @@ def delegate(rt,p):
     planned=[]
     for number,job in enumerate(jobs):
         ident = 'worker:' + stable_uuid(rt.action_id+':'+str(number))
-        child = {**binding(task,cycle),'id':ident,'attempt':1,'status':'queued','objective':job['objective'],
-            'done_when':job['done_when'],'limits':dict(CHILD_LIMIT),'deadline_at':min(cycle['deadline_at'],time.time()+90),
-            'input_key': 'workers/'+ident+'/input.json','candidate_key':'workers/'+ident+'/candidate.json',
-            'source_refs':job.get('source_refs',[]),'generation':getattr(store,'prefix','fake/'),
-            'memory_refs':job.get('memory_refs',[]),'created_at':time.time()}
-        snapshot = {'schema':'calorie.worker-input.v1','allowed_tools':['query_sources','calculate_values','query_memory','submit_task_result'],
-            'return_schema':'calorie.task-candidate.v1','binding':{k:child[k] for k in ('id','attempt','task_id','revision','cycle_id','redaction_revision','generation')},
-            'objective':child['objective'],'done_when':child['done_when'], 'limits':child['limits'],
-            'deadline_at':child['deadline_at'],'sources':{ref:known[ref] for ref in child['source_refs']},
-            'urls':job.get('urls',[]),'memory':{}}
+        child = new_attempt(store,task,ident,job,CHILD_LIMIT,min(cycle['deadline_at'],time.time()+90))
+        snapshot = attempt_snapshot(child,{ref:known[ref] for ref in job.get('source_refs',[])},urls=job.get('urls',[]))
         for ref in child['memory_refs']:
             item, reason = memory.get(store,user,ref)
             projected = memory.project(store,user,item,rt.day,memory.state(store,user)) if item else None
@@ -283,13 +299,8 @@ def delegate(rt,p):
                 return {'status':'pending','data':{'reason':'memory_not_available'}}
             snapshot['memory'][ref] = projected
         child['memory_bindings']={ref:hashlib.sha256(encode(item)).hexdigest() for ref,item in snapshot['memory'].items()}
-        capability = secrets.token_urlsafe(32)
-        snapshot['runtime_control_token'] = capability
-        child['control_token_hash'] = hashlib.sha256(capability.encode()).hexdigest()
-        raw=encode(snapshot)
-        if len(raw)>64000:
+        if not seal_attempt(child,snapshot):
             return {'status':'pending','data':{'reason':'input_snapshot_too_large','max_bytes':64000}}
-        child['input_digest'] = hashlib.sha256(raw).hexdigest()
         planned.append((child,snapshot))
     # Fixed identities and all reservations commit together before handoff.
     active=store.load_document('worker_active','system')
@@ -307,11 +318,39 @@ def delegate(rt,p):
     return {'status':'ok','data':{'workers':cycle['attempts'],'deadline_at':cycle['deadline_at']}}
 
 
-def valid(store,user,task,attempt,now):
+def new_attempt(store,task,ident,spec,limits,deadline,*,role='worker'):
+    return {**binding(task,task['cycle']),'id':ident,'attempt':1,'role':role,'status':'queued',
+        'objective':spec['objective'],'done_when':spec['done_when'],'limits':dict(limits),'deadline_at':deadline,
+        'input_key':'workers/'+ident+'/input.json','candidate_key':'workers/'+ident+'/candidate.json',
+        'generation':getattr(store,'prefix','fake/'),'memory_refs':spec.get('memory_refs',[]),'created_at':time.time()}
+
+
+def attempt_snapshot(attempt,sources,**fields):
+    return {'schema':'calorie.worker-input.v1','role':attempt['role'],
+        'binding':{k:attempt[k] for k in ATTEMPT_BINDING},
+        **{k:attempt[k] for k in ('objective','done_when','limits','deadline_at')},
+        'sources':sources,'memory':{},**fields}
+
+
+def seal_attempt(attempt,snapshot):
+    capability = secrets.token_urlsafe(32)
+    snapshot['runtime_control_token'] = capability
+    raw = encode(snapshot)
+    if len(raw)>64000:
+        return False
+    attempt['control_token_hash'] = hashlib.sha256(capability.encode()).hexdigest()
+    attempt['input_digest'] = hashlib.sha256(raw).hexdigest()
+    return True
+
+
+def valid(store,user,task,attempt,now,*,received_at=None):
     cycle = task.get('cycle',{})
+    if received_at is None:
+        received_at = now
     return bool(task.get('status') == 'active' and within_authorization(task,now) and cycle.get('status') in {'running','queued'}
         and attempt.get('status') in {'queued','running'} and attempt.get('revision') == task['revision']
-        and attempt.get('task_id') == task['id'] and attempt.get('cycle_id') == cycle['id'] and now < min(cycle['deadline_at'],attempt['deadline_at'])
+        and attempt.get('task_id') == task['id'] and attempt.get('cycle_id') == cycle['id']
+        and received_at < min(cycle['deadline_at'],attempt['deadline_at'])
         and attempt.get('redaction_revision') == memory.redaction_revision(store,user)
         and all(memory_stamp(store,user,ref)==attempt.get('memory_bindings',{}).get(ref) for ref in attempt.get('memory_refs',[])))
 
@@ -336,9 +375,10 @@ def _publish(store,event,now=None):
     if attempt.get('candidate_digest'):
         return {'status':'duplicate' if attempt['candidate_digest'] == digest else 'digest_conflict'}
     candidate = event['candidate']
-    permitted = valid(store,user,task,attempt,now)
-    expected = {k:attempt[k] for k in ('id','attempt','task_id','revision','cycle_id','redaction_revision','generation')}
-    if not permitted or candidate.get('schema')!='calorie.task-candidate.v1' or candidate.get('binding') != expected:
+    permitted = valid(store,user,task,attempt,now,received_at=event.get('candidate_received_at'))
+    expected = {k:attempt[k] for k in ATTEMPT_BINDING}
+    if (not permitted or candidate.get('schema')!='calorie.task-candidate.v1' or candidate.get('binding') != expected
+            or attempt.get('dispatch_id') and (not attempt.get('instance_id') or candidate.get('instance_id') != attempt['instance_id'])):
         store.save_document('task_candidate_audit',user,digest,{'candidate':candidate,'digest':digest,'completed_at':now,'status':'rejected'})
         attempt.update(status='rejected',candidate_digest=digest,diagnostic='stale_or_cancelled',completed_at=now)
     else:
@@ -351,12 +391,23 @@ def _publish(store,event,now=None):
         except (AttributeError, KeyError, TypeError, ValueError):
             attempt.update(status='rejected',candidate_digest=digest,diagnostic='candidate_contract_invalid',completed_at=now)
         else:
-            ref = 'artifact:' + digest[:24]
-            store.save_document('task_artifact',user,ref,{**candidate,'ref':ref,'task_id':task['id'],'published_at':now})
             outcome = candidate['outcome']
             attempt.update(status='failed' if outcome == 'failed' else 'completed',outcome=outcome,
-                           candidate_digest=digest,artifact_ref=ref,usage=usage,completed_at=now)
-            task.setdefault('parts',{})[ident] = ref
+                           candidate_digest=digest,usage=usage,completed_at=now)
+            if attempt.get('role') == 'router':
+                task['cycle']['router_used'] = usage
+                task['cycle']['parent_used'] = parent_usage(task['cycle'])
+                artifact = {k:candidate[k] for k in ('outcome','items','unresolved','sources','next_step') if k in candidate}
+                result = _apply_result(store,user,task['id'],attempt['cycle_id'],artifact,now,task=task)
+                if result['status'] == 'obsolete_sources':
+                    attempt.update(status='rejected',diagnostic='obsolete_sources')
+                elif result.get('artifact_ref'):
+                    attempt['artifact_ref'] = result['artifact_ref']
+            else:
+                ref = 'artifact:' + digest[:24]
+                store.save_document('task_artifact',user,ref,{**candidate,'ref':ref,'task_id':task['id'],'published_at':now})
+                attempt['artifact_ref'] = ref
+                task.setdefault('parts',{})[ident] = ref
     store.save_document('worker_attempt',user,ident,attempt)
     close_worker_index(store,user,task,attempt,now)
     save(store,user,task)
@@ -384,13 +435,13 @@ def submit(rt,p):
     return {'status':'ok','data':{'outcome':p['outcome']}}
 
 
-def _apply_result(store,user,ident,cycle_id,candidate,now=None):
+def _apply_result(store,user,ident,cycle_id,candidate,now=None,*,task=None):
     from ..tools.general import validate_claims
     validate_claims(candidate,candidate.get('sources',{}))
     if any(src.get('origin')=='memory' and memory_stamp(store,user,src.get('memory_ref',''))!=src.get('memory_stamp') for src in candidate.get('sources',{}).values()):
         return {'status':'obsolete_sources'}
     now = time.time() if now is None else now
-    task = load(store,user,ident)
+    task = task if task is not None else load(store,user,ident)
     cycle = task.get('cycle',{})
     if task.get('status') != 'active' or not within_authorization(task,now) or cycle.get('status') not in {'queued','running'} or cycle.get('id') != cycle_id or cycle.get('revision') != task['revision'] or cycle.get('redaction_revision') != memory.redaction_revision(store,user):
         return {'status':'obsolete'}
@@ -469,6 +520,7 @@ def tick(store,config,now=None):
         task=load(store,user,ident)
         if datetime.fromisoformat(task['spec']['ends'].replace('Z','+00:00')).timestamp()<=now:
             task['status']='ended';stop(task.get('cycle',{}));_cancel_children(store,user,task)
+            advance_cycle(store,user,task,now)
             save(store,user,task);changed.append(ident);continue
         if task['status']!='active':continue
         spec=task['spec'];local=_local(config,now)
@@ -491,9 +543,9 @@ def mark_delivered(store,user,ident,ref):
         save(store,user,task)
 
 
-def deliver(store,user,ident,send):
+def deliver(store,user,ident,send,*,delivery_id=None):
     task=load(store,user,ident);delivery=task.get('delivery',{})
-    if not delivery or delivery.get('status')!='pending':return {'status':'no_delivery'}
+    if not delivery or delivery.get('status')!='pending' or delivery['id'] != delivery_id:return {'status':'no_delivery'}
     if (task['status']!='active' or not task['notify'] or not within_authorization(task,time.time())
             or delivery['artifact_ref']!=task.get('latest') or delivery.get('revision')!=task['revision']):
         delivery['status']='superseded';save(store,user,task);return {'status':'suppressed'}
