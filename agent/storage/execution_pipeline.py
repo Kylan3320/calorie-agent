@@ -332,7 +332,7 @@ class Pipeline:
             from . import feishu_client
             result = writer(store,event,config,send=send or feishu_client.send_text)
             if event['operation'] != 'claim':
-                dispatch_pending(store)
+                dispatch_pending(store,user_id=event['user_id'])
             return result
         if event.get('type') == 'calorie_maintenance_pause':
             from .cos_journal import Journal
@@ -545,7 +545,7 @@ class Pipeline:
             finally:
                 PROCESSING_DEADLINE.reset(deadline)
         from .task_runtime import dispatch_pending
-        dispatch_pending(store)
+        dispatch_pending(store,user_id=receipt['message']['user_id'])
         return requested_state or {"status": "completed", "duplicate": True}
 
     def recover(self, *, wake=None):

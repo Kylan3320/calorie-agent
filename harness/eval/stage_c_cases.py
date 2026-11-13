@@ -227,7 +227,8 @@ def delegation():
         dispatches.append(event['worker_id'])
     def sign(attempt, expires):
         return {'input_url':'fixture-input','candidate_url':'fixture-candidate'}
-    assert dispatch_pending(store,dispatch=dispatch,sign=sign)==ids
+    assert not dispatch_pending(store,dispatch=dispatch,sign=sign,user_id='another-user')
+    assert dispatch_pending(store,dispatch=dispatch,sign=sign,user_id='user')==ids
     assert not dispatch_pending(store,dispatch=dispatch,sign=sign)
     assert dispatches==ids
     class Blocking(NativeFake):
