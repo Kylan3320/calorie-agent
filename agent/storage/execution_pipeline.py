@@ -485,7 +485,11 @@ class Pipeline:
             if receipt["kind"] == "message":
                 message = self.budget_message(receipt, state)
                 state.setdefault("queue_wait_ms", round(max(0, time.time() - state["budget_started_at"]) * 1000, 3) if not state["legacy_budget"] else None)
-            store.save_document("receipt_state", "system", rid, state)
+            def save_processing():
+                store.save_document("receipt_state", "system", rid, state)
+            deferred_processing = receipt["kind"] == "message" and execute is None and not state.get("result")
+            if not deferred_processing:
+                save_processing()
             deadline = PROCESSING_DEADLINE.set(min(PROCESSING_DEADLINE.get() or float("inf"), attempt_started + load_config().deadline_seconds))
             message = self.budget_message(receipt, state) if receipt["kind"] == "message" else receipt["message"]
             try:
@@ -501,7 +505,9 @@ class Pipeline:
                             if settings.get("feishu_chat_id") != message["chat_id"]:
                                 store.save_document("user_settings", message["user_id"], "", {**settings, "feishu_chat_id": message["chat_id"]})
                         callback = (lambda text, **context: self.action_note(store, receipt, state, text, note_send, **context)) if receipt["source"] == "feishu" else None
-                        result = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"], action_note_callback=callback)
+                        options = {"on_execution_start": save_processing} if deferred_processing else {}
+                        result = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"],
+                                                  action_note_callback=callback, **options)
                         errors = ";".join(result.get("errors", []))
                         deterministic = errors.startswith(("KeyError:", "ValueError:", "PermissionError:", "stale_execution_requires_new_message"))
                         if result.get("status") == "error" and state["attempts"] < 3 and not deterministic and not result.get("terminal"):

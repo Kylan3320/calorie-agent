@@ -90,7 +90,7 @@
 ## 上下文、预算与恢复日志
 
 - 动态状态每次重建。完整请求预算按最终 HTTP body 计量，供应商 usage 独立保存。默认值见 `config.yaml`，编码身份见 `agent/encoding/version.json`。固定 `deadline_at/legacy_budget/model_steps` 与累计次数随执行持久，`execution_budget.model_decision/model_decisions_after_this/tool_calls_remaining` 从该计数投影。
-- `journal.messages` 保存原生恢复交换。DeepSeek 首次发出 HTTP 前，同一检查点持久保存决策计数、`model_steps[].request_body` 实际输入和尝试预留；响应及原请求供恢复使用。业务状态在 `session/prepared.session`，结果元数据在 `result`，重放用 `calls` 重建完整工具事实。`previous_session_message_id` 与会话 `last_message_id/last_execution_complete` 阻止旧任务回写。`offered_message_id` 绑定实际展示候选。
+- `journal.messages` 保存原生恢复交换。首次模型请求前，同一检查点持久保存受理执行次数、首次执行、清洁对话占位、决策计数、`model_steps[].request_body` 实际输入和尝试预留。成功响应与解析后的固定调用在任何工具或交付前同批落盘。中途退出仍消耗原 HTTP 尝试；失败与退避分别保存，重启复用原请求与截止。业务状态在 `session/prepared.session`，结果元数据在 `result`，重放用 `calls` 重建完整工具事实。`previous_session_message_id` 与会话 `last_message_id/last_execution_complete` 阻止旧任务回写。`offered_message_id` 绑定实际展示候选。
 - `conversation.history(for_model=True)` 将历史轮次投影为含 `turn_id/reply_status/execution/dialogue/references` 的 SystemMessage 背景组。新轮次在清洁来源保存紧凑业务与工具摘要，实际展示后才可纳入投影。旧轮次仍可核对原交付记录，过期审计视为执行细节未知。仅为已展示草案保留对象引用，旧账本正文和数字不回填。已回复仅表示交付。分组不写回原来源。
 - `conversation_context` 保存摘要身份、`fact_scope=dialogue`、覆盖游标和未覆盖轮次。 `dialogue_turn` 按固定用户消息 ID 保存清洁轮次，`agent_session.messages` 保留近期兼容视图。旧有效 dialogue 摘要及现有清洁轮次可作初次基准和后缀，无来源标记或错误占位不可作为基准。无 `fact_scope` 且无知识工具来源的旧正文不进入新输入。知识原文沿证据身份投影一份，规则见[知识契约](knowledge_schema.md)。
 - 交付确认后将轮次标记 complete，并保存 `summary_request(user,chat)` 及 `summary_active(system)`。sync Journal 保存计算进度、连续前缀快照和候选。候选含 `task_id/user_id/chat_id/base_id/turn_ids/source_hash`。`calorie_summary` 控制事件由消息写入者验证基准及完整前缀，再按应用动作键原子去重。事件不经业务受理，不推进用户轮次、业务序号、展示状态或主预算。调度按[后台摘要规则](../CONVERSATION_EXPERIENCE_SPEC.md#5-后台话题摘要)。
@@ -110,13 +110,13 @@
 
 ### COS v2 与保留接口
 
-- Journal 同时读取 v1 和 v2；已有 v1 在显式切换前仍沿原协议，首次升级使用同一三域停写／唯一决议。新空数据域写 v2。v2 每次提交保存有界 radix 索引根，叶页最多 32 项、目录扇出最多 17（含终止符）；不可变页按内容复用，不再每 128 次复制全部键。冷读直接取得根，暖读只定位新增提交；v1 的 128 检查点算法单独保留。写结果未知仍关闭该实例，按固定键及禁止覆盖屏障恢复。
+- Journal 同时读取 v1 和 v2；已有 v1 在显式切换前仍沿原协议，首次升级使用同一三域停写／唯一决议。新空数据域写 v2。v2 每次提交保存有界 radix 索引根，叶页最多 32 项、目录扇出最多 17（含终止符）。新目录页保存各子页计数，更新只需访问受影响的子页，旧目录页在首次更新时从原子页恢复缺失计数。不可变页按内容复用，不再每 128 次复制全部键。冷读直接取得根，暖读只定位新增提交；v1 的 128 检查点算法单独保留。写结果未知仍关闭该实例，按固定键及禁止覆盖屏障恢复。
 - 同次提交的不可变文档和索引页共用有界传输批次；全部上传成功后才创建唯一可见的提交。传输失败不更新当前索引根。
 - v2 `catalog:<kind>:<document-key>` 和用户目录在新建文档时同动作发布；不再用全键集合哈希核对覆盖。普通正文更新不改目录。记忆元数据的可变映射、活动目录、会话轮次／摘要覆盖采用独立点键或 32 项页；正文通过原引用读取。旧目录由维护显式转换；只读 v1 重建不落盘。v2 不能回退到不维护该格式的写入器。
 - 收件顺序为每会话 32 项页与 position 游标；历史重投仍按 receipt 点读。sync 自己维护增量收件发现和活动恢复索引，未完成／人工恢复独立保留，不跨域共同修改队列。分钟事件直接检查提醒，只为实际投递保存固定防重任务。今日／有边界日期请求直接定位日索引。确认 COS 头后，原截止已过的人工恢复任务独立保留，推进顺序游标以允许同会话新消息；未知写入仍先确认屏障。
 - 实际提醒使用原逐规则 `reminder_receipt` 和 UUID，`reminder_delivery_active` 只收录准备过的未确认投递。每次 RPC 前持久增加累计尝试（自动最多三次），重启不重领；sync 只唤醒消息写入者。当前关闭／规则变化／已记餐抑制旧投递。维护消息调用恢复后立即按原计划时刻补查至多 15 分钟，超过跳过；已准备失败独立恢复。旧记录缺累计尝试时不自动补额度。所有新控制／维护／计算入口在只读预设先退出。
 - `archive_scan` 的代与水位和 `archive_pending` 发现项共同提交；只扫描新增消息提交，已确认项退出活动发现。原 inflight 请求、token、版本和行映射保持不变。切代转换水位，并携带准备后新增的待归档项。
-- 执行快照的大型请求／调用／结果拆成不可变 `$artifact` 引用，`load_execution`、`committed_action` 和结果接口仍返回原业务形状。内部物理形状不成为消费者接口。缓存仍统一受 512 项／8 MiB 上限约束。
+- 执行快照的大型请求／调用／结果拆成不可变 `$artifact` 引用。完整模型 HTTP 请求和同轮耗时明细分别作为整体保存，避免逐工具定义和逐事件写对象。`load_execution`、`committed_action` 和结果接口仍返回原业务形状。缓存仍统一受 512 项／8 MiB 上限约束。
 - `retention.preflight` 只读分类，返回保留／瘦身身份、逻辑字节、原因和未分类项。终态工作和交付均结束 30 天后，在新基线中用精简凭据替换过程；未知、待展示、needs_attention、活动依赖、归档 inflight 不按年龄清理。旧结束时间不明时保存首次升级锚点，不读文件年龄。终态重投返回原回执与 `audit_status=unavailable`，过期 tool_events／trace 不重算；精简动作凭据仍阻止 callback 再执行。
 - `GenerationControl` 的控制记录独立于三域代前缀。三个角色分别用禁止覆盖屏障确认最终版本；消息调用内自持 40 秒取消／60 秒恢复 watchdog，不依赖后续请求。唯一 decision 解决 enable／cancel 和未知响应；旧 ingress 事件映射到新根水位。旧实例每次提交前查代，陈旧 LIST 不能复用旧序号。
 - `Maintenance.prepare/finish/collection_plan/collect` 复用同一切换协议。准备期独立读回正文；暂停窗只追并核对增量。删除必须先新进程核对、COS 实际拒绝三个旧角色写入，等待旧候选签名失效并逐键对账。不可变删除清单逐项留进度，响应丢失和中断重做同一清单。控制记录不删除。默认自动维护关闭，隔离验证后才可设置操作门；正式切代和回收不在本任务授权内。

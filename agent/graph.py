@@ -151,9 +151,10 @@ def _settings_version(store, user, args, day):
 
 
 class Runtime(AgentMiddleware):
-    def __init__(self, message, store, config, preset, model, day, execution, goal_run=None):
+    def __init__(self, message, store, config, preset, model, day, execution, goal_run=None, on_execution_start=None):
         self.message, self.store, self.config, self.preset, self.model = message, store, config, preset, model
         self.goal_run = goal_run
+        self.on_execution_start = on_execution_start
         self.tool_registry = {name: tool for name, tool in TOOL_REGISTRY.items() if name in preset.allowed_tools}
         if goal_run and getattr(goal_run, 'general', False):
             self.tool_registry[TASK_RESULT_TOOL.name] = TASK_RESULT_TOOL
@@ -195,12 +196,6 @@ class Runtime(AgentMiddleware):
         self.pending_before = {}
         self.failed = False
         self.session.setdefault("unfinished", {})
-        if not goal_run:
-            conversation.context(store, self.user_id, message["chat_id"], live_session, write=preset.allow_write)
-        if preset.allow_write:
-            conversation.stage_turn(store, self.user_id, message["chat_id"], self.human_id,
-                [HumanMessage(content=message["text"], id=self.human_id)], reserve=True,
-                metadata={"date": self.day, "received_at": self.journal["budget_started_at"]})
         if "messages" not in self.journal:
             self.journal["messages"] = messages_to_dict([HumanMessage(content=message["text"], id=self.human_id)])
             # Expose only the proposal actually shown by the immediately preceding reply.
@@ -214,14 +209,8 @@ class Runtime(AgentMiddleware):
             start = next(i for i, item in enumerate(restored) if item.id == self.human_id)
             self.journal["messages"] = messages_to_dict(restored[start:])
         self._persisted = None
-        if preset.allow_write and not self.task:
-            self.journal["session"] = {k:deepcopy(v) for k,v in self.session.items() if k != "messages"}
-            self.journal["settings"] = deepcopy(self.settings)
-            self.task = store.begin_execution(message, self.journal)
-            self._persisted = json.dumps([self.journal,False],sort_keys=True,ensure_ascii=False)
-        self.persist()
 
-    def persist(self, completed=False, *, phase=None):
+    def persist(self, completed=False, *, phase=None, atomic=True):
         if self.preset.allow_write:
             from .storage.tasks import account
             account(self)
@@ -239,8 +228,30 @@ class Runtime(AgentMiddleware):
                     if self.goal_run:
                         self.goal_run.save(self.journal)
                     else:
-                        self.store.save_execution(self.task, self.journal, completed=completed)
+                        self.save_progress(completed, atomic=atomic)
                 self._persisted = state
+
+    def save_progress(self, completed, *, atomic):
+        if self.task:
+            self.store.save_execution(self.task, self.journal, completed=completed)
+            return
+
+        def start():
+            if self.on_execution_start:
+                self.on_execution_start()
+            if not completed:
+                conversation.stage_turn(self.store, self.user_id, self.message["chat_id"], self.human_id,
+                    [HumanMessage(content=self.message["text"], id=self.human_id)], reserve=True, atomic=False,
+                    metadata={"date": self.day, "received_at": self.journal["budget_started_at"]})
+            task = self.store.begin_execution(self.message, self.journal)
+            self.store.save_execution(task, self.journal, completed=completed)
+            return {"pending_id": task["pending_id"]}
+
+        if atomic:
+            self.store.commit_action("execution-start:" + self.human_id, start)
+        else:
+            start()
+        self.task = self.store.load_execution(self.message)
 
     def check_deadline(self):
         if time.monotonic() >= self.deadline:
@@ -392,7 +403,7 @@ class Runtime(AgentMiddleware):
             self.goal_run.check()
         native_transport = isinstance(self.model, DeepSeekModel)
         steps = self.journal["model_steps"]
-        step = steps[-1] if steps and steps[-1].get("status") == "reserved" else None
+        step = steps[-1] if native_transport and steps and steps[-1].get("status") == "reserved" else None
         if step is None:
             if self.journal["model_calls"] >= self.config.max_model_calls:
                 raise ModelRequestFailed("model_call_limit", "model decision budget exhausted")
@@ -487,7 +498,8 @@ class Runtime(AgentMiddleware):
             except Exception as exc:
                 raise StateCheckpointFailed("model step checkpoint requires recovery") from exc
         scope = REQUEST_BUDGET.set({"config": self.config, "purpose": "main", "measurement": measurement,
-                                   "step": step, "step_deadline": step_deadline, "checkpoint": checkpoint})
+                                   "step": step, "step_deadline": step_deadline, "checkpoint": checkpoint,
+                                   "checkpoint_success_in_graph": True})
         try:
             response = handler(request)
             if not cached and time.monotonic() >= step_deadline:
@@ -925,7 +937,7 @@ class Runtime(AgentMiddleware):
         if not error or terminal:
             self.journal["result"] = {k:v for k,v in result.items() if k not in {"model_requests", "native_calls", "tool_results"}}
         def save_final():
-            self.persist(completed=not error or terminal)
+            self.persist(completed=not error or terminal, atomic=bool(error and not terminal))
             if not error or terminal:
                 _stage_saved_dialogue(self.store,self.message,self.journal,atomic=False)
             if not self.session_superseded:
@@ -952,7 +964,8 @@ class Runtime(AgentMiddleware):
 @request_scope
 @message_scope
 @task_date_scope
-def run(message, *, store=None, config=None, intake_date=None, model=None, action_note_callback=None, goal_run=None):
+def run(message, *, store=None, config=None, intake_date=None, model=None, action_note_callback=None, goal_run=None,
+        on_execution_start=None):
     config = config or load_config()
     preset = resolve_preset(config.preset, config.allowed_tools)
     if goal_run:
@@ -969,6 +982,9 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
             execution = store.load_execution(message) if preset.allow_write else None
         if execution:
             BUSINESS_DATE.set(execution["payload"].get("day") or intake_date)
+            if on_execution_start:
+                on_execution_start()
+                on_execution_start = None
         if execution and execution["payload"].get("result"):
             # Replays return the saved response without reopening the journal or
             # overwriting a newer conversation with this message's old snapshot.
@@ -985,7 +1001,8 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
                     store.save_session(message["user_id"],message["chat_id"],{**journal["session"],"messages":journal["messages"],"last_message_id":message["message_id"]})
             return _saved_result(journal)
         model = model or DeepSeekModel(model_name=config.model)
-        rt = Runtime(message, store, config, preset, model, intake_date, execution, goal_run)
+        rt = Runtime(message, store, config, preset, model, intake_date, execution, goal_run,
+                     on_execution_start=on_execution_start)
         rt.action_note_callback = action_note_callback
         token = CURRENT_RUNTIME.set(rt)
         from .storage.timeutil import PROCESSING_DEADLINE
@@ -1009,7 +1026,8 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
                 messages = project_messages(messages_from_dict(rt.journal["messages"]))
                 if isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls and messages[-1].content:
                     break
-                reserved = bool(rt.journal["model_steps"] and rt.journal["model_steps"][-1].get("status") == "reserved")
+                reserved = bool(isinstance(model, DeepSeekModel) and rt.journal["model_steps"]
+                                and rt.journal["model_steps"][-1].get("status") == "reserved")
                 remaining = config.max_model_calls - rt.journal["model_calls"] + int(reserved)
                 if remaining <= 0:
                     return rt.terminate("model_call_limit")
