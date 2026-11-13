@@ -3,6 +3,7 @@ from copy import deepcopy
 from dataclasses import replace
 from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 import hashlib
 import json
 import threading
@@ -20,6 +21,7 @@ from harness.eval.personal_cases import CONFIG, A, MEAL, NativeFake, call
 from harness.eval.conversation_cases import answer
 
 EVIDENCE = {}
+LEDGER_FIXTURE = Path(__file__).resolve().parents[2] / 'reports/r11-cloud-ledger-20261104.json'
 
 class Objects(BaseObjects):
     def __init__(self):
@@ -104,8 +106,7 @@ def old_state(objects,prefix='isolated/stage-c/old/'):
         'message':{'item:'+row['record_id']:row,'day:user:2026-10-01':[row['record_id']], 'pending:'+exec_id:execution,
             'action:old:agent:1':{'entry':{'result':{'status':'ok'}},'session':{'large_audit':'重复 '*3000}},
             'intake_action:old:agent:1':[{'record_id':row['record_id']}]},'sync':{'item:archive:intake:old':{'status':'pending','inflight':{'fixed':True},'ack_revision':0}}}
-    from pathlib import Path
-    retained=json.loads((Path(__file__).resolve().parents[2]/'reports/r11-cloud-ledger-20261104.json').read_text())
+    retained=json.loads(LEDGER_FIXTURE.read_text(encoding='utf-8'))
     for actual in retained['baseline_rows']:
         states['message']['item:'+actual['record_id']]=deepcopy(actual)
         states['message'].setdefault('day:'+actual['user_id']+':'+actual['date'],[]).append(actual['record_id'])
@@ -129,6 +130,16 @@ def old_state(objects,prefix='isolated/stage-c/old/'):
 def retention_cutover():
     """S2→S3: old v1, 30-day boundary, pending delivery/inflight, cutover/delete/restart and new archive."""
     objects=Objects(); prefix,now=old_state(objects)
+    late = Pipeline(objects,prefix).accept({'message_id':'late-delivery','user_id':'user','chat_id':'late','text':'旧请求'},
+                                           source='cli',received_at=now-45*86400)
+    late_store=CosStore(objects,prefix)
+    execution=late_store.begin_execution(late['message'],{'day':'2026-10-01'})
+    late_store.save_execution(execution,{'result':{'status':'ok','reply':'送达较迟'},'model_requests':[{'body':'过程 '*1200}]},completed=True)
+    ident='pending:'+execution['pending_id']
+    execution=late_store.journal.get(ident)
+    late_store.journal.commit({ident:{**execution,'completed_at':now-40*86400}})
+    late_store.save_document('receipt_state','system',late['receipt_id'],{'status':'completed','completed_at':now-40*86400,
+        'delivery':{'presented':True,'presented_at':now-86400},'result':{'status':'ok','reply':'送达较迟','tool_events':['保留']}})
     journals={role:Journal(objects,prefix+role+'/',readonly=True) for role in DOMAINS}
     before=deepcopy(objects.data)
     selected,report=preflight(journals,now)
@@ -145,6 +156,8 @@ def retention_cutover():
     current=CosStore(objects,prefix,readonly=True)
     assert current.load_document('receipt_state','system','r-old')['result']['audit_status']=='unavailable'
     assert current.load_document('receipt_state','system','r-await')['delivery']['presented'] is False
+    assert current.load_document('receipt_state','system',late['receipt_id'])['result']['tool_events']==['保留']
+    assert current.load_execution(late['message'])['payload']['model_requests'][0]['body'].startswith('过程')
     assert current.intake_by_ids('user',['rec-existing-feishu-id'],True)[0]['status']=='deleted'
     denied={role:{'status':403,'source':prefix,'transport':'controlled'} for role in DOMAINS}
     try: maint.collect('g1',restart_verified=True,denied_roles={})
@@ -164,7 +177,7 @@ def retention_cutover():
     reboot=CosStore(objects,prefix,readonly=True)
     assert len(reboot.intake_items('user','2026-11-13','2026-11-14'))==1
     assert reboot.intake_items('user','2026-10-01','2026-10-02')==[]
-    for actual in __import__('json').load(open('reports/r11-cloud-ledger-20261104.json'))['baseline_rows']:
+    for actual in json.loads(LEDGER_FIXTURE.read_text(encoding='utf-8'))['baseline_rows']:
         assert reboot.intake_by_ids(actual['user_id'],[actual['record_id']],True)[0]['nutrition']==actual['nutrition']
     EVIDENCE['S2_S3']={'legacy_source':'reports/r11-cloud-ledger-20261104.json baseline_rows; retained real IDs/nutrition in reconstructed v1 envelopes','preflight':report,'source':prefix,'target':state['target'],'deleted_objects':len(plan['keys']),
         'deleted_bytes':plan['bytes'],'after_restart_new_intake_kcal':30,'permission_evidence':'controlled_only'}
@@ -305,8 +318,14 @@ def cutover_delta_and_lost_ack():
     pipeline=Pipeline(objects,prefix)
     receipt=pipeline.accept({'message_id':'queued-before-cutover','user_id':'user','chat_id':'new','text':'查状态'},source='cli')
     old=CosStore(objects,prefix)
+    old.save_document('memory_index','user','',{'items':{'old':{'text':'旧索引'}}})
     maint=Maintenance(objects,prefix);state=maint.prepare('g1',now=now,compact=True)
     # Real changes after preparation, before each sole writer freezes.
+    queued=pipeline.accept({'message_id':'queued-during-preparation','user_id':'user','chat_id':'new','text':'查询最新'},source='cli')
+    from agent.storage.execution_pipeline import receipt_id
+    sid=receipt_id('user','new')
+    old.save_document('ingress_cursor','system',sid,{'sequence':receipt['sequence'],'position':-1})
+    old.save_document('memory_index','user','',{'items':{'new':{'text':'新索引'}}})
     old.write_intake({'message_id':'delta','user_id':'user','text':'增量'},[
         {'matched_name':'增量','grams':10,'date':'2026-11-13','nutrition':{'kcal':6,'carbs':1,'protein':.2,'fat':.1}}])
     maint.request_pause('g1');ctl=maint.control
@@ -323,10 +342,32 @@ def cutover_delta_and_lost_ack():
     assert maint.finish('g1')['choice']=='enable'
     objects.create=original
     assert ctl.translate_ingress(prefix,receipt['ingress_revision']) is not None
-    result=Pipeline(objects,prefix).worker({'receipt_id':receipt['receipt_id'],'ingress_revision':receipt['ingress_revision'],
-        'ingress_generation':prefix,**{k:receipt['message'][k] for k in ('message_id','user_id','chat_id')}},
-        execute=lambda *a,**kw:{'status':'ok','reply':'已读取本条状态。','tool_results':[],'native_calls':[]})
+    reboot_pipeline=Pipeline(objects,prefix)
+    assert reboot_pipeline.readonly_store().load_document('ingress_cursor','system',sid)['position']==0
+    index = reboot_pipeline.readonly_store().load_document('memory_index','user')['items']
+    assert dict(index)=={'new':{'text':'新索引'}} and hasattr(index,'persist')
+    assert reboot_pipeline.inbox(readonly=True).get('receipt:'+queued['receipt_id'])['session_position']==1
+    seen=[]
+    def execute(msg,**kwargs):
+        seen.append(msg['message_id'])
+        return {'status':'ok','reply':'已读取本条状态。','tool_results':[],'native_calls':[]}
+    def event(item):
+        return {**{key:item[key] for key in ('receipt_id','ingress_revision','ingress_generation')},
+                **{key:item['message'][key] for key in ('message_id','user_id','chat_id')}}
+    result=reboot_pipeline.worker(event(queued),execute=execute)
     assert result['status']=='awaiting_presentation'
+    assert seen==['queued-during-preparation']
+    pause={'type':'calorie_maintenance_pause','epoch':0,'task':'g1'}
+    assert reboot_pipeline.worker(pause)['status']=='obsolete_pause'
+    assert ctl.read(ctl.key(1,'started')) is None
+    for n in range(4):
+        new=reboot_pipeline.accept({'message_id':f'new-after-cutover-{n}','user_id':'user','chat_id':'new','text':'查询'},source='cli')
+    wakes=[]
+    reboot_pipeline.recover(wake=wakes.append)
+    recovered=next(item for item in wakes if item['receipt_id']==new['receipt_id'])
+    assert recovered['ingress_generation']==state['target']
+    assert recovered['ingress_revision']>ctl.read(ctl.key(0,'verified'))['versions']['ingress']
+    assert reboot_pipeline.worker(event(recovered),execute=execute)['status']=='awaiting_presentation'
     objects.stale=True
     try:old.save_document('user_settings','user','',{'targets':{'kcal':999}})
     except MaintenancePaused:pass
@@ -346,7 +387,31 @@ def cutover_delta_and_lost_ack():
     assert result['remaining']==0
     final=CosStore(objects,prefix,readonly=True)
     assert final.intake_items('user','2026-11-13','2026-11-14')[0]['nutrition']['kcal']==6
+    maint=Maintenance(objects,prefix)
+    next_state=maint.prepare('g2',compact=True)
+    current=CosStore(objects,prefix)
+    index=current.load_document('memory_index','user')
+    index['items'].pop('new')
+    index['items']['latest']={'text':'第二代增量'}
+    current.save_document('memory_index','user','',index)
+    current.save_document('dialogue_turn','user','large-after-prepare',{'text':'跨代正文 '*2000})
+    maint.request_pause('g2')
+    next_epoch=next_state['epoch']
+    now=time.time()
+    ctl=maint.control
+    ctl.create(ctl.key(next_epoch,'started'),{'started_at':now,'decision_deadline':now+40,'resume_deadline':now+60})
+    for role in DOMAINS:
+        journal=Journal(objects,next_state['source']+role+'/')
+        ctl.acknowledge(role,next_epoch,journal.revision)
+    assert maint.finish('g2')['choice']=='enable'
+    denied={role:{'status':403,'source':next_state['source'],'transport':'controlled'} for role in DOMAINS}
+    assert not maint.collect('g2',restart_verified=True,denied_roles=denied,limit=10000)['remaining']
+    newest=CosStore(objects,prefix,readonly=True)
+    assert dict(newest.load_document('memory_index','user')['items'])=={'latest':{'text':'第二代增量'}}
+    assert newest.load_document('dialogue_turn','user','large-after-prepare')['text']=='跨代正文 '*2000
     EVIDENCE['S3_delta']={'lost_enable_ack':True,'old_event':'mapped','old_warm_writer':'rejected',
+        'late_legacy_session_append':'position preserved','cutover_recovery':'current generation bound','duplicate_pause':'ignored',
+        'second_cutover':'paged updates and artifact body survive old generation collection',
         'stale_list_target_read':'exact_registered_root','delete_interruption':'recovered','target_only_restart_kcal':6}
 
 CHECKS.update({'CG02':general_sources_prompt,'CS04':cutover_delta_and_lost_ack})
@@ -429,15 +494,42 @@ def foreground_task_budget():
     text='把两个独立的资料核对部分委派出去。'
     execute('native-delegate',text,call('delegate_task',{'task_id':resumed['id'],'revision':resumed['revision'],
         'jobs':[{'objective':'核对第一份公开资料','done_when':'原文与时间条件'}, {'objective':'核对另一份公开资料','done_when':'出处与未决'}]}))
-    delegated=tasks.load(store,'user');assert delegated['cycle']['parent_used']['decisions']==4,delegated
+    delegated=tasks.load(store,'user')
+    assert delegated['cycle']['parent_used']['decisions']==resumed['cycle']['parent_used']['decisions']+2,delegated
     assert delegated['cycle']['reserved']==tasks.LIMITS and len(delegated['cycle']['attempts'])==2
     text='关闭主动通知。'
     execute('native-notify-off',text,call('manage_task',{'operation':'set_notifications','enabled':False,'user_quote':text}))
     assert tasks.load(store,'user')['cycle']['parent_used']==delegated['cycle']['parent_used']
     EVIDENCE['foreground_task_budget']={'cross_session_version_binding':'pass','pause_preserves_usage':True,
-        'new_authorised_resume_cycle':True,'parent_decisions_after_two_messages':4,'control_does_not_reset':True}
+        'new_authorised_resume_cycle':True,'parent_decisions_after_two_messages':delegated['cycle']['parent_used']['decisions'],
+        'control_does_not_reset':True}
 
 CHECKS['CG03']=foreground_task_budget
+
+
+def acquired_sources_survive_foreground_budget():
+    """A continued cycle can present source material fetched before its parent budget ended."""
+    from agent import run
+    from agent.storage import deepseek_web, task_runtime
+    from agent.storage.fake_store import FakeStore
+    from langchain_core.messages import AIMessage
+    store=FakeStore();config=replace(CONFIG,preset='shadow_fakewrite')
+    text='持续核对公开活动，到2027年1月1日结束。资料 https://www.shanghai.gov.cn/'
+    start=call('manage_task',{'operation':'start','user_quote':text,
+        'spec':{'objective':'公开资料行动清单','done_when':'有出处','ends':'2027-01-01T00:00:00+08:00'}})
+    def fetch(url,*,deadline,reserve):
+        reserve();return {'title':'公开资料','text':'活动在上海举行。'}
+    with patch.object(deepseek_web,'fetch',fetch):
+        result=run({'message_id':'retain-source','user_id':'user','chat_id':'first','text':text},store=store,config=config,
+            model=NativeFake(responses=[start,call('query_sources',{'operation':'fetch','url':'https://www.shanghai.gov.cn/'},cid='fetch'),
+                AIMessage(content='资料已取得。')]))
+    assert result['status']=='ok'
+    task=tasks.load(store,'user');refs=tasks.sources(store,'user',task)
+    assert len(refs)==1 and next(iter(refs.values()))['text']=='活动在上海举行。'
+    assert task_runtime.RouterRun(store,'user',task).partial_result('待复核')['items'][0]['evidence'][0]['ref'] in refs
+
+
+CHECKS['CG09']=acquired_sources_survive_foreground_budget
 
 
 def cancelled_maintenance_resume():

@@ -1,2 +1,4 @@
 # The runtime checks the SHA-256 of these exact tokenizer bytes.
 agent/encoding/deepseek-v4.json text eol=lf
+*.sh text eol=lf
+scf_bootstrap text eol=lf

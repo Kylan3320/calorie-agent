@@ -252,6 +252,15 @@ class Runtime(AgentMiddleware):
         if self.journal.get("direct_reply"):
             return True
         calls = self.journal["calls"]
+        if calls and all(entry.get('result',{}).get('tool') in {'manage_task','delegate_task','query_sources','calculate_values','query_task'} for entry in calls):
+            from .storage.tasks import control_receipt
+            controls = [control_receipt(entry['result']['data']) for entry in calls
+                        if entry['tool']=='manage_task' and entry['result']['status']=='ok']
+            final = calls[-1]
+            if (controls and final['tool'] in {'manage_task','delegate_task'} and final['result']['status']=='ok'
+                    and (final['tool']=='delegate_task' or final['args'].get('operation') not in {'start','revise'})):
+                self.journal['direct_reply']='\n'.join(controls)
+                return True
         if not calls or not calls[-1].get("batch_id"):
             return False
         batch = [entry for entry in calls if entry.get("batch_id") == calls[-1]["batch_id"]]
@@ -821,8 +830,14 @@ class Runtime(AgentMiddleware):
                               if fact["tool"] == "query_diet_goal" and fact["status"] == "ok" and "artifact" in fact["data"]), None)
         task_artifact = next((fact['data']['artifact'] for fact in reversed(facts) if fact['tool']=='query_task' and fact['status']=='ok' and fact['data'].get('artifact')),None)
         if task_artifact:
-            reply=task_artifact['reply']
+            reply=task_artifact['reply'] if all(fact['tool']=='query_task' for fact in facts) or not reply else reply.rstrip() + '\n\n' + task_artifact['reply']
             adjustments.append({'reason':'task_artifact_presented','ref':task_artifact['ref']})
+        elif facts and all(fact['tool'] in {'query_task','manage_task','delegate_task','query_sources','calculate_values'} for fact in facts):
+            from .storage.tasks import control_receipt
+            controls=[control_receipt(fact['data']) for fact in facts if fact['tool']=='manage_task' and fact['status']=='ok']
+            if controls:
+                reply='\n'.join(controls) + ('\n' + terminal_notice if terminal_notice else '')
+                adjustments.append({'reason':'general_task_control_receipt'})
         if goal_artifact:
             reply = goal_artifact["reply"]
             adjustments.append({"reason": "diet_goal_artifact_presented", "version": goal_artifact["version"]})

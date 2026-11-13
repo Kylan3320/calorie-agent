@@ -270,7 +270,6 @@ def maintenance_handler(event, context=None):
     from agent.config import load_config
     from agent.storage.timeutil import execution_deadline
     from agent.storage.cos_archive import archive_pending
-    from agent.storage.cos_journal import Journal
     from agent.storage.memory_background import run_next
     from agent.storage.diet_goal_runtime import run_next as run_goal
     from agent.storage.scf_dispatch import dispatch_event
@@ -287,7 +286,7 @@ def maintenance_handler(event, context=None):
         store = pipeline.readonly_store()
         if store.load_document('reminder_delivery_active','system'):
             dispatch_event({'type':'calorie_reminder_recover'})
-        progress = Journal(pipeline.objects, store.prefix + "sync/")
+        progress = pipeline.sync_progress(generation=store.prefix)
         archive = archive_pending(store=store, progress=progress)
         summary = {"status": "skipped_maintenance_error"}
         goal = {"status": "skipped_maintenance_error"}

@@ -34,6 +34,13 @@ def terminal(value):
     return True
 
 
+def _terminal_time(value):
+    delivery = value.get('delivery', {})
+    return max((stamp for stamp in (value.get('completed_at'), value.get('ended_at'), value.get('finished_at'),
+                                    delivery.get('presented_at'), delivery.get('sent_at'), delivery.get('delivered_at'))
+                if stamp is not None), default=None)
+
+
 def compact_result(result):
     return {**{k:deepcopy(result[k]) for k in ('reply', 'status', 'terminal', 'business_status',
         'presented_candidates', 'session_id', 'goal_candidate', 'artifact_ref') if k in result},
@@ -72,6 +79,13 @@ def preflight(journals, now=None):
                     if isinstance(payload.get(name), str): aliases.setdefault(payload[name], set()).add(identity)
     documents = {(v.get('intent'),v.get('user_id'),v.get('chat_id')):v.get('payload',{})
                  for k,v in entries.items() if k.startswith('message/document:')}
+    message_receipts = {}
+    for identity, receipt in entries.items():
+        if identity.startswith('ingress/receipt:') and receipt.get('kind') == 'message':
+            message = receipt['message']
+            key = tuple(message[k] for k in ('message_id', 'user_id', 'chat_id'))
+            state = documents.get(('receipt_state', 'system', receipt['receipt_id']), {})
+            message_receipts.setdefault(key, []).append(state)
     def worker_terminal(user, wid):
         worker=documents.get(('worker_attempt',user,wid),{})
         parent=documents.get(('task',user,worker.get('task_id')), {})
@@ -113,6 +127,11 @@ def preflight(journals, now=None):
             candidate = value.get('status') == 'completed' and bool(result) and (result.get('status') != 'error' or result.get('terminal'))
             if any(e.get('prepared') and 'result' not in e and not e.get('terminated') for e in body.get('calls', [])):
                 candidate = False
+            matching = message_receipts.get(tuple(value.get(k) for k in ('source_message_id', 'user_id', 'chat_id')), [])
+            if matching:
+                candidate = candidate and all(terminal(receipt) for receipt in matching)
+                body['completed_at'] = max((stamp for stamp in [_terminal_time(body), *map(_terminal_time, matching)]
+                                            if stamp is not None), default=None)
             reason = 'terminal_execution'
         elif key.startswith('receipt:'):
             body, candidate, reason = value, False, 'ingress_identity'
@@ -141,7 +160,7 @@ def preflight(journals, now=None):
         else:
             body, candidate = value if isinstance(value, dict) else {}, False
             reason = 'index' if key.startswith(INDEX_PREFIXES) else 'business_or_unclassified'
-        ended = body.get('completed_at') or body.get('ended_at') or body.get('finished_at')
+        ended = _terminal_time(body)
         if candidate and ended is None and not body.get('retention_anchor') and not value.get('retention_anchor'):
             # Explicit first-upgrade anchor; never infer expiry from object age.
             body = {**body, 'retention_anchor':now}

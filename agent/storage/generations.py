@@ -5,6 +5,7 @@ Control objects live outside generations. Pausing the message writer owns a
 Deleting requires independent restart verification and server-denied old writes.
 """
 from copy import deepcopy
+from bisect import bisect_right
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -123,6 +124,8 @@ class GenerationControl:
             'target':pause['target'], 'choice':choice, 'decided_at':now})
 
     def message_wait(self, epoch, revision, *, clock=time.time, wait=time.sleep):
+        if self.read(self.key(epoch, 'pause')) is None:
+            raise MaintenancePaused('pause not requested')
         started = self.create(self.key(epoch, 'started'), {'started_at':clock(),
             'decision_deadline':clock()+40, 'resume_deadline':clock()+60})
         self.acknowledge('message', epoch, revision)
@@ -138,6 +141,16 @@ class GenerationControl:
                     continue
             wait(min(.2, max(0, started['decision_deadline']-clock())))
         raise CommitUnavailable('decision unreadable; writers remain closed')
+
+    def pause_event(self, event):
+        epoch, prefix = self.location(allow_paused=True)
+        if event.get('epoch') != epoch:
+            return None
+        state = self.read(self.key(epoch, 'pause'))
+        if (not state or event.get('task') != state['task'] or state['source'] != prefix
+                or self.read(self.key(epoch, 'decision')) is not None):
+            return None
+        return state
 
     def minimum(self,domain):
         self.location()
@@ -169,32 +182,71 @@ def _materialized(journal):
     return {key:thaw(journal, journal.get(key)) for key in journal.keys()}
 
 
-def upgrade_values(domain, values):
+def upgrade_values(domain, values, *, target_ingress=None, source_ingress=None):
     """Explicit v1 conversion, used only by offline preparation/maintenance."""
-    from .bitable_adapter import stable_uuid
     values = deepcopy(values)
     if domain == 'ingress':
+        if target_ingress:
+            for key, receipt in values.items():
+                if key.startswith('receipt:') and receipt and 'session_position' not in receipt:
+                    previous = target_ingress.get(key)
+                    if previous:
+                        receipt['session_position'] = previous['session_position']
         for key, value in list(values.items()):
             if key.startswith('session:') and isinstance(value, list):
+                copied = target_ingress.get(key, {}).get('count', 0) if target_ingress else 0
+                if copied > len(value):
+                    raise CommitUnavailable('legacy session shortened after preparation')
                 values[key] = {'count':len(value)}
-                for i in range(0, len(value), 32):
+                if copied == len(value):
+                    continue
+                for i in range(copied // 32 * 32, len(value), 32):
                     page = [{**entry, 'position':i+n} for n,entry in enumerate(value[i:i+32])]
                     values[key+f':page:{i//32:012d}'] = page
                     for entry in page:
-                        values['receipt:'+entry['receipt_id']]['session_position'] = entry['position']
+                        if entry['position'] >= copied:
+                            values['receipt:'+entry['receipt_id']]['session_position'] = entry['position']
     if domain == 'message':
         for key, value in list(values.items()):
             if key.startswith('document:') and value is not None:
                 kind, user = value['intent'], value['user_id']
                 values['catalog:' + kind + ':' + key] = {'key':key}
                 values['user_catalog:' + user + ':' + kind + ':' + key] = {'key':key}
+                if kind == 'ingress_cursor' and source_ingress:
+                    entries = source_ingress.get('session:'+value['chat_id'], [])
+                    if isinstance(entries, list):
+                        sequence = value['payload'].get('sequence', 0)
+                        value['payload']['position'] = bisect_right(entries, sequence, key=lambda entry: entry['sequence']) - 1
             elif key.startswith('pending:') and value is not None and value.get('status') == 'pending':
                 values['active_pending:' + key.removeprefix('pending:')] = {'key':key}
             elif key.startswith('document_index:'):
                 values.pop(key)
-        # Older cursors have global sequence only. Convert to the corresponding
-        # position when ingress is available in prepare (below).
     return values
+
+
+def _pack_legacy_documents(store, changes):
+    from .paged_document import FIELDS, SEQUENCES, WHOLE, pack
+
+    packed = {}
+    for key, document in changes.items():
+        if not key.startswith('document:') or not document:
+            continue
+        kind, payload = document['intent'], document['payload']
+        if kind not in (FIELDS.keys() | SEQUENCES.keys() | WHOLE):
+            continue
+        packed[key] = {**document, 'payload':pack(store, kind, key, payload)}
+    return packed
+
+
+def _plain(value):
+    from collections.abc import Mapping
+    from .paged_document import DocumentSequence
+
+    if isinstance(value, Mapping):
+        return {key:_plain(item) for key,item in value.items()}
+    if isinstance(value, (list, DocumentSequence)):
+        return [_plain(item) for item in value]
+    return value
 
 
 class Maintenance:
@@ -232,16 +284,10 @@ class Maintenance:
             if not compact:
                 selected = {role+'/'+key:value for role,j in journals.items() for key,value in _materialized(j).items()}
         now = frozen['prepared_at']
+        from .cos_store import CosStore
         for role in DOMAINS:
-            values = upgrade_values(role, {key.split('/',1)[1]:v for key,v in selected.items() if key.startswith(role+'/')})
-            if role == 'message':
-                for key, value in list(values.items()):
-                    if key.startswith('document:') and value['intent'] == 'ingress_cursor':
-                        sid = value['chat_id']
-                        sequence = value['payload'].get('sequence', 0)
-                        old_entries = journals['ingress'].get('session:'+sid, [])
-                        if isinstance(old_entries, list):
-                            value['payload']['position'] = max((n for n,e in enumerate(old_entries) if e['sequence'] <= sequence), default=-1)
+            values = upgrade_values(role, {key.split('/',1)[1]:v for key,v in selected.items() if key.startswith(role+'/')},
+                                    source_ingress=journals['ingress'])
             if role == 'sync':
                 # Baseline carries unconfirmed discovery, inflight and mappings.
                 for key in journals['message'].keys('archive:'):
@@ -252,13 +298,15 @@ class Maintenance:
                 values['archive_scan'] = {'generation':target, 'revision':0}
                 values['recovery_scan'] = {'revision':-1}
             dest = Journal(self.objects, target+role+'/')
+            if role == 'message' and journals[role].format == 1:
+                converted = CosStore(self.objects, target, controlled=False)
+                converted._changes = {}
+                values.update(_pack_legacy_documents(converted, values))
+                values.update(converted._changes)
+                dest = converted.journal
             dest.commit(values)
         # Fresh readers independently compare the entire prepared baseline
         # before any role is paused. Paged metadata upgrades happen here.
-        from .cos_store import CosStore
-        converted = CosStore(self.objects, target, controlled=False)
-        for doc in list(converted.list_documents('memory_index')) + list(converted.list_documents('memory_state')) + list(converted.list_documents('memory_work')):
-            converted.save_document(doc['intent'], doc['user_id'], doc['chat_id'], doc['payload'])
         for role in DOMAINS:
             fresh = Journal(self.objects, target+role+'/', readonly=True)
             for identity, expected in selected.items():
@@ -273,22 +321,18 @@ class Maintenance:
                     continue
                 if fresh.get(key) != expected:
                     raise CommitUnavailable('prepared baseline verification mismatch: ' + identity)
-        from collections.abc import Mapping
-        from .paged_document import unpack, DocumentSequence
-        def plain(value):
-            if isinstance(value,Mapping):return {k:plain(v) for k,v in value.items()}
-            if isinstance(value,(list,DocumentSequence)):return [plain(v) for v in value]
-            return value
+        from .paged_document import unpack
         source_store = CosStore(self.objects,source,readonly=True,controlled=False)
         source_store.journal = journals['message']
         fresh_store = CosStore(self.objects,target,readonly=True,controlled=False)
         for identity,expected in selected.items():
             if identity.startswith('message/document:'):
                 kind,user,scope=expected['intent'],expected['user_id'],expected['chat_id']
-                original=plain(unpack(source_store,kind,expected['payload']))
-                actual=plain(fresh_store.load_document(kind,user,scope))
+                original=_plain(unpack(source_store,kind,expected['payload']))
+                actual=_plain(fresh_store.load_document(kind,user,scope))
                 # Explicit cursor conversion adds its stable session position.
                 if kind=='ingress_cursor':actual.pop('position',None);original.pop('position',None)
+                if kind=='conversation_context' and 'positions' not in original:actual.pop('positions',None)
                 if actual!=original:raise CommitUnavailable('document baseline mismatch: '+identity)
         self.control.create(self.state_key(task)+'copied.json', {'versions':versions})
         return frozen
@@ -318,11 +362,14 @@ class Maintenance:
         # Only post-preparation deltas are read and independently compared inside
         # the pause. No scan of the source library in the pause window.
         archive_delta = {}
+        source_ingress = None
         for role in DOMAINS:
             source = Journal(self.objects, state['source']+role+'/', readonly=True)
             source.refresh(confirm=False, minimum_revision=acks[role]['revision'])
             if source.revision != acks[role]['revision']:
                 raise CommitUnavailable('writer moved after acknowledgement')
+            if role == 'ingress':
+                source_ingress = source
             changes = {}
             for revision in range(state['versions'][role]+1, source.revision+1):
                 commit = source._read(revision)
@@ -331,13 +378,31 @@ class Maintenance:
                     changes[key] = thaw(source,source.get(key)) if ref else None
             if role=='message':
                 archive_delta.update({k:v for k,v in changes.items() if k.startswith('archive:') and v is not None})
-            changes = upgrade_values(role, changes)
             dest = Journal(self.objects, state['target']+role+'/')
+            changes = upgrade_values(role, changes, target_ingress=dest, source_ingress=source_ingress)
+            legacy = {}
+            if role == 'message' and source.format == 1:
+                from .cos_store import CosStore
+                converted = CosStore(self.objects,state['target'],controlled=False)
+                converted._changes = {}
+                converted_values = _pack_legacy_documents(converted, changes)
+                legacy = {key:changes[key] for key in converted_values}
+                changes.update(converted_values)
+                changes.update(converted._changes)
+                dest = converted.journal
             if changes:
                 dest.commit(changes)
             fresh = Journal(self.objects, state['target']+role+'/', readonly=True)
             if any(fresh.get(key) != value for key,value in changes.items()):
                 raise CommitUnavailable('target delta mismatch')
+            if legacy:
+                reader=CosStore(self.objects,state['target'],readonly=True,controlled=False)
+                for document in legacy.values():
+                    kind,user,scope=document['intent'],document['user_id'],document['chat_id']
+                    expected=document['payload']
+                    actual=_plain(reader.load_document(kind,user,scope))
+                    if kind=='conversation_context' and 'positions' not in expected:actual.pop('positions',None)
+                    if actual!=expected:raise CommitUnavailable('converted document delta mismatch: '+kind)
         target_heads = {role:Journal(self.objects,state['target']+role+'/',readonly=True).revision for role in DOMAINS}
         sync = Journal(self.objects,state['target']+'sync/')
         pending = {'archive_pending:'+key:value for key,value in archive_delta.items() if value['revision']>sync.get('item:'+key,{}).get('ack_revision',-1)}
@@ -395,8 +460,10 @@ class Maintenance:
                 evidence.get('status') != 403 or evidence.get('source') != self.control.read(self.state_key(task)+'prepared.json')['source']
                 for evidence in denied_roles.values()):
             raise PermissionError('independent restart and COS server-denied old-role PUTs required')
-        plan = self.collection_plan(task)
-        manifest = self.control.create(self.state_key(task)+'collection.json', plan)
+        manifest_key = self.state_key(task)+'collection.json'
+        manifest = self.control.read(manifest_key)
+        if manifest is None:
+            manifest = self.control.create(manifest_key, self.collection_plan(task))
         # A previous interrupted deletion uses the original immutable manifest.
         completed = 0
         for index,key in enumerate(manifest['keys']):
@@ -518,7 +585,8 @@ def maintenance_tick(pipeline, *, dispatch, now=None):
         ledger.commit({'active':None,'retirement':{'task':task,'choice':decision['choice']},'last':{'task':task,'decision':decision,'collection':'permission_and_restart_evidence_required'}})
         return {'status':decision['choice'],'task':task,'collection':'pending_permission_evidence'}
     maint.request_pause(task)
-    dispatch({'type':'calorie_maintenance_pause'},target='message')
+    pause_event={'type':'calorie_maintenance_pause','epoch':epoch,'task':task}
+    dispatch(pause_event,target='message')
     # The message invocation now owns cancellation even if this maintenance
     # invocation dies. Ingress acknowledges only after that reliable start.
     until=time.monotonic()+2
@@ -526,7 +594,7 @@ def maintenance_tick(pipeline, *, dispatch, now=None):
         time.sleep(.05)
     if not ctl.read(ctl.key(epoch,'started')):
         return {'status':'awaiting_message_watchdog','task':task}
-    dispatch({'type':'calorie_maintenance_pause','epoch':epoch},target='ingress')
+    dispatch(pause_event,target='ingress')
     source=Journal(pipeline.objects,state['source']+'sync/')
     ctl.acknowledge('sync',epoch,source.revision)
     until=time.monotonic()+38
@@ -543,10 +611,10 @@ def maintenance_tick(pipeline, *, dispatch, now=None):
 
 def ingress_pause(objects,prefix,event):
     ctl=GenerationControl(objects,prefix)
-    epoch=event['epoch']
-    pause=ctl.read(ctl.key(epoch,'pause'))
-    if not pause or not ctl.read(ctl.key(epoch,'started')):
+    pause=ctl.pause_event(event)
+    if not pause or not ctl.read(ctl.key(pause['epoch'],'started')):
         return {'status':'not_started'}
+    epoch=pause['epoch']
     journal=Journal(objects,pause['source']+'ingress/')
     ctl.acknowledge('ingress',epoch,journal.revision)
     return {'status':'paused','epoch':epoch}

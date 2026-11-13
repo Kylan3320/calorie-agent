@@ -1,6 +1,6 @@
 # Store 与原生工具契约
 
-本文描述已实现接口；阶段 C 的通用来源、Router／Worker、分页索引和回收尚未实现，目标分别见[统一规格第10节](../PERSONAL_ASSISTANT_SPEC.md#10-下一阶段-c通用事务与可靠运行)及[COS 规格](../LATENCY_OPTIMIZATION_SPEC.md)。实现时同步实际接口及消费者，不把目标当作现有能力。
+本文描述仓库接口。阶段 C 的通用来源、Router／Worker、分页索引和回收候选见下文，产品要求见[统一规格第10节](../PERSONAL_ASSISTANT_SPEC.md#10-下一阶段-c通用事务与可靠运行)及[COS 规格](../LATENCY_OPTIMIZATION_SPEC.md)。验收与部署状态见[交付记录](../reports/STAGE_C_DELIVERY.md)。
 
 回复、整轮完成和恢复规则见[交流体验规格第 2 节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。字段的观测口径见 [Trace 契约](trace_schema.md)。
 
@@ -101,6 +101,7 @@
 
 - 主循环新增 `query_sources`（独立通用 Search／Fetch、已读引用和当前用户文本）、`calculate_values`（有来源的 Decimal 四则运算／日期天数差）、`manage_task`、`query_task`、`delegate_task`。工具注册、schema 和预设共用原注册表。Worker／Router 计算上下文另提供 `submit_task_result`，不开放递归委派或业务写工具。
 - 通用委托与饮食委托分别最多一个。`manage_task` 的授权原话须出现在本条消息，修改／控制绑定当前 revision；时间、反馈触发、单次停止、指定 Worker 停止、暂停、未来触发开关及通知开关分开。`query_task.status` 只查询；`read_artifact` 另须当前查看原话，实际交付才确认 delivered。成果采用 `items/evidence/unresolved/sources`，不使用餐次 schema。
+- `delegate_task.jobs[].urls` 携带用户已提供的未取文公开链接，`source_refs` 绑定工具已核对的原文。父周期取到的正文按独立引用保存，跨入口或额度耗尽可保留来源。失败周期不覆盖已有成果，通知绑定当前委托版本和实际投递确认。
 - 父周期绝对截止从受理起 180 秒，父与两个 Worker 总上限为 12 决策／24 工具／9 网页 HTTP。当前分配是父与每子各预留 4／8／3，最多两个子任务；预留与固定身份在消息写入者的原动作提交中保存。未知退出不归还预留，重启不重新领额度。配置初值见 `task_cycle_*`；单次计算仍受原 90 秒和平台剩余时间限制。通用与食品网页共享父侧 HTTP 余量。前台按原消息键累计，后续状态／控制消息不重置本周期父侧用量；Router 从同一剩余额度续作。
 - `task/task_owner/task_active/worker_active/task_source/task_artifact/task_input/worker_attempt/task_event/task_router_execution/task_run_audit` 均由原消息写入者写入。正文来源和成果独立保存；状态中仅保存引用。Worker 使用同一模型和 `create_agent`，从固定输入快照获取相关来源及已授权记忆，快照 SHA256 绑定本次尝试。
 - `app.compute_handler` 是受限计算入口，部署要求并发 2、角色没有 COS 权限。消息写入者先登记固定 input／candidate 键，再签发原截止内的 GET／禁止覆盖 PUT。签名不进模型或 trace。认领由消息入口串行处理；后续 `/internal/worker-control` 是只读查询，绑定用户、父子身份、运行实例和每次尝试的独立能力令牌，令牌只经 `X-Calorie-Worker-Token` 请求头传输；无法读取控制即停止。HTTP 签名错误只记录错误类别，不把带签名 URL 写到公开日志。

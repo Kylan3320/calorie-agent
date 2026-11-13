@@ -26,6 +26,7 @@ class Pipeline:
         self.journal_factory = journal_factory or Journal
         self._writer = self._reader = None
         self._inbox_writer = self._inbox_reader = None
+        self._sync = None
         from .generations import GenerationControl
         self.control = GenerationControl(objects, self.prefix)
         self._location = None
@@ -34,14 +35,18 @@ class Pipeline:
         epoch, prefix = self.control.location()
         if self._location != (epoch, prefix):
             self._inbox_writer = self._inbox_reader = self._writer = self._reader = None
+            self._sync = None
             self._location = (epoch, prefix)
         attribute = "_inbox_reader" if readonly else "_inbox_writer"
+        floor = self.control.minimum('ingress')
+        if floor is not None:
+            minimum_revision = floor if minimum_revision is None else max(minimum_revision, floor)
         journal = getattr(self, attribute)
         if journal is None:
-            journal = self.journal_factory(self.objects, prefix + "ingress/", readonly=readonly)
-            journal.guard = lambda: self.control.guard(epoch, prefix)
+            journal = self.journal_factory(self.objects, prefix + "ingress/", readonly=readonly,
+                                           guard=lambda: self.control.guard(epoch, prefix))
             setattr(self, attribute, journal)
-            if minimum_revision is not None:
+            if minimum_revision is not None and journal.revision < minimum_revision:
                 journal.refresh(confirm=not readonly, minimum_revision=minimum_revision)
         else:
             journal.refresh(confirm=not readonly, minimum_revision=minimum_revision)
@@ -54,6 +59,7 @@ class Pipeline:
         location = self.control.location()
         if self._location != location:
             self._writer = self._reader = self._inbox_writer = self._inbox_reader = None
+            self._sync = None
             self._location = location
         if self._writer is None:
             self._writer = CosStore(self.objects, self.prefix)
@@ -64,12 +70,28 @@ class Pipeline:
         location = self.control.location()
         if self._location != location:
             self._writer = self._reader = self._inbox_writer = self._inbox_reader = None
+            self._sync = None
             self._location = location
         if self._reader is None:
             self._reader = CosStore(self.objects, self.prefix, readonly=True)
         else:
             self._reader.confirm_current()
         return self._reader
+
+    def sync_progress(self, *, generation):
+        epoch, prefix = self.control.location()
+        if prefix != generation:
+            from .generations import MaintenancePaused
+            raise MaintenancePaused('sync input generation changed; reopen current view')
+        if self._location != (epoch, prefix):
+            self._writer = self._reader = self._inbox_writer = self._inbox_reader = self._sync = None
+            self._location = (epoch, prefix)
+        if self._sync is None:
+            self._sync = self.journal_factory(self.objects, prefix + 'sync/',
+                                              guard=lambda: self.control.guard(epoch, prefix))
+        else:
+            self._sync.refresh()
+        return self._sync
 
     def accept(self, message, *, source="feishu", received_at=None, kind="message", reference=None):
         if os.getenv("INGRESS_MAINTENANCE", "0").lower() in {"1", "true"}:
@@ -89,7 +111,7 @@ class Pipeline:
         if existing:
             if any(existing["message"][k] != message[k] for k in ("message_id", "user_id", "chat_id")):
                 raise ValueError("original message key belongs to another identity")
-            return {**existing, "ingress_revision": journal.revision, "ingress_generation":self._location[1]}
+            return {**existing, "ingress_revision": journal.revision, "ingress_generation":journal.prefix.removesuffix('ingress/')}
         sequence = journal.get("next_sequence", 0) + 1
         offset = getattr(sources, "offset_hours", 8)
         date_anchor = datetime.fromisoformat(reference["scheduled_time"]).timestamp() if kind == "reminder" else received
@@ -110,7 +132,7 @@ class Pipeline:
             receipt['session_position'] = position
             journal.commit({key: receipt, 'next_sequence':sequence, session_key:{'count':position+1},
                             page_key:page + [{'receipt_id':rid, 'sequence':sequence, 'position':position}]})
-        return {**receipt, "ingress_revision": journal.revision, "ingress_generation":self._location[1]}
+        return {**receipt, "ingress_revision": journal.revision, "ingress_generation":journal.prefix.removesuffix('ingress/')}
 
     def wake(self, receipt, headers=None):
         from .scf_dispatch import dispatch_event
@@ -180,6 +202,7 @@ class Pipeline:
         mark_reply_presented(store, message["user_id"], message["chat_id"], {"dialogue_turn_id": "calorie-user:" + message_key(original_receipt["message"]), **original["result"]})
         original["status"] = "needs_attention" if original.get("work_status") == "needs_attention" else "completed"
         delivery.update(presented=True, presented_at=reference["presented_at"])
+        original['completed_at'] = time.time()
         store.save_document("receipt_state", "system", reference["receipt_id"], original)
         state = {"status": "completed", "receipt_id": receipt["receipt_id"], "sequence": receipt["sequence"]}
         store.save_document("receipt_state", "system", receipt["receipt_id"], state)
@@ -312,7 +335,10 @@ class Pipeline:
             return result
         if event.get('type') == 'calorie_maintenance_pause':
             from .cos_journal import Journal
-            epoch, prefix = self.control.location(allow_paused=True)
+            pause = self.control.pause_event(event)
+            if pause is None:
+                return {'status': 'obsolete_pause'}
+            epoch, prefix = pause['epoch'], pause['source']
             # Establish the sole writer's exact barrier before starting its
             # watchdog; a fresh readonly LIST cannot resolve an unknown PUT.
             journal = Journal(self.objects, prefix + 'message/')
@@ -524,11 +550,12 @@ class Pipeline:
     def recover(self, *, wake=None):
         """Maintenance only wakes; it never writes business/session state."""
         inbox = self.inbox(readonly=True)
+        generation = inbox.prefix.removesuffix('ingress/')
         pending = []
         blocked = []
         store = self.readonly_store()
         if inbox.format == 2:
-            progress = self.journal_factory(self.objects, store.prefix + 'sync/')
+            progress = self.sync_progress(generation=generation)
             water = progress.get('recovery_scan', {'revision':-1})['revision']
             changes = {}
             for revision in range(water + 1, inbox.revision + 1):
@@ -555,7 +582,7 @@ class Pipeline:
         if progress and finished:
             progress.commit(finished)
         for receipt in sorted(pending, key=lambda r: r["sequence"]):
-            (wake or self.wake)({**receipt, "ingress_revision": inbox.revision})
+            (wake or self.wake)({**receipt, "ingress_revision": inbox.revision, "ingress_generation": generation})
         return {"woken": len(pending), "blocked": blocked}
 
 
