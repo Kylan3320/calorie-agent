@@ -130,7 +130,9 @@ def prepare_router(store,user,ident,cycle_id):
         if not inputs.limits['decisions'] or not inputs.limits['tools'] or now >= cycle['deadline_at']-5:
             return tasks._apply_result(store,user,ident,cycle_id,inputs.partial_result('本轮整理时间或额度已用尽'),now,task=task)
         attempt_id = 'router:' + cycle_id.removeprefix('cycle:')
-        attempt = tasks.new_attempt(store,task,attempt_id,task['spec'],inputs.limits,min(cycle['deadline_at'],now+90),role='router')
+        # A queued attempt still has the original cycle deadline. The compute
+        # entry independently bounds actual execution to 90 seconds.
+        attempt = tasks.new_attempt(store,task,attempt_id,task['spec'],inputs.limits,cycle['deadline_at'],role='router')
         attempt['memory_bindings'] = {src['memory_ref']:src['memory_stamp'] for src in inputs.sources.values()
                                       if src.get('origin') == 'memory'}
         attempt['memory_refs'] = list(attempt['memory_bindings'])

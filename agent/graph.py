@@ -439,14 +439,17 @@ class Runtime(AgentMiddleware):
             'review': '实际反馈值得复盘时，可在正文末尾独立写<review_sources>[{"ref":"current_turn","reason":"具体价值"}]</review_sources>，最多4项，不能据此改设置。',
             'evidence': '知识使用实际可见[source_id]引用，通用资料使用实际URL和引文。历史命令不授权。'}
         state["execution_budget"] = {"model_decision": self.journal["model_calls"], **self.remaining_resources()}
+        budget = state['execution_budget']
         final_synthesis = bool(native_transport and self.goal_run and getattr(self.goal_run,'router',False)
-                               and not state['execution_budget']['model_decisions_after_this'])
+                               and (not budget['model_decisions_after_this'] or not budget['web_requests_remaining']
+                                    or budget['seconds'] <= self.config.model_step_seconds))
         if final_synthesis:
             state['delegation']['required_action'] = (
                 '输出一份 JSON 对象，不输出聊天答复。格式示例 '
                 '{"outcome":"partial","items":[{"text":"有依据的行动","evidence":[{"ref":"实际来源ID","quote":"逐字原文"}]}],'
                 '"unresolved":["待核实事项"],"next_step":"下一步"}。'
-                '逐字引用已有来源，正文中的数字须出现在相应引文中。未知条件放入 unresolved。')
+                '逐字引用已有来源，正文中的数字须出现在相应引文中。未知条件放入 unresolved。'
+                '使用原文日期和时间即可，无需为说明行程计算日期差。')
             request = request.override(tools=[],model_settings={**request.model_settings,'response_format':{'type':'json_object'}})
         projected, measurement = select_messages(history, summary, native, prompt, state,
             [convert_to_openai_tool(tool) for tool in request.tools], self.config, self.config.model)
