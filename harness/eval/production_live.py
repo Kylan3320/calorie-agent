@@ -114,6 +114,20 @@ class RawCommits:
     """Independent decoder: no production Journal/Store aggregation is reused."""
     def __init__(self, objects, prefix):
         self.objects, self.prefix = objects, prefix.rstrip("/") + "/"
+        self.commits = {}
+
+    def commit(self, revision):
+        if revision not in self.commits:
+            key = self.prefix + f"commits/{revision:012d}.json"
+            raw = self.objects.get(key)
+            if raw is None:
+                raise RuntimeError("known raw commit is not visible: " + key)
+            body = json.loads(raw)
+            if (body.get("schema") not in {"calorie.cos.v1", "calorie.cos.v2", "calorie.cos.v2.packed"}
+                    or body["revision"] != revision or body["previous"] != revision - 1):
+                raise ValueError("raw commit predecessor/identity mismatch")
+            self.commits[revision] = body
+        return self.commits[revision]
 
     def snapshot(self, minimum=-1, exact=None):
         base = self.prefix + "commits/"
@@ -122,13 +136,9 @@ class RawCommits:
         revision = exact if exact is not None else max([minimum, *numbers], default=-1)
         current, chain, index = revision, [], {}
         while current >= 0:
-            key = base + f"{current:012d}.json"
-            raw = self.objects.get(key)
-            if raw is None:
-                raise RuntimeError("known raw commit is not visible: " + key)
-            commit = json.loads(raw)
-            if commit.get("schema") != "calorie.cos.v1" or commit["revision"] != current or commit["previous"] != current - 1:
-                raise ValueError("raw commit predecessor/identity mismatch")
+            commit = self.commit(current)
+            if commit["schema"] != "calorie.cos.v1":
+                return revision, dict(self.index_entries(commit["root"]))
             if "index" in commit:
                 index = deepcopy(commit["index"])
                 break
@@ -142,12 +152,35 @@ class RawCommits:
                     index[key] = value
         return revision, index
 
+    def content(self, ref, folder):
+        if ":" in ref:
+            revision, digest = ref.split(":", 1)
+            commit = self.commit(int(revision))
+            if commit["schema"] != "calorie.cos.v2.packed":
+                raise ValueError("raw packed reference has wrong manifest schema")
+            value = commit["objects"][digest]
+            raw = json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+                             allow_nan=False).encode()
+        else:
+            digest = ref
+            raw = self.objects.get(self.prefix + folder + "/" + digest + ".json")
+            value = json.loads(raw) if raw is not None else None
+        if raw is None or hashlib.sha256(raw).hexdigest() != digest:
+            raise RuntimeError("raw committed content unavailable or corrupted")
+        return value
+
+    def index_entries(self, ref):
+        if ref is None:
+            return
+        page = self.content(ref, "indexes")
+        if "items" in page:
+            yield from page["items"]
+        else:
+            for child in page["children"].values():
+                yield from self.index_entries(child)
+
     def document(self, index, key):
-        ref = index[key]
-        raw = self.objects.get(self.prefix + "documents/" + ref + ".json")
-        if raw is None or hashlib.sha256(raw).hexdigest() != ref:
-            raise RuntimeError("raw committed document unavailable or corrupted: " + key)
-        return json.loads(raw)
+        return self.content(index[key], "documents")
 
     def items(self, user_id, minimum=-1, exact=None):
         revision, index = self.snapshot(minimum, exact)

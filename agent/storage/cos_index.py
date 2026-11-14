@@ -6,7 +6,6 @@ The Journal's existing bounded content cache also caches index pages.
 """
 from collections.abc import Mapping
 import hashlib
-import json
 
 PAGE_SIZE = 32
 
@@ -19,18 +18,10 @@ class RadixIndex(Mapping):
         if ref is None:
             return {'items': []}
         j = self.journal
-        if ref in j.cache:
-            j.cache.move_to_end(ref)
-            return j.cache[ref]
-        raw = j.objects.get(j.prefix + 'indexes/' + ref + '.json')
-        if raw is None or hashlib.sha256(raw).hexdigest() != ref:
-            from .cos_journal import CommitUnavailable
-            raise CommitUnavailable('index page unavailable')
-        node = json.loads(raw)
+        node = j.read_content(ref, 'indexes')
         if ('items' in node and len(node['items']) > PAGE_SIZE or
                 'children' in node and len(node['children']) > 17):
             raise ValueError('invalid index page capacity')
-        j.cache_document(ref, node, len(raw))
         return node
 
     def publish(self, page):
@@ -86,7 +77,7 @@ class RadixIndex(Mapping):
                         yield from walk(child,depth+1)
         yield from walk(self.root, 0)
 
-    def changed(self, changes):
+    def changed(self, changes, make_ref=lambda digest: digest):
         from .cos_journal import encode
         pages = {}
 
@@ -97,7 +88,7 @@ class RadixIndex(Mapping):
 
         def stage(node):
             raw = encode(node)
-            ref = hashlib.sha256(raw).hexdigest()
+            ref = make_ref(hashlib.sha256(raw).hexdigest())
             if ref not in self.journal.cache:
                 pages[ref] = (raw, node)
             return ref

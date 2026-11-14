@@ -17,6 +17,12 @@ from .cos_index import RadixIndex
 
 CACHE_MAX_BYTES = 8 * 1024 * 1024
 CACHE_MAX_ENTRIES = 512
+PACK_LIMIT = 256 * 1024
+PACKED_SCHEMA = 'calorie.cos.v2.packed'
+
+
+def ref_digest(ref):
+    return ref.rsplit(':', 1)[-1]
 
 
 def encode(value):
@@ -66,27 +72,21 @@ class _State(Mapping):
         journal = self.journal
         journal._check()
         ref = journal.index[key]
-        if ref in journal.cache:
-            value = journal.cache[ref]
-            journal.cache.move_to_end(ref)
-        else:
-            raw = journal.objects.get(journal.prefix + 'documents/' + ref + '.json')
-            if raw is None or hashlib.sha256(raw).hexdigest() != ref:
-                raise CommitUnavailable('known document unavailable: ' + key)
-            value = json.loads(raw)
-            journal.cache_document(ref, value, len(raw))
-        return deepcopy(value)
+        return deepcopy(journal.read_content(ref, 'documents'))
 
 
 class Journal:
-    def __init__(self, objects, prefix, readonly=False, guard=None):
+    def __init__(self, objects, prefix, readonly=False, guard=None, *, pack=False):
         self.guard = guard
         self.objects, self.prefix, self.readonly = objects, prefix.rstrip('/') + '/', readonly
+        self.pack = pack
         self.revision, self.index, self.unavailable = -1, {}, False
         self.cache, self._cache_sizes, self.cache_bytes = OrderedDict(), {}, 0
+        self._packs = OrderedDict()
         self.state = _State(self)
         self.view_id = uuid.uuid4().hex[:12]
         self.format = None
+        self.packed_root = False
         self.refresh(confirm=not readonly)
 
     def cache_document(self, ref, value, size=None):
@@ -115,8 +115,42 @@ class Journal:
         if raw is None:
             raise CommitUnavailable('known commit temporarily invisible: ' + self.key(revision))
         value = json.loads(raw)
-        if value.get('schema') not in {'calorie.cos.v1', 'calorie.cos.v2'} or value['revision'] != revision or value['previous'] != revision - 1:
+        if value.get('schema') not in {'calorie.cos.v1', 'calorie.cos.v2', PACKED_SCHEMA} or value['revision'] != revision or value['previous'] != revision - 1:
             raise CommitUnavailable('commit identity mismatch')
+        if 'objects' in value:
+            if value['schema'] != PACKED_SCHEMA or len(raw) > PACK_LIMIT or not isinstance(value['objects'], dict):
+                raise CommitUnavailable('invalid packed commit')
+            self._cache_pack(revision, value['objects'])
+        return value
+
+    def _cache_pack(self, revision, objects):
+        self._packs[revision] = objects
+        self._packs.move_to_end(revision)
+        if len(self._packs) > 4:
+            self._packs.popitem(last=False)
+
+    def read_content(self, ref, folder):
+        if ref in self.cache:
+            self.cache.move_to_end(ref)
+            return self.cache[ref]
+        if ':' in ref:
+            number, digest = ref.split(':', 1)
+            number = int(number)
+            if number not in self._packs:
+                self._read(number)
+            objects = self._packs.get(number, {})
+            if digest not in objects:
+                raise CommitUnavailable('packed content unavailable')
+            value = objects[digest]
+            raw = encode(value)
+        else:
+            raw = self.objects.get(self.prefix + folder + '/' + ref + '.json')
+            if raw is None:
+                raise CommitUnavailable('known content unavailable: ' + folder)
+            value = json.loads(raw)
+        if hashlib.sha256(raw).hexdigest() != ref_digest(ref):
+            raise CommitUnavailable('content digest mismatch: ' + folder)
+        self.cache_document(ref, value, len(raw))
         return value
 
     def keys(self, prefix=''):
@@ -144,9 +178,10 @@ class Journal:
         try:
             if revision > self.revision and self.format != 1:
                 latest = self._read(revision)
-                if latest['schema'] == 'calorie.cos.v2':
+                if latest['schema'] in {'calorie.cos.v2', PACKED_SCHEMA}:
                     self.index = RadixIndex(self, latest['root'])
                     self.format, self.revision = 2, revision
+                    self.packed_root = latest['schema'] == PACKED_SCHEMA
                     return
                 if self.format == 2:
                     raise CommitUnavailable('incompatible writer: v1 after v2')
@@ -217,6 +252,14 @@ class Journal:
             finally:
                 event['end_revision'] = self.revision
 
+    def confirm_readable(self, revision):
+        if not self.readonly:
+            raise ValueError('exact watermark read requires a readonly journal')
+        if self.unavailable and revision <= self.revision:
+            self._read(self.revision)
+        self._catchup(revision)
+        self.unavailable = False
+
     def _refresh(self, confirm, minimum_revision):
         try:
             if self.readonly and confirm:
@@ -225,6 +268,8 @@ class Journal:
             # consulting LIST, which can only suggest additional candidates.
             if minimum_revision is not None:
                 self._catchup(minimum_revision)
+            if confirm and not self.unavailable and self.revision >= 0 and self._append({}):
+                return self.revision
             candidate = self._candidate()
             self._catchup(candidate)
             if confirm:
@@ -240,7 +285,7 @@ class Journal:
             self.unavailable = True
             raise
 
-    def _append(self, changes, documents=None):
+    def _append(self, changes, documents=None, fragments=None):
         if self.guard:
             self.guard()
         number = self.revision + 1
@@ -248,8 +293,30 @@ class Journal:
         pages = {}
         if self.format != 1:
             index = self.index if isinstance(self.index, RadixIndex) else RadixIndex(self)
+            # A revision-qualified digest makes each value and page independently
+            # verifiable without a reverse index or a scan of preceding commits.
+            if self.pack and changes:
+                make_ref = lambda digest: f'{number}:{digest}'
+                candidates = {ref: value for ref, value in (documents or {}).items() if ref not in (fragments or {})}
+                packed_changes = {key: make_ref(ref) if ref in candidates else ref for key, ref in changes.items()}
+                packed_index, packed_pages = index.changed(packed_changes, make_ref)
+                candidates.update({ref_digest(ref): val for ref, val in packed_pages.items()})
+                if sum(len(raw) + 70 for raw, _ in candidates.values()) <= PACK_LIMIT:
+                    packed = {**envelope, 'schema': PACKED_SCHEMA, 'root': packed_index.root,
+                              'changes': packed_changes, 'objects': {ref: value for ref, (_, value) in candidates.items()}}
+                    raw = encode(packed)
+                    if len(raw) <= PACK_LIMIT:
+                        # Artifact pointers remain content-addressed standalone
+                        # objects and can be shared by subsequent revisions.
+                        external = fragments or {}
+                        _transfer_batch(self._publish_document, [(ref, raw) for ref, (raw, _) in external.items()])
+                        return self._publish_commit(number, packed, packed_index,
+                                                    {**external, **{make_ref(ref): val for ref, val in candidates.items()}},
+                                                    raw=raw)
             updated, pages = index.changed(changes) if changes else (index, {})
-            envelope.update(schema='calorie.cos.v2', root=updated.root)
+            # A later normal or empty append may still reference packed nodes.
+            schema = PACKED_SCHEMA if self.pack or self.packed_root else 'calorie.cos.v2'
+            envelope.update(schema=schema, root=updated.root)
         elif number % 128 == 0:
             # Legacy readers stay usable before explicit generation upgrade.
             index = {**self.index, **{k:v for k,v in changes.items() if v is not None}}
@@ -258,27 +325,33 @@ class Journal:
             envelope['index'] = index
         # The commit is the only visibility boundary. Content-addressed
         # documents and index pages can all transfer in the same bounded batch.
+        documents = {**(documents or {}), **(fragments or {})}
         def publish(transfer):
             writer, item = transfer
             writer(item)
         transfers = [(self._publish_document, (ref, raw)) for ref, (raw, _) in (documents or {}).items()]
         transfers.extend((updated.publish, (ref, raw)) for ref, (raw, _) in pages.items())
         _transfer_batch(publish, transfers)
+        return self._publish_commit(number, envelope, updated if self.format != 1 else None,
+                                    {**(documents or {}), **pages})
+
+    def _publish_commit(self, number, envelope, updated, objects, *, raw=None):
         try:
-            created = self.objects.create(self.key(number), encode(envelope))
+            created = self.objects.create(self.key(number), raw if raw is not None else encode(envelope))
         except BaseException:
             self.unavailable = True
             raise
         if not created:
             return False
-        for ref, (raw, value) in (documents or {}).items():
+        if 'objects' in envelope:
+            self._cache_pack(number, envelope['objects'])
+        for ref, (raw, value) in objects.items():
             self.cache_document(ref, value, len(raw))
-        for ref, (raw, node) in pages.items():
-            self.cache_document(ref, node, len(raw))
-        if envelope['schema'] == 'calorie.cos.v2':
+        if updated is not None:
             self.index, self.format = updated, 2
+            self.packed_root = envelope['schema'] == PACKED_SCHEMA
         else:
-            for k,v in changes.items():
+            for k,v in envelope['changes'].items():
                 if v is None: self.index.pop(k, None)
                 else: self.index[k] = v
         self.revision = number
@@ -299,17 +372,18 @@ class Journal:
         self._check()
         if self.readonly:
             raise PermissionError('readonly journal')
-        refs, documents = {}, dict(fragments or {})
+        refs, documents = {}, {}
         for key,value in changes.items():
             if value is None:
                 if key in self.index: refs[key] = None
                 continue
             raw = encode(value)
             ref = hashlib.sha256(raw).hexdigest()
-            if self.index.get(key) == ref: continue
+            old = self.index.get(key)
+            if old is not None and ref_digest(old) == ref: continue
             documents[ref] = (raw, deepcopy(value))
             refs[key] = ref
-        if refs and not self._append(refs, documents):
+        if refs and not self._append(refs, documents, fragments):
             self.unavailable = True
             raise CommitUnavailable('writer changed; refresh and recover original action')
         return self.revision

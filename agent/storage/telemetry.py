@@ -18,10 +18,15 @@ def log_receipt_latency(receipt, state, revision):
     events = EVENTS.get() or []
     manifests = [event for event in events if event["kind"] == "cos_create"
                  and "/message/commits/" in event.get("key", "")]
+    first_model = next((e for e in events if e["kind"] == "model_http"), None)
+    checkpoint = next((e for e in events if e["kind"] == "execution_save"), None)
     print(json.dumps({"event": "latency_receipt_commit", "receipt_id": receipt["receipt_id"],
         "message_id": receipt["message"]["message_id"], "instance_id": INSTANCE_ID,
         "revision": revision, "model_calls": state["result"].get("model_calls"),
         "model_http_ms": round(sum(e["duration_ms"] for e in events if e["kind"] == "model_http"), 3),
+        "first_model_from_accept_ms": round(first_model["started_epoch_ms"] - received*1000, 3) if first_model and received is not None else None,
+        "initial_checkpoint_ms": checkpoint["duration_ms"] if checkpoint else None,
+        "cos_create_count": sum(e["kind"] == "cos_create" for e in events),
         "worker_from_accept_ms": round((state["worker_started_at"] - received) * 1000, 3) if received is not None else None,
         "sent_from_accept_ms": delivery["t_service_ms"], "send_ms": delivery["send_duration_ms"],
         "confirmation_ms": round((time.time() - delivery["sent_at"]) * 1000, 3),

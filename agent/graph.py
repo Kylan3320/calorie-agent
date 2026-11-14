@@ -39,6 +39,7 @@ from .evidence import collect_visible_evidence
 
 _LOCKS = {}
 _LOCKS_GUARD = threading.Lock()
+LEDGER_TOOLS = {"record_meal", "revise_intake", "query_today", "query_history"}
 
 def _valid_action_note(value):
     if not isinstance(value, str) or not value.strip():
@@ -156,6 +157,7 @@ class Runtime(AgentMiddleware):
         self.message, self.store, self.config, self.preset, self.model = message, store, config, preset, model
         self.goal_run = goal_run
         self.on_execution_start = on_execution_start
+        self.compact_checkpoints = not goal_run and bool(getattr(getattr(store, "journal", None), "pack", False))
         self.stage_ledger_reply = stage_ledger_reply
         self.finished_result = None
         self.tool_registry = {name: tool for name, tool in TOOL_REGISTRY.items() if name in preset.allowed_tools}
@@ -193,7 +195,8 @@ class Runtime(AgentMiddleware):
         self.journal.setdefault("model_calls", 0)
         self.journal.setdefault("model_requests", [])
         for request in self.journal["model_requests"]:
-            request["messages"] = _audit_messages(request["messages"])
+            if "messages" in request:
+                request["messages"] = _audit_messages(request["messages"])
         self.current = None
         self.prepared = None
         self.pending_before = {}
@@ -287,7 +290,7 @@ class Runtime(AgentMiddleware):
         if not calls or not calls[-1].get("batch_id"):
             return False
         batch = [entry for entry in calls if entry.get("batch_id") == calls[-1]["batch_id"]]
-        ledger = all(entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"} for entry in batch)
+        ledger = all(entry["tool"] in LEDGER_TOOLS for entry in batch)
         revision = (len(batch) == 1 and batch[0]["tool"] == "calculate_meal"
                     and (batch[0]["args"].get("candidate_ref") or batch[0]["args"].get("draft_ref") or
                          bool(batch[0]["args"].get("draft_id"))
@@ -480,14 +483,16 @@ class Runtime(AgentMiddleware):
         self.journal["visible_evidence"] = collect_visible_evidence(request.messages)
         saved_request = next((item for item in self.journal["model_requests"] if item.get("step_id") == step["id"]), None)
         if saved_request is None:
-            current_start = next((i for i, item in reversed(list(enumerate(request.messages))) if isinstance(item, HumanMessage) and item.id == self.human_id), 0)
-            tools = [dict(name=tool.name, description=tool.description, schema=tool.get_input_schema().model_json_schema(), risk=tool.metadata["risk"]) for tool in request.tools]
-            tool_digest = hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest()
-            known_tools = any(item.get("tools_digest") == tool_digest for item in self.journal["model_requests"])
-            saved_request = {"step_id": step["id"], "messages": _audit_messages(messages_to_dict(request.messages[current_start:])),
-                             "history_message_count": current_start, "tools": [tool["name"] for tool in tools] if known_tools else tools,
-                             "tools_digest": tool_digest, "budget": measurement,
+            saved_request = {"step_id": step["id"], "budget": measurement,
                              "projection_ms": round((time.monotonic() - projection_started) * 1000, 3)}
+            if not self.compact_checkpoints:
+                current_start = next((i for i, item in reversed(list(enumerate(request.messages))) if isinstance(item, HumanMessage) and item.id == self.human_id), 0)
+                tools = [dict(name=tool.name, description=tool.description, schema=tool.get_input_schema().model_json_schema(), risk=tool.metadata["risk"]) for tool in request.tools]
+                tool_digest = hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest()
+                known_tools = any(item.get("tools_digest") == tool_digest for item in self.journal["model_requests"])
+                saved_request.update(messages=_audit_messages(messages_to_dict(request.messages[current_start:])),
+                                     history_message_count=current_start,
+                                     tools=[tool["name"] for tool in tools] if known_tools else tools, tools_digest=tool_digest)
             self.journal["model_requests"].append(saved_request)
         measurement = saved_request["budget"]
         if not native_transport:
@@ -562,6 +567,8 @@ class Runtime(AgentMiddleware):
         batch = [entry for entry in calls if entry.get("batch_id") == batch_id]
         if not batch:
             return
+        if all(entry["tool"] in LEDGER_TOOLS and entry["finish_after_tools"] for entry in batch):
+            return
         opportunities = self.journal.setdefault("action_note_opportunities", {})
         kind = "first" if batch_id == calls[0].get("batch_id") else "supplement"
         if opportunities.get(kind, {}).get("status") in {"ready", "attempted"}:
@@ -622,7 +629,7 @@ class Runtime(AgentMiddleware):
                     diet_goals.register_event(self.store, self.user_id, "settings", entry["action_id"], data["kind"], time.time())
             if (self.stage_ledger_reply and self.preset.allow_write and not self.goal_run
                     and len(self.journal["calls"]) == 1 and self.journal["model_calls"] == 1
-                    and entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"}
+                    and entry["tool"] in LEDGER_TOOLS
                     and entry.get("finish_after_tools") is True and result["status"] == "ok"
                     and self.try_tool_facts()):
                 self.finished_result = self.finish(in_action=True)
@@ -940,7 +947,8 @@ class Runtime(AgentMiddleware):
             "proposal_id": proposal.get("proposal_id") if proposal else None,
             "dialogue_turn_id": self.human_id, "terminal": terminal,
             "guard_result": {"checked_scope": "committed_tool_facts_and_batch_completion" if direct else "structured_tools_and_source_references", "fallback_used": bool(error or (not text and not direct)), "violations": adjustments},
-            "latency_events": [e for e in (EVENTS.get() or []) if e.get("message_id")==self.message["message_id"]],
+            "latency_events": [e for e in (EVENTS.get() or []) if e.get("message_id")==self.message["message_id"]
+                               and (not self.compact_checkpoints or e["kind"] == "model_http")],
             "errors": [error] if error else [], "latency_ms": int((time.monotonic()-self.started)*1000), "trace_id": "native_"+uuid.uuid4().hex[:12]}
         if task_artifact:
             result['task_delivery_ref']={'id':task_artifact['task_id'],'ref':task_artifact['ref']}

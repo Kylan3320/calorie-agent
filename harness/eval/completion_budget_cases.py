@@ -292,11 +292,20 @@ def CB07():
 
 def CB08():
     """原子账本与待投递回执、飞书确认与游标、两次丢失提交回包后的恢复。"""
+    _atomic_receipt(False)
+
+
+def CB09():
+    """同一次 COS 发布携带恢复数据，冷重启在原提交上恢复。"""
+    _atomic_receipt(True)
+
+
+def _atomic_receipt(packed):
     from agent.storage.bitable_adapter import stable_uuid
     from agent.storage.execution_pipeline import receipt_id
 
     clock = Clock()
-    with offline(clock):
+    with offline(clock), patch.dict("os.environ", {"CALORIE_PACK_MESSAGE_COMMITS": str(int(packed))}):
         store = open_store()
         objects = store.objects
         pipeline = Pipeline(objects, store.prefix)
@@ -336,6 +345,16 @@ def CB08():
         assert by_key[receipt_key] == by_key["action:cb-atomic:agent:1"]
         assert by_key["pending:" + ready["execution_id"]] == by_key[receipt_key]
         assert all(by_key[key] == by_key[receipt_key] for key in by_key if key.startswith("item:"))
+        if packed:
+            from agent.storage.cos_journal import PACKED_SCHEMA
+            from harness.eval.production_live import RawCommits
+            manifest = json.loads(objects.data[by_key[receipt_key]])
+            assert manifest["schema"] == PACKED_SCHEMA
+            revision, digest = manifest["changes"][receipt_key].split(":")
+            assert int(revision) == manifest["revision"] and digest in manifest["objects"]
+            assert manifest["root"].startswith(revision + ":")
+            audit = RawCommits(objects, store.journal.prefix).items("user", exact=manifest["revision"])
+            assert sorted(row["nutrition"]["kcal"] for row in audit["items"]) == [120, 150]
         sends = []
         objects.fault_action_prefix = "action:receipt-complete:" + rid
         objects.lose_action = True
@@ -358,4 +377,4 @@ def CB08():
         assert len(restarted.readonly_store().intake_items("user")) == 2
 
 
-CHECKS = {name: globals()[name] for name in ("CB01", "CB02", "CB03", "CB04", "CB05", "CB06", "CB07", "CB08")}
+CHECKS = {name: globals()[name] for name in ("CB01", "CB02", "CB03", "CB04", "CB05", "CB06", "CB07", "CB08", "CB09")}
