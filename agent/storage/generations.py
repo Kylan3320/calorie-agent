@@ -51,6 +51,7 @@ class GenerationControl:
         return found
 
     def location(self, *, allow_paused=False):
+        pause = None
         if not self._located:
             # Epochs have a bounded seven control objects. Locate one bounded
             # final block, then follow exact successors to defeat a stale LIST.
@@ -73,7 +74,7 @@ class GenerationControl:
             self._located=True
         epoch, prefix = self.epoch, self._prefix
         while True:
-            pause = self.read(self.key(epoch, 'pause'))
+            pause = pause or self.read(self.key(epoch, 'pause'))
             if pause is None:
                 self.epoch, self._prefix = epoch,prefix
                 return epoch, prefix
@@ -91,6 +92,7 @@ class GenerationControl:
             prefix = decision['target'] if decision['choice'] == 'enable' else prefix
             epoch += 1
             self.epoch,self._prefix=epoch,prefix
+            pause = None
 
     def guard(self, epoch, prefix):
         current_epoch, current = self.location()
