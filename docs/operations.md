@@ -116,3 +116,30 @@ python deploy/deploy_rag_layer.py --function calorie-agent-reminder "$RAG_LAYER_
 索引默认读取 Bitable；显式 `--source seed` 用于本地样本。索引和输出 ZIP 均使用新路径，构建校验文档、块、向量及图来源。已有索引可用 `python deploy/ingest_knowledge.py --output INDEX --check-only` 检查；复检已有索引时，在该命令中加 `--base-layer`、`--base-sha256`、`--query` 和 `--expect-text`；`--reject-text` 可指定不应出现的文本。
 
 Layer 发布保留目标函数原环境变量和其他层，设置 KNOWLEDGE_RETRIEVER=lightrag；运行时把 /opt 只读索引镜像到 /tmp。FAQ 读取已发布 COS 知识快照，更新说明见 [知识契约](../contracts/knowledge_schema.md)。
+
+## 阶段 C 候选维护
+
+本分支不修改现有已批准生产角色策略、不创建函数、不部署、不切换正式前缀。隔离验证必须另有明确获准的 bucket／prefix、三域角色、计算函数、真实模型凭据与活动材料；当前 Cloud 缺口见 [交付记录](../reports/STAGE_C_DELIVERY.md)。`deploy/stage-c-isolated-plan.template.json` 仅列配置要求，模板不是资源授权。
+
+凭据从仓库外按原手册加载。先对指定隔离域取预检，再准备目标：
+
+```bash
+python deploy/maintain_cos.py preflight --prefix "$COS_PREFIX" --task candidate-v2
+python deploy/maintain_cos.py prepare --prefix "$COS_PREFIX" --task candidate-v2 --isolated
+python deploy/maintain_cos.py switch --prefix "$COS_PREFIX" --task candidate-v2 --isolated
+python deploy/maintain_cos.py resume --prefix "$COS_PREFIX" --task candidate-v2 --isolated
+python deploy/maintain_cos.py verify --prefix "$COS_PREFIX" --task candidate-v2
+python deploy/maintain_cos.py collection-plan --prefix "$COS_PREFIX" --task candidate-v2
+```
+
+`switch/resume` 使用现有 SCF 派发，三个函数必须事先具备候选代访问和固定控制键权限。消息角色确认当前写入后在本次调用中启动 watchdog，入口、sync 分别确认最终版本。无需等待用户补全；40 秒后只能争用取消，统一结果不可读时保持关闭。启用后不自动反向切换。配置 `CALORIE_COMPUTE_FUNCTION` 指向同包、并发 2、无 COS 权限的 `app.compute_handler`，旧三个角色保持并发 1。
+
+实际新进程核对通过后，由获准维护者收束旧角色前缀权限；保留仍有效的旧角色凭据，在同一隔离域直接 PUT 验证 COS 返回 403。仓库外 JSON 文件将 ingress/message/sync 映射到各自旧凭据文件，文件含 bucket、region、secret_id、secret_key、可选 token，绝不提交或输出。只有此时执行：
+
+```bash
+python deploy/maintain_cos.py collect --prefix "$COS_PREFIX" --task candidate-v2 --old-role-envs "$OLD_ROLE_FILES" --isolated
+```
+
+该入口重新用只读进程读取目标代，并实际验证旧凭据拒写；任一角色未拒绝、Worker 签名仍有效、固定候选未对账或恢复未关闭，都拒绝删除。中断用同命令沿原清单续做。正式首次切换／回收需单独发布授权。自动维护默认关闭；`CALORIE_MAINTENANCE_VALIDATED=isolated-v2` 仅为隔离通过后的操作门，不能代替真实证据。
+
+自动维护将已登记的取消清理／旧代回收优先于新阈值处理。隔离启用门之外，启用后的自动回收还要求仓库外 `CALORIE_RETIRED_ROLE_FILES` 指向上述三角色凭据映射；缺少时保留 `pending_permission_evidence`，不删除。消息 watchdog 恢复后在同次调用内补查原计划距当前至多 15 分钟的提醒。失败投递由 `calorie_reminder_recover` 沿原 UUID／累计尝试恢复；超出自动额度需明确人工恢复。

@@ -1,0 +1,70 @@
+[PASS] CS01 S1: page-crossing histories, bounded incremental writes, checkpoint and cold point recovery.
+[PASS] CS02 S2→S3: old v1, 30-day boundary, pending delivery/inflight, cutover/delete/restart and new archive.
+[PASS] CS03 S3: no external wakeup cancellation, unknown decision fail-closed and one delayed decision.
+[PASS] CS04 S3: moving delta, old ingress event, lost enable response, stale warm writer, interrupted delete and target-only restart.
+[PASS] CS05 S2: actual Worker/input/Router shapes expire only after parent closure; ready background candidates stay.
+[PASS] CS06 S1: compressed-path splits, prefix keys, Unicode, deletions and cold recovery match independent facts.
+[PASS] CS07 S3: a published cancellation resumes temporary cleanup on the next timer without new threshold candidates.
+[PASS] CS08 S1: rebuilding paged source order then appending preserves exact turns, boundaries and withdrawal metadata.
+[PASS] CS09 S1: expired manual recovery stays independent while later same-chat work proceeds.
+[PASS] CS10 S1/S3: empty checks do not journal; fixed retry and fifteen-minute catchup survive restart.
+[PASS] CG01 C1: two native Workers overlap, foreground query, scoped control, duplicate and cancelled late candidate.
+[PASS] CG02 C0/C1: direct known URL, real native decisions, bounded arithmetic and no forced delegation.
+[PASS] CG03 C1: native cross-session controls see the task version and never reset the shared parent budget.
+[PASS] CG04 C1: an oversized second snapshot leaves no first child, input object or reservation behind.
+[PASS] CG05 C1/S3: authorisation expiry rejects steps and late results, retaining reception after the parent leaves its active index.
+[PASS] CG06 C1: scoped capability travels in a header, never in the control URL or public logs.
+[PASS] CG07 C1: delegated memory is usable, invalid quotes get feedback, and later revisions fence candidates and published projections.
+[PASS] CG08 C0: readonly controls, timer, maintenance and compute refuse all external effects.
+[PASS] PS01 生产Store：270→210→105→315、同口径、独立提交解码、重投和零Bitable。
+[PASS] PS02 生产提交：写前中断、响应丢失、陈旧列表、已知提交不可见和旧实例重接。
+[PASS] PS03 按日期/类型读取；旧状态及回滚写入补索引，只读零写，缓存有界可重取。
+[PASS] PS04 四路传输保留上下文；读失败不应用增量，写失败收束且不发布manifest。
+[PASS] PS05 125份发布来源一次GET；旧数组不覆盖单项修改/新增，损坏内容拒绝读取。
+[PASS] P01 生产受理序号、原日期、迟到重试、持久尝试和交付丢状态恢复。
+[PASS] P02 真实HTTP入口仅在持久收件与异步承接后ACK，失败可补查且身份绑定。
+[PASS] P03 CLI/DSH live经真实HTTP客户端统一提交，展示回报后提案才可确认。
+[PASS] P05 生产进程 os._exit 后恢复：原日期、270千卡、软删除、原回复/UUID及重投防重。
+[PASS] QA01 Archive response loss, coalescing, replay and soft delete preserve one latest row.
+[PASS] QA02 Blocked archive transport does not hold the production message writer.
+[PASS] QA03 Migration independently verifies old IDs, deleted rows, nutrition and task state.
+[PASS] QA04 Permission/configuration failures block; throttling retains the exact inflight request.
+[PASS] QA05 Archive comparisons preserve source decimals, integer dates/versions and one-decimal intake values without false matches.
+[PASS] QA06 Precise source readback after a lost create ACK only reads; mismatched fields never advance the watermark.
+[PASS] QA07 New archive tokens isolate destination/version while identical preparations and UUIDv4 form remain stable.
+[PASS] QA08 Legacy inflight recovery uses its original fields/token, reads before retry, and never rotates an uncertain request.
+[PASS] PC01 相同旧状态+64尾段的冷暖首轮前计时、收件/账本/会话读回。
+[PASS] PC02 陈旧LIST、提交冲突和缺失检查点均不丢收件、不重复业务。
+[PASS] PM01 反馈先交付后可复盘，跨用户读取拒绝，迟到候选不能复活撤回。
+[PASS] PM02 跨入口读取已交付菜单，按本次日期改稿，撤回条件与设置后不再进入旧稿。
+[PASS] PM03 旧资料按页续作，只有可证实的交付进入索引，缺失旧稿可定位。
+[PASS] PM04 The oldest task gets one model slot, and a ready candidate only replays application.
+[PASS] PM05 Freeze an in-progress input, preserve attempt limits, and skip with insufficient budget.
+[PASS] PM06 A newer publication can reject a candidate without resetting its calculation limit.
+[PASS] PM07 An actual native read can inform a candidate within cumulative wire limits.
+[PASS] PM08 A raw result saved before interruption recovers without generating again.
+[PASS] CX06 连续前缀、迟到/重复候选、追加后缀、旧执行及应用中断不回滚会话。
+[PASS] CX07 失败最多两次并释放快照；无新轮次不重建；只重送未应用成功候选。
+[PASS] CX08 阻塞后台不占消息执行位；裁剪不丢来源，控制事件不新增收件/用户轮次。
+[PASS] CX09 维护错误阻止摘要，前置IO计入20秒计算且至少预留5秒。
+[PASS] PA01 First feedback can be marked in prose or native tool batches and queues on delivery only.
+[PASS] PA02 A natural confirmation binds to the preceding displayed proposal and current user words.
+[PASS] PA04 A theme outside the small context window remains pageable and reachable by a rewritten query.
+[PASS] MC01 Displayed draft revision finishes in one calculation; reasons/missing identity stay in the model loop.
+[PASS] MC03 Two breakfasts: explicit most recent changes one original ID; date-only reference asks which before writing.
+[PASS] MC04 COS traces expose confirmed start/end/range and credential-only reconstruction without credential values.
+[PASS] MC05 Known chicken-to-egg sources: all corresponding meal items change in one decision/calculation; a reason uses the native final step.
+[PASS] MC06 Native decisions see the durable remaining budget, including the final slot reserved for prose.
+[PASS] MC07 Old-meal checks get per-meal totals from the same query snapshot, without a second ledger read.
+[PASS] U01 来源热量、可食单位、整餐、实际快照和独立预期。
+[PASS] U04 跨轮知识与待办、Store恢复、工具schema及结果回传、会话隔离和完全只读。
+[PASS] U06 假时钟提醒开关、唯一发送、已有餐食与缺失信息；无模型调用。
+[PASS] U07 写成功/结果未保存时崩溃，恢复连续两动作、原日期及原回复，重放不覆盖新会话。
+[PASS] DG01 Weekly tool results retain locks and separate ready, delivered and stopped work.
+[PASS] DG02 Each authorised time slot is unique and changed sources fence a pending result.
+[PASS] MT04 迟到响应、请求准备及前置checkpoint超截止均拒绝，不能发起迟到HTTP。
+[PASS] MT05 连接/超时最多两HTTP，崩溃预留计入次数，恢复复用已保存body。
+[PASS] TE07 Search reformulation and fetch share one actual HTTP budget across failed calls.
+[PASS] ST01 生产 COS SDK：禁止覆盖、MD5、固定键及缺失/权限/冲突分类。
+
+68 passed, 0 failed (total 68)

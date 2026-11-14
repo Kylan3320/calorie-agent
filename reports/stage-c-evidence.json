@@ -1,0 +1,452 @@
+{
+  "date": "2026-11-13",
+  "base_commit": "5ee5fab7f55a96c3b6a792947b3aeb68bee14110",
+  "branch": "codex/stage-c-storage-workers",
+  "python": "3.10.22",
+  "cases": [
+    "CS01",
+    "CS02",
+    "CS03",
+    "CS04",
+    "CS05",
+    "CS06",
+    "CS07",
+    "CS08",
+    "CS09",
+    "CS10",
+    "CG01",
+    "CG02",
+    "CG03",
+    "CG04",
+    "CG05",
+    "CG06",
+    "CG07",
+    "CG08",
+    "PS01",
+    "PS02",
+    "PS03",
+    "PS04",
+    "PS05",
+    "P01",
+    "P02",
+    "P03",
+    "P05",
+    "QA01",
+    "QA02",
+    "QA03",
+    "QA04",
+    "QA05",
+    "QA06",
+    "QA07",
+    "QA08",
+    "PC01",
+    "PC02",
+    "PM01",
+    "PM02",
+    "PM03",
+    "PM04",
+    "PM05",
+    "PM06",
+    "PM07",
+    "PM08",
+    "CX06",
+    "CX07",
+    "CX08",
+    "CX09",
+    "PA01",
+    "PA02",
+    "PA04",
+    "MC01",
+    "MC03",
+    "MC04",
+    "MC05",
+    "MC06",
+    "MC07",
+    "U01",
+    "U04",
+    "U06",
+    "U07",
+    "DG01",
+    "DG02",
+    "MT04",
+    "MT05",
+    "TE07",
+    "ST01"
+  ],
+  "exit_code": 0,
+  "evidence_levels": {
+    "controlled_transport": "executed; native injected model, production Store/Journal/Pipeline and mock object/HTTP boundaries",
+    "real_model_and_general_sources": "not_run: Cloud has no configured DeepSeek credential and user-specific trip/activity material is absent",
+    "real_isolated_cos": "not_run: no authorised isolated bucket/prefix, SCF functions/roles or old-role credentials attached"
+  },
+  "reused_baseline_evidence": [
+    "reports/stage-a-real-acceptance.json",
+    "reports/stage-b-real-acceptance.json"
+  ],
+  "details": {
+    "S1": [
+      {
+        "history": 72,
+        "memory_worker": {
+          "get": {
+            "requests": 2,
+            "bytes_or_keys": 0
+          },
+          "create": {
+            "requests": 15,
+            "bytes_or_keys": 4223
+          },
+          "list": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          },
+          "delete": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          }
+        },
+        "ledger": {
+          "get": {
+            "requests": 1,
+            "bytes_or_keys": 0
+          },
+          "create": {
+            "requests": 22,
+            "bytes_or_keys": 5120
+          },
+          "list": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          },
+          "delete": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          }
+        },
+        "incremental_archive": {
+          "get": {
+            "requests": 1,
+            "bytes_or_keys": 745
+          },
+          "create": {
+            "requests": 19,
+            "bytes_or_keys": 4727
+          },
+          "list": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          },
+          "delete": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          }
+        },
+        "cold_checkpoint_point_read": {
+          "get": {
+            "requests": 10,
+            "bytes_or_keys": 2763
+          },
+          "create": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          },
+          "list": {
+            "requests": 4,
+            "bytes_or_keys": 5
+          },
+          "delete": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          }
+        },
+        "checkpoint_bytes": 745
+      },
+      {
+        "history": 360,
+        "memory_worker": {
+          "get": {
+            "requests": 3,
+            "bytes_or_keys": 48
+          },
+          "create": {
+            "requests": 15,
+            "bytes_or_keys": 5634
+          },
+          "list": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          },
+          "delete": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          }
+        },
+        "ledger": {
+          "get": {
+            "requests": 1,
+            "bytes_or_keys": 0
+          },
+          "create": {
+            "requests": 22,
+            "bytes_or_keys": 5052
+          },
+          "list": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          },
+          "delete": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          }
+        },
+        "incremental_archive": {
+          "get": {
+            "requests": 1,
+            "bytes_or_keys": 745
+          },
+          "create": {
+            "requests": 19,
+            "bytes_or_keys": 4735
+          },
+          "list": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          },
+          "delete": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          }
+        },
+        "cold_checkpoint_point_read": {
+          "get": {
+            "requests": 10,
+            "bytes_or_keys": 4171
+          },
+          "create": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          },
+          "list": {
+            "requests": 4,
+            "bytes_or_keys": 5
+          },
+          "delete": {
+            "requests": 0,
+            "bytes_or_keys": 0
+          }
+        },
+        "checkpoint_bytes": 745
+      }
+    ],
+    "S2_S3": {
+      "legacy_source": "reports/r11-cloud-ledger-20261104.json baseline_rows; retained real IDs/nutrition in reconstructed v1 envelopes",
+      "preflight": {
+        "now": 1794512905.641734,
+        "keep_count": 16,
+        "compact_count": 2,
+        "logical_bytes_before": 54469,
+        "logical_bytes_after": 4771,
+        "reasons": {
+          "ingress/next_sequence": "business_or_unclassified",
+          "ingress/receipt:r-old": "ingress_identity",
+          "ingress/session:legacy": "index",
+          "message/action:old:agent:1": "action_identity",
+          "message/day:r11-feishu-20261104:2026-11-04": "business_or_unclassified",
+          "message/day:user:2026-10-01": "business_or_unclassified",
+          "message/document:03ad15b7-35d3-40cd-845e-dfe82d8eff66": "terminal_receipt",
+          "message/document:0b187793-f84d-42d5-ae25-c268ce26a9db": "expired_terminal",
+          "message/document:57340dea-c25f-41db-a1b8-e5a84f3b37af": "terminal_receipt",
+          "message/document:f7e3f565-9731-4752-be24-737fd88845d1": "terminal_receipt",
+          "message/intake_action:old:agent:1": "business_or_unclassified",
+          "message/item:b1ea74ac-d942-4ff8-8afc-0112e4dc051c": "business_or_unclassified",
+          "message/item:ffc8fa64-e9c7-418a-ba30-56d2795ac197": "business_or_unclassified",
+          "message/item:rec-existing-feishu-id": "business_or_unclassified",
+          "message/pending:b4502add-e532-4d90-9713-853be7c61d9f": "expired_terminal",
+          "sync/item:archive:intake:old": "business_or_unclassified"
+        },
+        "compacted": [
+          "message/document:0b187793-f84d-42d5-ae25-c268ce26a9db",
+          "message/pending:b4502add-e532-4d90-9713-853be7c61d9f"
+        ],
+        "unclassified": [
+          "ingress/next_sequence",
+          "message/day:r11-feishu-20261104:2026-11-04",
+          "message/day:user:2026-10-01",
+          "message/intake_action:old:agent:1",
+          "message/item:b1ea74ac-d942-4ff8-8afc-0112e4dc051c",
+          "message/item:ffc8fa64-e9c7-418a-ba30-56d2795ac197",
+          "message/item:rec-existing-feishu-id",
+          "sync/item:archive:intake:old"
+        ]
+      },
+      "source": "isolated/stage-c/old/",
+      "target": "isolated/stage-c/old/generations/g1/",
+      "deleted_objects": 19,
+      "deleted_bytes": 57921,
+      "after_restart_new_intake_kcal": 30,
+      "permission_evidence": "controlled_only"
+    },
+    "watchdog": {
+      "pause_seconds": 40.0,
+      "decision": "cancel",
+      "no_external_wakeup": true,
+      "unknown_decision": "writes_closed"
+    },
+    "S3_delta": {
+      "lost_enable_ack": true,
+      "old_event": "mapped",
+      "old_warm_writer": "rejected",
+      "stale_list_target_read": "exact_registered_root",
+      "delete_interruption": "recovered",
+      "target_only_restart_kcal": 6
+    },
+    "terminal_workers": {
+      "closed_parent_compactions": 3,
+      "pending_delivery_compactions": 0,
+      "artifact": "retained",
+      "unapplied_summary_candidate": "retained"
+    },
+    "compressed_index": {
+      "seed": 11,
+      "initial_keys": 90,
+      "mutations": 80,
+      "prefix_and_cold_recovery": "pass"
+    },
+    "cancelled_maintenance": {
+      "published_decision": "cancel",
+      "next_tick_cleanup": "resumed",
+      "current_source_preserved": true
+    },
+    "source_sequences": {
+      "rebuild_then_append": "exact_order",
+      "withdrawal_fragments": 71,
+      "page_capacity": 32,
+      "cold_read": "pass"
+    },
+    "manual_cursor": {
+      "later_same_chat": "completed",
+      "old_fixed_plan": "retained",
+      "recovery_index": "independent",
+      "cursor_position": 1
+    },
+    "reminder_recovery": {
+      "empty_checks": 3,
+      "extra_journal_commits": 0,
+      "restart_retry": "same_uuid",
+      "catchup_minutes": 14,
+      "older_than_15": "skipped",
+      "disabled_and_recorded": "suppressed"
+    },
+    "C1": {
+      "task_id": "task:0f1b65a9-2c95-4286-899d-5816ea4d785e",
+      "worker_ids": [
+        "worker:74050ea2-9de3-4752-b566-898c6db6352e",
+        "worker:0c67cddf-7550-4ffb-b089-9930bc291eb7"
+      ],
+      "overlap_seconds": 0.03039079500013031,
+      "foreground_query": "both running",
+      "duplicate": "duplicate",
+      "late": "rejected",
+      "outcome": "partial",
+      "transport": "controlled",
+      "model": "native injected model",
+      "sources": "controlled public-document text"
+    },
+    "C0": {
+      "known_url_fetches": [
+        "https://www.shanghai.gov.cn/"
+      ],
+      "searches": 0,
+      "calculation_minutes": "35",
+      "forced_workers": 0,
+      "explicit_counterevidence": "disabled_same_turn",
+      "ordinary_evaluation": "settings_unchanged",
+      "model": "native injected model"
+    },
+    "foreground_task_budget": {
+      "cross_session_version_binding": "pass",
+      "pause_preserves_usage": true,
+      "new_authorised_resume_cycle": true,
+      "parent_decisions_after_two_messages": 4,
+      "control_does_not_reset": true
+    },
+    "snapshot_atomicity": {
+      "oversized_input": "pending_with_bound",
+      "orphan_workers": 0,
+      "orphan_inputs": 0,
+      "child_reservations": 0
+    },
+    "expired_parent": {
+      "control_after_authorisation_end": "denied",
+      "late_results": "rejected",
+      "independent_reception": "closed_after_fixed_key_read",
+      "new_artifact": false
+    },
+    "control_transport": {
+      "capability_location": "header",
+      "url_and_public_logs": "no_capability",
+      "scoped_identity_fields": 4,
+      "signed_transport_error": "redacted"
+    },
+    "delegated_memory": {
+      "invalid_quote": "feedback_then_corrected",
+      "native_decisions": 3,
+      "usable_delegated_source": true,
+      "same_redaction_revision_source_change": "late_candidate_rejected",
+      "published_stale_content": "filtered"
+    },
+    "readonly_controls": {
+      "entries": 9,
+      "external_effects": 0
+    }
+  },
+  "failures_repaired": [
+    {
+      "cause": "scalar retention and self-alias dependency",
+      "verified": [
+        "CS02",
+        "CS05"
+      ]
+    },
+    {
+      "cause": "paged map compatibility and sequence rebuild/append",
+      "verified": [
+        "PM03",
+        "CX06",
+        "CX09",
+        "CS08"
+      ]
+    },
+    {
+      "cause": "parent usage reset, earlier authorisation expiry and orphan reception",
+      "verified": [
+        "CG03",
+        "CG05"
+      ]
+    },
+    {
+      "cause": "partial snapshot persistence",
+      "verified": [
+        "CG04"
+      ]
+    },
+    {
+      "cause": "capability URL and stale memory versions",
+      "verified": [
+        "CG06",
+        "CG07"
+      ]
+    },
+    {
+      "cause": "expired manual cursor, readonly controls and reminder restart/catchup",
+      "verified": [
+        "CS09",
+        "CG08",
+        "CS10",
+        "P01",
+        "P02",
+        "U06"
+      ]
+    }
+  ]
+}

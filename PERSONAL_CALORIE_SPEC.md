@@ -2,7 +2,7 @@
 
 本规格定义个人饮食管理业务；回复行为见 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，存储与执行见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，实际接口见 [contracts/](contracts/)。
 
-下一阶段新增行为与实施验收统一见 [省心饮食与跨会话记忆规格](PERSONAL_ASSISTANT_SPEC.md)。相关条款是尚未实现的目标，不表示生产已支持。
+下一阶段新增行为与实施验收统一见 [省心饮食与跨会话记忆规格](PERSONAL_ASSISTANT_SPEC.md)。各条款的实现与隔离验收状态见阶段交付记录，不表示生产已支持。
 
 ## 1. 目标与范围
 
@@ -132,3 +132,5 @@
 
 - [LangChain Agent](https://docs.langchain.com/oss/python/langchain/agents) · [内置 middleware](https://docs.langchain.com/oss/python/langchain/middleware/built-in)
 - [薄荷食物详情及 with_units](https://ai.boohee.com/docs/?id=dc043193) · [食物单位](https://ai.boohee.com/docs/?id=dc00259c)
+
+阶段 C 的实现候选、定向验收与尚缺外部证据见[阶段 C 交付](reports/STAGE_C_DELIVERY.md)；本规格的目标不等于正式部署状态。

@@ -19,7 +19,7 @@
 ## 验收结果与未解决项
 
 - **R15 正式个人试用。** 三类暖账本及知识答复有速度差额，知识末尾有题外邀约。用户接受该包例外。 [实测与授权](CONVERSATION_DELIVERY.md#r15-正式飞书个人试用2026-11-05)
-- **长期性能与保留。** 暖视图已增量追读日志。收件顺序列表、文档键覆盖检查和归档发现仍随历史增长。30 天终态回收、自动切代及维护后 15 分钟内提醒补查待实现。 [COS 规格](../LATENCY_OPTIMIZATION_SPEC.md)
+- **长期性能与保留。** 阶段 C 隔离环境已验证切代、旧角色拒写、回收及冷读。真实 Bitable 归档创建及改量确认分别在 310.342、234.628 秒内。最新隔离候选的三类暖账本 ACK 均低于 3 秒，受理到持久回执为 6.875～8.583 秒，未达到 5 秒。 [COS 规格](../LATENCY_OPTIMIZATION_SPEC.md) · [阶段 C 真实飞书复验](STAGE_C_DELIVERY.md#合并回执提交后的真实飞书复验2026-11-14)
 - **旧正式回复。** 构建 `4c3fe0d5ea618cc5` 的今日查询带出未经本轮查询的昨日 525.6 千卡。修复已发布，同一场景暂无新版正式复验记录。原证据为本机归档 `original-reports/production-delivery/final-status.json`。
 
 ## 历史发布与证据
@@ -30,3 +30,7 @@
 - **此前验收。** [交流候选](CONVERSATION_DELIVERY.md) · [个人功能](PERSONAL_DELIVERY.md) · [Bitable 链路](latency-pre-cos-delivery-20261101.md) · [COS 探针](COS_PROBE.md)
 
 本机归档根为 `%LOCALAPPDATA%\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\calorie-agent\archives`。上述 `original-reports/` 和当时留存的业务包 `artifacts/` 位于其子目录 `audit-20261104-97e186fa`。候选证据的旧 `raw_evidence.path` 可按 `archives/` 后的相对路径定位，再核对原 SHA256。
+
+## 阶段 C 未部署候选
+
+基于 `5ee5fab7f55a96c3b6a792947b3aeb68bee14110` 的 C0／C1／S1～S3 实现、复验、构建与缺口见 [阶段 C 交付](STAGE_C_DELIVERY.md)。候选只部署到隔离函数。阶段 C PR 保留草稿，当前仍有暖回执速度差额。

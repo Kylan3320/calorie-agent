@@ -5,7 +5,7 @@ import json
 import os
 import time
 from datetime import datetime, timezone
-from .telemetry import span, EVENTS
+from .telemetry import span
 from .timeutil import remaining_timeout
 from .model_transport import create_client, deadline_scope
 
@@ -13,6 +13,10 @@ _CLIENT = create_client()
 WORKER = "calorie-agent-reminder"
 REGION = "ap-shanghai"
 HOST = "scf.tencentcloudapi.com"
+
+
+class HandoffRejected(RuntimeError):
+    """SCF returned a negative handoff acknowledgement."""
 
 
 def function_url_headers(request):
@@ -51,7 +55,7 @@ def function_url_headers(request):
             "X-Scf-Cam-Uin": uin, "X-Scf-Cam-Timestamp": str(timestamp), "X-Scf-Cam-Token": token}
 
 
-def dispatch_event(event, headers=None):
+def dispatch_event(event, headers=None, *, target="message"):
     # SCF injects role credentials into HTTP headers; timer/CLI uses environment.
     headers = headers or {}
     secret_id = headers.get("X-Scf-Secret-Id") or os.getenv("TENCENTCLOUD_SECRET_ID") or os.getenv("TENCENTCLOUD_SECRETID", "")
@@ -59,9 +63,7 @@ def dispatch_event(event, headers=None):
     token = headers.get("X-Scf-Session-Token") or os.getenv("TENCENTCLOUD_SESSION_TOKEN") or os.getenv("TENCENTCLOUD_SESSIONTOKEN", "")
     if not secret_id or not secret_key:
         raise RuntimeError("SCF invocation role credentials missing")
-    worker = os.getenv("CALORIE_MESSAGE_FUNCTION", WORKER)
-    event = {**event, "handoff_started_epoch_ms": time.time()*1000,
-             "ingress_events": list(EVENTS.get() or [])}
+    worker = os.environ["CALORIE_COMPUTE_FUNCTION"] if target == "compute" else os.environ["CALORIE_INGRESS_FUNCTION"] if target == "ingress" else os.getenv("CALORIE_MESSAGE_FUNCTION", WORKER)
     body=json.dumps({"FunctionName":worker,"Namespace":"default","InvocationType":"Event",
                      "ClientContext":json.dumps(event,ensure_ascii=False,separators=(",",":"))},ensure_ascii=False,separators=(",",":")).encode()
     timestamp=int(time.time());day=datetime.fromtimestamp(timestamp,timezone.utc).strftime("%Y-%m-%d")
@@ -72,13 +74,14 @@ def dispatch_event(event, headers=None):
     key=sign(sign(sign(("TC3"+secret_key).encode(),day),"scf"),"tc3_request")
     signature=hmac.new(key,string_to_sign.encode(),hashlib.sha256).hexdigest()
     auth=f"TC3-HMAC-SHA256 Credential={secret_id}/{scope}, SignedHeaders=content-type;host;x-tc-action, Signature={signature}"
-    with deadline_scope(time.monotonic() + remaining_timeout(2)), span("scf_handoff",target=worker):
+    with deadline_scope(time.monotonic() + remaining_timeout(2)), span(
+            "scf_handoff",target=worker,receipt_id=event.get("receipt_id"),task_id=event.get("task_id")):
         response=_CLIENT.post("https://"+HOST+"/",content=body,headers={"Content-Type":"application/json; charset=utf-8","Host":HOST,"X-TC-Action":"Invoke","X-TC-Version":"2018-04-16","X-TC-Region":REGION,"X-TC-Timestamp":str(timestamp),"X-TC-Token":token,"Authorization":auth},timeout=remaining_timeout(2))
         response.raise_for_status()
         result=response.json()["Response"]
         if "Error" in result:
-            raise RuntimeError("SCF handoff failed: "+result["Error"].get("Code","unknown"))
+            raise HandoffRejected("SCF handoff failed: "+result["Error"].get("Code","unknown"))
         if not result.get("RequestId") or result.get("Result",{}).get("InvokeResult",0)!=0:
-            raise RuntimeError("SCF handoff not accepted")
+            raise HandoffRejected("SCF handoff not accepted")
         return result["RequestId"]
 

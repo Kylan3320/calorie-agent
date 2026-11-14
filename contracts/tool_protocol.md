@@ -1,6 +1,6 @@
 # Store 与原生工具契约
 
-本文描述已实现接口；阶段 C 的通用来源、Router／Worker、分页索引和回收尚未实现，目标分别见[统一规格第10节](../PERSONAL_ASSISTANT_SPEC.md#10-下一阶段-c通用事务与可靠运行)及[COS 规格](../LATENCY_OPTIMIZATION_SPEC.md)。实现时同步实际接口及消费者，不把目标当作现有能力。
+本文描述仓库接口。阶段 C 的通用来源、Router／Worker、分页索引和回收候选见下文，产品要求见[统一规格第10节](../PERSONAL_ASSISTANT_SPEC.md#10-下一阶段-c通用事务与可靠运行)及[COS 规格](../LATENCY_OPTIMIZATION_SPEC.md)。验收与部署状态见[交付记录](../reports/STAGE_C_DELIVERY.md)。
 
 回复、整轮完成和恢复规则见[交流体验规格第 2 节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。字段的观测口径见 [Trace 契约](trace_schema.md)。
 
@@ -78,11 +78,13 @@
 
 ## COS 提交与归档
 
-- `CosStore(objects,prefix,offset_hours=8,readonly=False)` 采用 `message/` 范围，worker 执行前调用 `confirm_current()`。`Journal` 在 ingress、message、sync 分别保存连续编号、前驱和内容寻址引用，每 128 版本保存索引检查点。空确认点只写版本关系，同值保存不新增提交，普通保存只提交变化文档。COS 桶从未启用版本控制。
+- `CosStore(objects,prefix,offset_hours=8,readonly=False)` 采用 `message/` 范围，worker 执行前调用 `confirm_current()`。`Journal` 在 ingress、message、sync 分别保存连续编号、前驱和内容寻址引用，v1 每 128 版本保存索引检查点，v2 每次保存有界分页根，见下文候选协议。空确认点只写版本关系，同值保存不新增提交，普通保存只提交变化文档。COS 桶从未启用版本控制。
 - `CosObjects.list(prefix,marker='',limit=None)` 按字典序返回严格在 marker 之后的键，最多返回 limit 项。LIST 只定位候选。暖视图从已确认水位增量追读，冷视图有界探测头和最近检查点，至多四路并发校验尾段后按序应用。下一编号禁止覆盖，冲突须精确追读相邻提交。已知版本不可见或提交结果未知时停止，确认后恢复。文档上传全部成功后发布唯一提交。
 - `commit_action(action_id,callback)` 原子提交业务变化、固定餐项 ID、工具结果、执行进度和归档版本。新餐项 ID 按动作和首次项序号派生，导入保留原飞书 ID。重放读原结果。`committed_action` 只读，确认屏障未完成须报错。FakeStore 对齐重放和回滚语义，失败回滚未提交业务，已保存的 `flush_preparation` 准备事实可恢复。
+- 飞书账本请求在首次模型决策只有一个原生账本调用、该调用成功且通过直接回执检查时，已提交业务结果、对话待展示轮次、最终正文与投递 UUID 使用同一 COS manifest。旧记录继续读取内嵌结果。新回执的 `execution_id` 指向终态执行，消息写入者和恢复只读回执正文及投递字段，完整结果接口按需读执行审计。
+- 飞书发送成功后，同一 `receipt-complete` 提交保存展示确认、对话送达状态和会话游标。提交前停止会保留待发凭据，有疑问时先核对提交再使用原 UUID 重投。
 - 补全或取消在 `prepared.pending_before` 保存待办快照，执行及恢复均核对未变化且未消费。待办变化随业务结果提交，只合并 `unfinished/refs` 及仍指向原餐的 `last_meal`。旧未提交准备缺 `pending_before` 时要求重新发起，其他固定动作按原准备恢复。旧任务不得覆盖较新会话。
-- 文档按原散列身份存储，`document_index:<kind>` 保存键列表，`document_index:ready` 保存排序后的 `document:` 键集合 SHA256。摘要缺失、旧布尔标记或覆盖变化时重建，以兼容旧写入器回退后新增的文档。可写时索引与本次保存原子发布，普通正文更新不重写索引。LRU 上限 512 项和 8 MiB 编码数据，超大文档直接从 COS 读取。批来源 `source:foods` 可按内容哈希预热，实际食物版本由 `food:` 索引选择，单项更新不重写批快照。
+- v1 文档按原散列身份存储，`document_index:<kind>` 保存键列表，`document_index:ready` 保存排序后的 `document:` 键集合 SHA256。摘要缺失、旧布尔标记或覆盖变化时重建，以兼容旧写入器回退后新增的文档。可写时索引与本次保存原子发布，普通正文更新不重写索引。LRU 上限 512 项和 8 MiB 编码数据，超大文档直接从 COS 读取。批来源 `source:foods` 可按内容哈希预热，实际食物版本由 `food:` 索引选择，单项更新不重写批快照。
 - 仅摄入、食物及个人设置的业务变化写 `archive:<kind>:<id>` 并推进业务版本，`feishu_chat_id` 等运行元数据不推进版本。同步函数只写 `sync/`，合并尚未发送的同项变更，先持久保存 inflight 的绝对字段和 `client_token`，响应未知按原稳定 ID 核对。新 token 绑定 app/table/kind/id/revision，旧 inflight 沿用原 token 和字段。
 - 归档以独立读回的精确字段及版本确认水位。数值用 Decimal 比较，兼容数字文本和单值 wrapper。较高 `agent_revision` 须为有限合法整数才可判定 superseded。人工修复 blocked 请求须冻结写入者，核对原 sync 版本、哈希和目标 ID，保留旧失败审计后再用固定新请求恢复。人工恢复样本不计健康归档时效。
 - 生产消息热路径从 COS 读取业务和来源事实，薄荷详情先提交 COS 后归档，LightRAG 读取已发布索引。迁移入口为 `migration.export_cos_baseline`／`import_cos_baseline`，独立核对含软删除 ID、日合计和幂等任务。已交付旧收件转换为 completed `receipt_state`，重投不重发。归档确认不删除 COS 当前事实。
@@ -90,7 +92,34 @@
 ## 上下文、预算与恢复日志
 
 - 动态状态每次重建。完整请求预算按最终 HTTP body 计量，供应商 usage 独立保存。默认值见 `config.yaml`，编码身份见 `agent/encoding/version.json`。固定 `deadline_at/legacy_budget/model_steps` 与累计次数随执行持久，`execution_budget.model_decision/model_decisions_after_this/tool_calls_remaining` 从该计数投影。
-- `journal.messages` 保存原生恢复交换，`model_steps[].request_body` 保存实际 HTTP 输入，响应及原请求供恢复使用。业务状态在 `session/prepared.session`，结果元数据在 `result`，重放用 `calls` 重建完整工具事实。`previous_session_message_id` 与会话 `last_message_id/last_execution_complete` 阻止旧任务回写。`offered_message_id` 绑定实际展示候选。
-- `conversation.history(for_model=True)` 将历史轮次投影为含 `turn_id/reply_status/execution/dialogue/references` 的 SystemMessage 背景组，当前原话及本轮原生配对保持独立。`reply_status` 只依据确认的 dialogue-delivered 或 receipt_state 最终交付。`execution` 从原保存结果提取业务状态、原生调用和工具状态，明确无调用且无提交时标仅回复，缺执行依据标未知。仅为已展示草案保留对象引用，旧账本正文和数字不回填。已回复仅表示交付。分组不写回原来源。
+- `journal.messages` 保存原生恢复交换。首次模型请求前，同一检查点持久保存受理执行次数、首次执行、清洁对话占位、决策计数、`model_steps[].request_body` 实际输入和尝试预留。成功响应与解析后的固定调用在任何工具或交付前同批落盘。中途退出仍消耗原 HTTP 尝试；失败与退避分别保存，重启复用原请求与截止。业务状态在 `session/prepared.session`，结果元数据在 `result`，重放用 `calls` 重建完整工具事实。`previous_session_message_id` 与会话 `last_message_id/last_execution_complete` 阻止旧任务回写。`offered_message_id` 绑定实际展示候选。
+- `conversation.history(for_model=True)` 将历史轮次投影为含 `turn_id/reply_status/execution/dialogue/references` 的 SystemMessage 背景组。新轮次在清洁来源保存紧凑业务与工具摘要，实际展示后才可纳入投影。旧轮次仍可核对原交付记录，过期审计视为执行细节未知。仅为已展示草案保留对象引用，旧账本正文和数字不回填。已回复仅表示交付。分组不写回原来源。
 - `conversation_context` 保存摘要身份、`fact_scope=dialogue`、覆盖游标和未覆盖轮次。 `dialogue_turn` 按固定用户消息 ID 保存清洁轮次，`agent_session.messages` 保留近期兼容视图。旧有效 dialogue 摘要及现有清洁轮次可作初次基准和后缀，无来源标记或错误占位不可作为基准。无 `fact_scope` 且无知识工具来源的旧正文不进入新输入。知识原文沿证据身份投影一份，规则见[知识契约](knowledge_schema.md)。
 - 交付确认后将轮次标记 complete，并保存 `summary_request(user,chat)` 及 `summary_active(system)`。sync Journal 保存计算进度、连续前缀快照和候选。候选含 `task_id/user_id/chat_id/base_id/turn_ids/source_hash`。`calorie_summary` 控制事件由消息写入者验证基准及完整前缀，再按应用动作键原子去重。事件不经业务受理，不推进用户轮次、业务序号、展示状态或主预算。调度按[后台摘要规则](../CONVERSATION_EXPERIENCE_SPEC.md#5-后台话题摘要)。
+
+## 阶段 C 候选接口（未部署）
+
+实现及验收状态见 [阶段 C 交付](../reports/STAGE_C_DELIVERY.md)。以下是本分支代码协议；不能据此认定正式 COS 已切代。
+
+- 主循环新增 `query_sources`（独立通用 Search／Fetch、已读引用和当前用户文本）、`calculate_values`（有来源的 Decimal 四则运算／日期天数差）、`manage_task`、`query_task`、`delegate_task`。工具注册、schema 和预设共用原注册表。Worker／Router 计算上下文另提供 `submit_task_result`，不开放递归委派或业务写工具。
+- 通用委托与饮食委托分别最多一个。`manage_task` 的授权原话须出现在本条消息，修改／控制绑定当前 revision；时间、反馈触发、单次停止、指定 Worker 停止、暂停、未来触发开关及通知开关分开。`query_task.status` 只查询；`read_artifact` 另须当前查看原话，实际交付才确认 delivered。成果采用 `items/evidence/unresolved/sources`，不使用餐次 schema。
+- `delegate_task.jobs[].urls` 携带用户已提供的未取文公开链接，`source_refs` 绑定工具已核对的原文。父周期取到的正文按独立引用保存，跨入口或额度耗尽可保留来源。失败周期不覆盖已有成果，通知绑定当前委托版本和实际投递确认。
+- 父周期绝对截止从受理起 180 秒，父与两个 Worker 总上限为 12 决策／24 工具／9 网页 HTTP。当前分配是父与每子各预留 4／8／3，最多两个子任务；预留与固定身份在消息写入者的原动作提交中保存。未知退出不归还预留，重启不重新领额度。配置初值见 `task_cycle_*`；单次计算仍受原 90 秒和平台剩余时间限制。通用与食品网页共享父侧 HTTP 余量。前台按原消息键累计，后续状态／控制消息不重置本周期父侧用量；Router 从同一剩余额度续作。
+- `task/task_owner/task_active/worker_active/task_source/task_artifact/task_input/worker_attempt/task_event/task_router_execution/task_run_audit` 均由原消息写入者写入。正文来源和成果独立保存；状态中仅保存引用。Worker 使用同一模型和 `create_agent`，从固定输入快照获取相关来源及已授权记忆，快照 SHA256 绑定本次尝试。
+- `app.compute_handler` 是受限计算入口，部署要求并发 2、角色没有 COS 权限。消息写入者先登记固定 input／candidate 键，再签发原截止内的 GET／禁止覆盖 PUT。使用 SCF 临时凭据签发时，将 COS 会话令牌作为签名查询参数。签名不进模型或 trace。消息写入者在派发前持久记录 15 秒认领窗口，同一窗口内不重发；未认领可由后续维护重发同一尝试。认领由消息入口串行处理；后续 `/internal/worker-control` 是只读查询，绑定用户、父子身份、运行实例和每次尝试的独立能力令牌，令牌只经 `X-Calorie-Worker-Token` 请求头传输；无法读取控制即停止。HTTP 签名错误只记录错误类别，不把带签名 URL 写到公开日志。
+- 候选按固定键读取并检查 128 KB 上限、身份、委托／撤回版本、截止、取消、实际引文、数值和运行时用量。发布与父状态更新走原 `commit_action`。同摘要重投返回 duplicate，异摘要拒绝；迟到／撤回候选仅审计。丢失回报时按已登记键发现，不扫描候选前缀。委托记忆逐项绑定当前可见内容散列，普通版本变化和撤回均使旧候选失效；已保存成果读取时也按当前来源投影。`worker_active` 独立于父活动索引，父结束后仍保留已登记候选接收，直至消费或原签名过期。子任务失败不丢弃另一项成果；Router 使用父侧剩余额度核对覆盖和未决。
+- 后台 Router 和子 Worker 共用受限计算入口及两个计算槽。Router 从原父周期剩余额度取得一次固定尝试，读已核实来源及子成果。最后一次决策由同一模型直接生成 JSON 清单，走同一结果契约与逐项引文校验，保留有效行动项并标明未通过核验的缺口。消息写入者保存尝试、认领和发布。待派发窗口使用独立派发身份与截止，过期认领不改变状态；已认领且用量未知不以同额度重算。固定候选以 COS 服务端写入时间判断是否赶上计算截止，发布仍核对当时授权、撤回和版本。普通消息和回调只推进所属用户。每分钟提醒触发同时扫描活动任务，独立于五分钟归档。
+
+### COS v2 与保留接口
+
+- Journal 同时读取 v1 和 v2；已有 v1 在显式切换前仍沿原协议，首次升级使用同一三域停写／唯一决议。新空数据域写 v2。v2 每次提交保存有界 radix 索引根，叶页最多 32 项、目录扇出最多 17（含终止符）。新目录页保存各子页计数，更新只需访问受影响的子页，旧目录页在首次更新时从原子页恢复缺失计数。不可变页按内容复用，不再每 128 次复制全部键。冷读直接取得根，暖读只定位新增提交；v1 的 128 检查点算法单独保留。写结果未知仍关闭该实例，按固定键及禁止覆盖屏障恢复。
+- 同次提交的不可变文档和索引页共用有界传输批次；全部上传成功后才创建唯一可见的提交。传输失败不更新当前索引根。
+- v2 仅为实际跨用户枚举的 `user_settings` 和 `worker_attempt` 同动作写入类型目录。回执、会话和其余点查文档使用原固定键；显式离线检查仍可遍历完整文档。旧目录由维护显式转换；只读 v1 重建不落盘。记忆元数据的可变映射、活动目录、会话轮次／摘要覆盖采用独立点键或 32 项页；正文通过原引用读取。v2 不能回退到不维护该格式的写入器。
+- 同一提交的不可变审计片段、文档和索引页共用现有四路传输批次，全部写入后发布 manifest。未发布的对象不形成业务或投递结果。
+- 收件顺序为每会话 32 项页与 position 游标；历史重投仍按 receipt 点读。sync 自己维护增量收件发现和活动恢复索引，未完成／人工恢复独立保留，不跨域共同修改队列。分钟事件直接检查提醒，只为实际投递保存固定防重任务。今日／有边界日期请求直接定位日索引。确认 COS 头后，原截止已过的人工恢复任务独立保留，推进顺序游标以允许同会话新消息；未知写入仍先确认屏障。
+- 实际提醒使用原逐规则 `reminder_receipt` 和 UUID，`reminder_delivery_active` 只收录准备过的未确认投递。每次 RPC 前持久增加累计尝试（自动最多三次），重启不重领；sync 只唤醒消息写入者。当前关闭／规则变化／已记餐抑制旧投递。维护消息调用恢复后立即按原计划时刻补查至多 15 分钟，超过跳过；已准备失败独立恢复。旧记录缺累计尝试时不自动补额度。所有新控制／维护／计算入口在只读预设先退出。
+- `archive_scan` 的代与水位和 `archive_pending` 发现项共同提交；只扫描新增消息提交，已确认项退出活动发现。原 inflight 请求、token、版本和行映射保持不变。切代转换水位，并携带准备后新增的待归档项。
+- 执行快照的大型请求／调用／结果拆成不可变 `$artifact` 引用。完整模型 HTTP 请求和同轮耗时明细分别作为整体保存，避免逐工具定义和逐事件写对象。`load_execution`、`committed_action` 和结果接口仍返回原业务形状。缓存仍统一受 512 项／8 MiB 上限约束。
+- `retention.preflight` 只读分类，返回保留／瘦身身份、逻辑字节、原因和未分类项。终态工作和交付均结束 30 天后，在新基线中用精简凭据替换过程；未知、待展示、needs_attention、活动依赖、归档 inflight 不按年龄清理。旧结束时间不明时保存首次升级锚点，不读文件年龄。终态重投返回原回执与 `audit_status=unavailable`，过期 tool_events／trace 不重算；精简动作凭据仍阻止 callback 再执行。
+- `GenerationControl` 的控制记录独立于三域代前缀。三个角色分别用禁止覆盖屏障确认最终版本；消息调用内自持 40 秒取消／60 秒恢复 watchdog，不依赖后续请求。唯一 decision 解决 enable／cancel 和未知响应；旧 ingress 事件映射到新根水位。旧实例每次提交前查代，陈旧 LIST 不能复用旧序号。
+- `Maintenance.prepare/finish/collection_plan/collect` 复用同一切换协议。准备期独立读回正文；暂停窗只追并核对增量。删除必须先新进程核对、COS 实际拒绝三个旧角色写入，等待旧候选签名失效并逐键对账。不可变删除清单逐项留进度，响应丢失和中断重做同一清单。控制记录不删除。默认自动维护关闭，隔离验证后才可设置操作门；正式切代和回收不在本任务授权内。

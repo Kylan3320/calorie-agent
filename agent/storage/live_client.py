@@ -16,8 +16,13 @@ class LiveClient:
 
     def _request(self, method, path, **kwargs):
         with deadline_scope(time.monotonic() + remaining_timeout(10)):
+            cam = os.getenv("CALORIE_SERVICE_AUTH", "bearer") == "cam"
+            if cam and kwargs.get("params"):
+                # Function URL CAM verifies the received ordering. Build the
+                # wire query in the same canonical order as the signed request.
+                kwargs["params"] = sorted(httpx.QueryParams(kwargs["params"]).multi_items())
             request = self.client.build_request(method, self.endpoint + path, timeout=remaining(), **kwargs)
-            if os.getenv("CALORIE_SERVICE_AUTH", "bearer") == "cam":
+            if cam:
                 from .scf_dispatch import function_url_headers
                 request.headers.update(function_url_headers(request))
                 request.headers["X-Calorie-Service-Token"] = self.token
@@ -34,7 +39,13 @@ class LiveClient:
                 accepted = self._request("POST", "/internal/intake", json={"message": message, "source": source})
                 rid = accepted["receipt_id"]
                 while True:
-                    state = self._request("GET", "/internal/result", params={"receipt_id": rid})
+                    try:
+                        state = self._request("GET", "/internal/result", params={"receipt_id": rid})
+                    except httpx.HTTPStatusError as exc:
+                        if exc.response.status_code not in {429, 432}:
+                            raise
+                        time.sleep(min(1, remaining()))
+                        continue
                     if state.get("result"):
                         digest = state["delivery"].get("result_digest")
                         return {**state["result"], "delivery_reference": {

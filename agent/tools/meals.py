@@ -399,8 +399,9 @@ def revise_intake(rt, p):
         rt.prepare({"record_id": row["record_id"], "item": item, "date": row["date"], "original": row})
     plan = rt.prepared
     rt.check_deadline()
-    current = next((r for r in rt.store.intake_items(rt.user_id, plan["date"], include_deleted=True)
-                    if r["record_id"] == plan["record_id"]), None)
+    rows = (rt.store.intake_by_ids(rt.user_id, [plan["record_id"]], include_deleted=True)
+            if hasattr(rt.store, "intake_by_ids") else rt.store.intake_items(rt.user_id, plan["date"], include_deleted=True))
+    current = next((row for row in rows if row["record_id"] == plan["record_id"]), None)
     original = plan["original"]
     if current is None or any(current.get(k) != original.get(k) for k in
                               ("agent_revision", "grams", "nutrition", "snapshot", "status")):

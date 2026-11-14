@@ -58,7 +58,7 @@ def runtime_check(package, layer):
     from agent.context import tokens
     from agent.tools.registry import TOOL_REGISTRY
     from agent.storage.knowledge_retriever import _build_lightrag
-    from app import reminder_handler, ingress_handler, message_handler, maintenance_handler
+    from app import reminder_handler, ingress_handler, message_handler, maintenance_handler, compute_handler
     from agent.storage.cos_store import CosStore
     from agent.storage.cos_transport import CosObjects
     from agent.storage.cos_archive import archive_pending
@@ -68,7 +68,7 @@ def runtime_check(package, layer):
         raise RuntimeError("DeepSeek encoding failed to load")
     rag = _build_lightrag()
     if rag is None or not all(callable(obj) for obj in (reminder_handler, ingress_handler, message_handler,
-            maintenance_handler, CosStore, CosObjects, archive_pending, CosS3Client)):
+            maintenance_handler, compute_handler, CosStore, CosObjects, archive_pending, CosS3Client)):
         raise RuntimeError("required runtime entry failed to load")
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
@@ -95,7 +95,7 @@ def runtime_check(package, layer):
                 "health": {key: health[key] for key in ("build_id", "model", "retriever", "status")},
                 "native_agent_loaded": True, "lightrag_loaded": True, "cos_store_loaded": True,
                 "cos_transport_loaded": True, "archive_entry_loaded": True,
-                "reminder_entry": "app.reminder_handler"}
+                "reminder_entry": "app.reminder_handler", "compute_entry": "app.compute_handler"}
     finally:
         process.terminate()
         try:

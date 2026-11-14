@@ -26,14 +26,27 @@ class Pipeline:
         self.journal_factory = journal_factory or Journal
         self._writer = self._reader = None
         self._inbox_writer = self._inbox_reader = None
+        self._sync = None
+        from .generations import GenerationControl
+        self.control = GenerationControl(objects, self.prefix)
+        self._location = None
 
     def inbox(self, *, readonly=False, minimum_revision=None):
+        epoch, prefix = self.control.location()
+        if self._location != (epoch, prefix):
+            self._inbox_writer = self._inbox_reader = self._writer = self._reader = None
+            self._sync = None
+            self._location = (epoch, prefix)
         attribute = "_inbox_reader" if readonly else "_inbox_writer"
+        floor = self.control.minimum('ingress')
+        if floor is not None:
+            minimum_revision = floor if minimum_revision is None else max(minimum_revision, floor)
         journal = getattr(self, attribute)
         if journal is None:
-            journal = self.journal_factory(self.objects, self.prefix + "ingress/", readonly=readonly)
+            journal = self.journal_factory(self.objects, prefix + "ingress/", readonly=readonly,
+                                           guard=lambda: self.control.guard(epoch, prefix))
             setattr(self, attribute, journal)
-            if minimum_revision is not None:
+            if minimum_revision is not None and journal.revision < minimum_revision:
                 journal.refresh(confirm=not readonly, minimum_revision=minimum_revision)
         else:
             journal.refresh(confirm=not readonly, minimum_revision=minimum_revision)
@@ -43,17 +56,42 @@ class Pipeline:
         if self.store_factory:
             return self.store_factory()
         from .cos_store import CosStore
+        location = self.control.location()
+        if self._location != location:
+            self._writer = self._reader = self._inbox_writer = self._inbox_reader = None
+            self._sync = None
+            self._location = location
         if self._writer is None:
             self._writer = CosStore(self.objects, self.prefix)
         return self._writer
 
     def readonly_store(self):
         from .cos_store import CosStore
+        location = self.control.location()
+        if self._location != location:
+            self._writer = self._reader = self._inbox_writer = self._inbox_reader = None
+            self._sync = None
+            self._location = location
         if self._reader is None:
             self._reader = CosStore(self.objects, self.prefix, readonly=True)
         else:
             self._reader.confirm_current()
         return self._reader
+
+    def sync_progress(self, *, generation):
+        epoch, prefix = self.control.location()
+        if prefix != generation:
+            from .generations import MaintenancePaused
+            raise MaintenancePaused('sync input generation changed; reopen current view')
+        if self._location != (epoch, prefix):
+            self._writer = self._reader = self._inbox_writer = self._inbox_reader = self._sync = None
+            self._location = (epoch, prefix)
+        if self._sync is None:
+            self._sync = self.journal_factory(self.objects, prefix + 'sync/',
+                                              guard=lambda: self.control.guard(epoch, prefix))
+        else:
+            self._sync.refresh()
+        return self._sync
 
     def accept(self, message, *, source="feishu", received_at=None, kind="message", reference=None):
         if os.getenv("INGRESS_MAINTENANCE", "0").lower() in {"1", "true"}:
@@ -73,7 +111,7 @@ class Pipeline:
         if existing:
             if any(existing["message"][k] != message[k] for k in ("message_id", "user_id", "chat_id")):
                 raise ValueError("original message key belongs to another identity")
-            return {**existing, "ingress_revision": journal.revision}
+            return {**existing, "ingress_revision": journal.revision, "ingress_generation":journal.prefix.removesuffix('ingress/')}
         sequence = journal.get("next_sequence", 0) + 1
         offset = getattr(sources, "offset_hours", 8)
         date_anchor = datetime.fromisoformat(reference["scheduled_time"]).timestamp() if kind == "reminder" else received
@@ -82,21 +120,30 @@ class Pipeline:
                    "message": message, "received_at": received, "intake_date": day,
                    "reference": reference}
         session_key = "session:" + receipt_id(message["user_id"], message["chat_id"])
-        entries = journal.get(session_key, [])
-        journal.commit({key: receipt, "next_sequence": sequence,
-                        session_key: entries + [{"receipt_id": rid, "sequence": sequence}]})
-        return {**receipt, "ingress_revision": journal.revision}
+        head = journal.get(session_key, {})
+        if journal.format == 1:
+            entries = head if isinstance(head, list) else []
+            journal.commit({key:receipt, 'next_sequence':sequence,
+                            session_key:entries + [{'receipt_id':rid, 'sequence':sequence}]})
+        else:
+            position = head.get('count', 0)
+            page_key = session_key + f':page:{position // 32:012d}'
+            page = journal.get(page_key, [])
+            receipt['session_position'] = position
+            journal.commit({key: receipt, 'next_sequence':sequence, session_key:{'count':position+1},
+                            page_key:page + [{'receipt_id':rid, 'sequence':sequence, 'position':position}]})
+        return {**receipt, "ingress_revision": journal.revision, "ingress_generation":journal.prefix.removesuffix('ingress/')}
 
     def wake(self, receipt, headers=None):
         from .scf_dispatch import dispatch_event
         return dispatch_event({"type": "calorie_message", "receipt_id": receipt["receipt_id"],
-                               "ingress_revision": receipt["ingress_revision"],
+                               "ingress_revision": receipt["ingress_revision"], "ingress_generation":receipt.get('ingress_generation',self.prefix),
                                "message_id": receipt["message"]["message_id"],
                                "user_id": receipt["message"]["user_id"],
                                "chat_id": receipt["message"]["chat_id"]}, headers=headers)
 
     def result(self, rid):
-        return self.readonly_store().load_document("receipt_state", "system", rid)
+        return self.readonly_store().load_receipt(rid, include_audit=True)
 
     def defer_reminder(self, store, receipt, state, session_id):
         """Finish automatic tick attempts while retaining its original recovery.
@@ -111,7 +158,7 @@ class Pipeline:
                              "errors": [state.get("error", "reminder retry budget exhausted")]})
         def finish():
             store.save_document("receipt_state", "system", rid, state)
-            store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0))})
+            store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0)), "position":receipt.get("session_position", -1)})
             return {"status": "completed"}
         store.commit_action("receipt-complete:" + rid, finish)
         return state
@@ -155,6 +202,7 @@ class Pipeline:
         mark_reply_presented(store, message["user_id"], message["chat_id"], {"dialogue_turn_id": "calorie-user:" + message_key(original_receipt["message"]), **original["result"]})
         original["status"] = "needs_attention" if original.get("work_status") == "needs_attention" else "completed"
         delivery.update(presented=True, presented_at=reference["presented_at"])
+        original['completed_at'] = time.time()
         store.save_document("receipt_state", "system", reference["receipt_id"], original)
         state = {"status": "completed", "receipt_id": receipt["receipt_id"], "sequence": receipt["sequence"]}
         store.save_document("receipt_state", "system", receipt["receipt_id"], state)
@@ -163,7 +211,6 @@ class Pipeline:
     def deliver(self, store, receipt, state, send=None, update_send=None):
         import json
         from pathlib import Path
-        from agent.graph import mark_reply_presented
         from . import feishu_client
         from .telemetry import span, EVENTS
         message, delivery = receipt["message"], state["delivery"]
@@ -201,8 +248,28 @@ class Pipeline:
         print(json.dumps({"event": "latency_delivery", "message_id": message["message_id"], "receipt_id": receipt["receipt_id"],
                           "sequence": receipt["sequence"], "source": receipt["source"], "build_id": build.read_text().strip() if build.exists() else "development",
                           "events": list(EVENTS.get() or []), **delivery}, ensure_ascii=False))
-        mark_reply_presented(store, message["user_id"], message["chat_id"], {"dialogue_turn_id": "calorie-user:" + message_key(message), **state["result"]})
         state["status"] = "needs_attention" if unresolved else "completed"
+
+    def confirm_delivery(self, store, receipt, state):
+        from agent.graph import mark_reply_presented
+        message = receipt["message"]
+        if state["delivery"]["presented"]:
+            mark_reply_presented(store, message["user_id"], message["chat_id"],
+                                 {"dialogue_turn_id": "calorie-user:" + message_key(message), **state["result"]},
+                                 atomic=False)
+
+    def stage_reply(self, message, state, result, execution_id=None):
+        state = deepcopy(state)
+        if execution_id:
+            state["execution_id"] = execution_id
+            result = {key: result[key] for key in ("status", "reply", "reply_source", "business_status",
+                "completion_status", "dialogue_turn_id", "presented_candidates", "proposal_id", "terminal", "model_calls")}
+        state.update(result=deepcopy(result), delivery={"uuid": reply_uuid(message), "presented": False,
+                     "result_digest": hashlib.sha256(result["reply"].encode()).hexdigest(), "mode": "send"})
+        notice = state.get("action_notice", {})
+        if notice.get("status") == "confirmed" and notice.get("message_id"):
+            state["delivery"].update(mode="action_note_edit", message_id=notice["message_id"])
+        return state
 
     def action_note(self, store, receipt, state, text, send=None, **context):
         from . import feishu_client
@@ -253,9 +320,11 @@ class Pipeline:
             state["recovered_at"] = time.time()
             session = receipt_id(receipt["message"]["user_id"], receipt["message"]["chat_id"])
             def finish():
+                self.confirm_delivery(store, receipt, state)
                 store.save_document("receipt_state", "system", receipt["receipt_id"], state)
-                cursor = store.load_document("ingress_cursor", "system", session).get("sequence", 0)
-                store.save_document("ingress_cursor", "system", session, {"sequence": max(cursor, receipt["sequence"])})
+                cursor = store.load_document("ingress_cursor", "system", session)
+                store.save_document("ingress_cursor", "system", session, {"sequence": max(cursor.get('sequence',0), receipt["sequence"]),
+                    'position':max(cursor.get('position',-1),receipt.get('session_position',-1))})
                 return {"status": state["status"]}
             store.commit_action("receipt-complete:" + receipt["receipt_id"], finish)
             return state
@@ -267,6 +336,53 @@ class Pipeline:
         worker_started_at = time.time()
         from agent.config import load_config
         config = load_config()
+        controls={'calorie_task','calorie_task_tick','calorie_reminder_check','calorie_reminder_recover','calorie_maintenance_pause'}
+        if event.get('type') in controls and config.preset!='live':
+            return {'status':'skipped_preset','sent':0}
+        if event.get('type') == 'calorie_task_tick':
+            from . import tasks
+            from .task_runtime import dispatch_pending
+            store = self.store();store.confirm_current()
+            result=tasks.tick(store,config);dispatch_pending(store)
+            return result
+        if event.get('type') == 'calorie_task':
+            from .task_runtime import writer, dispatch_pending
+            store = self.store()
+            store.confirm_current()
+            from . import feishu_client
+            result = writer(store,event,config,send=send or feishu_client.send_text)
+            if event['operation'] != 'claim':
+                dispatch_pending(store,user_id=event['user_id'])
+            return result
+        if event.get('type') == 'calorie_maintenance_pause':
+            from .cos_journal import Journal
+            pause = self.control.pause_event(event)
+            if pause is None:
+                return {'status': 'obsolete_pause'}
+            epoch, prefix = pause['epoch'], pause['source']
+            # Establish the sole writer's exact barrier before starting its
+            # watchdog; a fresh readonly LIST cannot resolve an unknown PUT.
+            journal = Journal(self.objects, prefix + 'message/')
+            decision=self.control.message_wait(epoch, journal.revision)
+            from .reminders import catch_up
+            started=self.control.read(self.control.key(epoch,'started'))
+            store=self.store();store.confirm_current()
+            return {**decision,'reminders':catch_up(store,started['started_at'],time.time(),send)}
+        if event.get('type') == 'calorie_reminder_recover':
+            from .reminders import recover_deliveries
+            store=self.store();store.confirm_current()
+            return recover_deliveries(store,send,manual=bool(event.get('manual_recovery')))
+        if event.get('type') == 'calorie_reminder_check':
+            from .reminders import check_reminders
+            store = self.store()
+            store.confirm_current()
+            from . import tasks
+            from .task_runtime import dispatch_pending
+            # Reuse the one-minute message timer. Recovery is independent of archive.
+            if store.load_document('task_active','system') or store.load_document('worker_active','system'):
+                tasks.tick(store,config)
+                dispatch_pending(store)
+            return check_reminders(store, datetime.fromisoformat(event['scheduled_time']), send)
         if event.get("type") == "calorie_diet_goal":
             if config.preset != "live":
                 return {"status": "skipped_preset"}
@@ -290,12 +406,11 @@ class Pipeline:
             store.confirm_current()
             return apply_candidate(store, event)
         from agent import run
-        from agent.graph import mark_reply_presented
-        from . import feishu_client
         from .reminders import check_reminders
         if config.preset != "live":
             raise ValueError("live writer requires the live preset")
-        inbox = self.inbox(readonly=True, minimum_revision=event.get("ingress_revision"))
+        minimum = self.control.translate_ingress(event.get('ingress_generation'),event.get('ingress_revision'))
+        inbox = self.inbox(readonly=True, minimum_revision=minimum)
         requested = inbox.get("receipt:" + event["receipt_id"])
         if requested is None:
             raise RuntimeError("accepted receipt is temporarily unavailable")
@@ -312,7 +427,7 @@ class Pipeline:
             requested_state["manual_attempts"] = requested_state.get("manual_attempts", 0) + 1
             token = PROCESSING_DEADLINE.set(min(PROCESSING_DEADLINE.get() or float("inf"), attempt_started + load_config().deadline_seconds))
             try:
-                recovered = check_reminders(store, datetime.fromisoformat(requested["reference"]["scheduled_time"]), send)
+                recovered = check_reminders(store, datetime.fromisoformat(requested["reference"]["scheduled_time"]), send, manual=True)
                 requested_state.update(recovery_result=deepcopy(recovered), recovered_at=time.time(),
                                        work_status="completed" if recovered.get("status", "ok") == "ok" else "needs_attention")
                 store.save_document("receipt_state", "system", event["receipt_id"], requested_state)
@@ -322,10 +437,19 @@ class Pipeline:
         if event.get("manual_recovery") and requested_state.get("work_status") == "needs_attention" and requested_state.get("result") and requested["kind"] == "message":
             return self.recover_result(store, requested, requested_state, execute, send, update_send)
         if requested_state.get("status") in {"completed", "awaiting_presentation"}:
+            from .task_runtime import dispatch_pending
+            dispatch_pending(store,user_id=requested['message']['user_id'])
             return {**requested_state, "duplicate": True}
         session_id = receipt_id(requested["message"]["user_id"], requested["message"]["chat_id"])
         cursor = store.load_document("ingress_cursor", "system", session_id).get("sequence", 0)
-        entries = inbox.get("session:" + session_id, [])
+        head = inbox.get("session:" + session_id, [])
+        if isinstance(head, list):
+            entries = head
+        else:
+            from_position = store.load_document('ingress_cursor', 'system', session_id).get('position', -1) + 1
+            to_position = requested['session_position']
+            entries = [entry for page in range(from_position // 32, to_position // 32 + 1)
+                       for entry in inbox.get('session:' + session_id + f':page:{page:012d}', [])]
         receipts = [inbox.get("receipt:" + entry["receipt_id"]) for entry in entries
                     if cursor < entry["sequence"] <= requested["sequence"]]
         if any(r is None for r in receipts):
@@ -341,7 +465,7 @@ class Pipeline:
                          "receipt_id": rid, "sequence": receipt["sequence"]}
                 def finish_legacy():
                     store.save_document("receipt_state", "system", rid, state)
-                    store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0))})
+                    store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0)), "position":receipt.get("session_position", -1)})
                     return {"status": "completed"}
                 store.commit_action("legacy-receipt:" + rid, finish_legacy)
             if state.get("status") in {"completed", "awaiting_presentation"}:
@@ -351,8 +475,23 @@ class Pipeline:
             if receipt["kind"] == "reminder" and (state.get("status") == "needs_attention" or state.get("attempts", 0) >= 3) and not event.get("manual_recovery"):
                 requested_state = self.defer_reminder(store, receipt, state, session_id)
                 continue
-            if state.get("status") == "needs_attention" and not event.get("manual_recovery"):
-                raise RuntimeError("earlier receipt requires recovery: " + rid)
+            if state.get('status')=='needs_attention' and not event.get('manual_recovery'):
+                original_deadline=state.get('deadline_at')
+                if original_deadline is None and receipt.get('received_at') is not None:
+                    original_deadline=receipt['received_at']+config.deadline_seconds
+                if original_deadline is not None and time.time()>=original_deadline:
+                    # The confirmation barrier already resolved the COS head.
+                    # Expired plans cannot perform new effects on later data;
+                    # retain their independent manual-recovery identity.
+                    def advance_attention():
+                        cursor=store.load_document('ingress_cursor','system',session_id)
+                        store.save_document('ingress_cursor','system',session_id,{
+                            'sequence':max(cursor.get('sequence',0),receipt['sequence']),
+                            'position':max(cursor.get('position',-1),receipt.get('session_position',-1))})
+                        return {'status':'manual_recovery_retained'}
+                    store.commit_action('attention-cursor:'+rid,advance_attention)
+                    continue
+                raise RuntimeError('earlier receipt requires recovery: '+rid)
             automatic_attempts = state.get("delivery", {}).get("recovery_attempts", state.get("attempts", 0))
             if automatic_attempts >= 3 and not event.get("manual_recovery"):
                 raise RuntimeError("receipt retry budget exhausted: " + rid)
@@ -364,7 +503,11 @@ class Pipeline:
             if receipt["kind"] == "message":
                 message = self.budget_message(receipt, state)
                 state.setdefault("queue_wait_ms", round(max(0, time.time() - state["budget_started_at"]) * 1000, 3) if not state["legacy_budget"] else None)
-            store.save_document("receipt_state", "system", rid, state)
+            def save_processing():
+                store.save_document("receipt_state", "system", rid, state)
+            deferred_processing = receipt["kind"] == "message" and execute is None and not state.get("result")
+            if not deferred_processing:
+                save_processing()
             deadline = PROCESSING_DEADLINE.set(min(PROCESSING_DEADLINE.get() or float("inf"), attempt_started + load_config().deadline_seconds))
             message = self.budget_message(receipt, state) if receipt["kind"] == "message" else receipt["message"]
             try:
@@ -380,7 +523,16 @@ class Pipeline:
                             if settings.get("feishu_chat_id") != message["chat_id"]:
                                 store.save_document("user_settings", message["user_id"], "", {**settings, "feishu_chat_id": message["chat_id"]})
                         callback = (lambda text, **context: self.action_note(store, receipt, state, text, note_send, **context)) if receipt["source"] == "feishu" else None
-                        result = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"], action_note_callback=callback)
+                        options = {"on_execution_start": save_processing} if deferred_processing else {}
+                        staged = None
+                        def stage_ledger_reply(result, execution_id):
+                            nonlocal staged
+                            staged = self.stage_reply(message, state, result, execution_id)
+                            store.save_document("receipt_state", "system", rid, staged)
+                        if execute is None and receipt["source"] == "feishu":
+                            options["stage_ledger_reply"] = stage_ledger_reply
+                        result = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"],
+                                                  action_note_callback=callback, **options)
                         errors = ";".join(result.get("errors", []))
                         deterministic = errors.startswith(("KeyError:", "ValueError:", "PermissionError:", "stale_execution_requires_new_message"))
                         if result.get("status") == "error" and state["attempts"] < 3 and not deterministic and not result.get("terminal"):
@@ -390,22 +542,19 @@ class Pipeline:
                         elif result.get("status") == "error":
                             state.update(work_status="needs_attention", unfinished_error=errors)
                         # Commit final text and reference before any delivery API.
-                        state.update(result=deepcopy(result), delivery={"uuid": reply_uuid(message), "presented": False,
-                            "result_digest": hashlib.sha256(result["reply"].encode()).hexdigest()})
-                        notice = state.get("action_notice", {})
-                        if notice.get("status") == "confirmed" and notice.get("message_id"):
-                            state["delivery"].update(mode="action_note_edit", message_id=notice["message_id"])
-                        else:
-                            state["delivery"]["mode"] = "send"
-                        store.save_document("receipt_state", "system", rid, state)
+                        state = staged if staged is not None else self.stage_reply(message, state, result)
+                        if receipt["source"] == "feishu" and staged is None:
+                            store.save_document("receipt_state", "system", rid, state)
                     self.deliver(store, receipt, state, send, update_send)
                     if state.get("work_status") == "needs_attention":
                         store.save_document("receipt_state", "system", rid, state)
                         return state
                 state["completed_at"] = time.time()
                 def finish_receipt():
+                    if receipt["kind"] == "message":
+                        self.confirm_delivery(store, receipt, state)
                     store.save_document("receipt_state", "system", rid, state)
-                    store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0))})
+                    store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0)), "position":receipt.get("session_position", -1)})
                     if receipt["kind"] == "message":
                         from .bitable_adapter import usage_event_token
                         store.append_usage_event({"event_id": usage_event_token(message_key(message)),
@@ -416,6 +565,9 @@ class Pipeline:
                             "latency_ms": round((time.time()-receipt["received_at"])*1000) if receipt.get("received_at") is not None else None})
                     return {"status": state["status"]}
                 store.commit_action("receipt-complete:" + rid, finish_receipt)
+                if receipt["kind"] == "message" and receipt["source"] == "feishu":
+                    from .telemetry import log_receipt_latency
+                    log_receipt_latency(receipt, state, store.journal.revision)
                 requested_state = state
                 attempt_started = time.monotonic()
             except Exception as exc:
@@ -431,28 +583,46 @@ class Pipeline:
                 raise
             finally:
                 PROCESSING_DEADLINE.reset(deadline)
+        from .task_runtime import dispatch_pending
+        dispatch_pending(store,user_id=requested['message']['user_id'])
         return requested_state or {"status": "completed", "duplicate": True}
 
     def recover(self, *, wake=None):
         """Maintenance only wakes; it never writes business/session state."""
         inbox = self.inbox(readonly=True)
+        generation = inbox.prefix.removesuffix('ingress/')
         pending = []
         blocked = []
         store = self.readonly_store()
-        for key in inbox.state:
-            if not key.startswith("session:"):
-                continue
-            cursor = store.load_document("ingress_cursor", "system", key.removeprefix("session:")).get("sequence", 0)
-            for entry in inbox.get(key, []):
-                if entry["sequence"] <= cursor:
-                    continue
-                state = store.load_document("receipt_state", "system", entry["receipt_id"])
-                if state.get("status") == "needs_attention" or (state.get("error") and state.get("status") not in {"completed", "awaiting_presentation"}):
-                    blocked.append(entry["receipt_id"])
-                if state.get("status") not in {"completed", "awaiting_presentation", "needs_attention"} and state.get("delivery", {}).get("recovery_attempts", state.get("attempts", 0)) < 3:
-                    pending.append(inbox.get("receipt:" + entry["receipt_id"]))
+        if inbox.format == 2:
+            progress = self.sync_progress(generation=generation)
+            water = progress.get('recovery_scan', {'revision':-1})['revision']
+            changes = {}
+            for revision in range(water + 1, inbox.revision + 1):
+                for key in inbox._read(revision)['changes']:
+                    if key.startswith('receipt:'):
+                        rid = key.removeprefix('receipt:')
+                        changes['recovery_active:' + rid] = {'receipt_id':rid}
+            changes['recovery_scan'] = {'revision':inbox.revision}
+            progress.commit(changes)
+            receipts = [inbox.get('receipt:' + progress.get(key)['receipt_id']) for key in progress.keys('recovery_active:')]
+        else:
+            progress = None
+            receipts = [inbox.get(key) for key in inbox.keys('receipt:')]
+        finished = {}
+        for receipt in receipts:
+            rid = receipt['receipt_id']
+            state = store.load_document('receipt_state', 'system', rid)
+            if state.get('status') == 'needs_attention' or state.get('work_status') == 'needs_attention' or state.get('error') and state.get('status') not in {'completed','awaiting_presentation'}:
+                blocked.append(rid)
+            if state.get('status') in {'completed', 'awaiting_presentation'} and state.get('work_status') != 'needs_attention':
+                finished['recovery_active:' + rid] = None
+            elif state.get('status') != 'needs_attention' and state.get('delivery', {}).get('recovery_attempts', state.get('attempts', 0)) < 3:
+                pending.append(receipt)
+        if progress and finished:
+            progress.commit(finished)
         for receipt in sorted(pending, key=lambda r: r["sequence"]):
-            (wake or self.wake)({**receipt, "ingress_revision": inbox.revision})
+            (wake or self.wake)({**receipt, "ingress_revision": inbox.revision, "ingress_generation": generation})
         return {"woken": len(pending), "blocked": blocked}
 
 

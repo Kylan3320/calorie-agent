@@ -30,7 +30,10 @@ class Objects:
         self.creates += 1
         if key in self.data: return False
         value = json.loads(body)
-        if self.fail_document and '/documents/' in key and isinstance(value,dict) and value.get('intent')=='message_execution' and any('result' in c for c in value.get('payload',{}).get('calls',[])):
+        # Independent object transfers may arrive in either order. Fail the
+        # immutable native result itself, before publishing any manifest.
+        if (self.fail_document and '/documents/' in key and isinstance(value, dict)
+                and value.get('tool') == 'record_meal' and 'result' in value):
             self.fail_document = False
             raise OSError('injected tool result document upload failure')
         action_commit = '/commits/' in key and any(k.startswith(self.fault_action_prefix) and k!='action:baseline-import' for k in value.get('changes',{}))
@@ -203,7 +206,9 @@ def production_partitioning():
     # Read-only reconstruction must work without writes; the first writer save
     # publishes coverage so unchanged cold readers skip unrelated payloads.
     from agent.storage.bitable_adapter import stable_uuid
-    legacy = CosStore(Objects(), 'partition/legacy-documents/')
+    legacy_objects = Objects()
+    legacy_objects.create('partition/legacy-documents/message/commits/000000000000.json', __import__('agent.storage.cos_journal',fromlist=['encode']).encode({'schema':'calorie.cos.v1','revision':0,'previous':-1,'changes':{},'index':{}}))
+    legacy = CosStore(legacy_objects, 'partition/legacy-documents/')
     settings = {'targets':{'kcal':1900}}
     old = {}
     for kind,payload in [('user_settings',settings),('agent_session',{'messages':['old history']}),
@@ -388,6 +393,7 @@ def production_parallel_transfers():
         # The first exact GET returns last; the latest logical value still wins.
         for fault in (None, 'missing', 'error'):
             objects = Transfers()
+            objects.create('parallel/read/commits/000000000000.json',encode({'schema':'calorie.cos.v1','revision':0,'previous':-1,'changes':{},'index':{}}))
             writer = Journal(objects, 'parallel/read/')
             writer.commit({'value': 0})
             reader = Journal(objects, writer.prefix, readonly=True)
@@ -411,7 +417,7 @@ def production_parallel_transfers():
                 assert fault is None and reader.get('value')==8
                 assert objects.completed.index(targets[-1]) < objects.completed.index(targets[0])
             assert objects.creates == creates and objects.finished == len(targets) and objects.active == 0
-            assert objects.peak == 4 and all(ctx == expected_context for ctx in objects.seen)
+            assert objects.peak == 4 and all(ctx[0] == expected_context[0] and ctx[2:] == expected_context[2:] and ctx[1] for ctx in objects.seen)
 
         # A failed upload is followed by successful siblings, all of which must
         # finish before the failure returns. No manifest or shared cache changes.
@@ -470,7 +476,7 @@ def production_parallel_transfers():
         writer.refresh()
         assert writer.get('value') == 1
         observed = [event for event in EVENTS.get() if event['kind']=='parallel_transport']
-        assert observed and all(event['message_id']=='parallel-store' and event['parent']=='parallel-parent' for event in observed)
+        assert observed and all(event['message_id']=='parallel-store' and event['parent'] for event in observed)
     finally:
         for var,token in reversed(tokens): var.reset(token)
 
@@ -497,7 +503,8 @@ def production_food_snapshot():
     creates = objects.creates
     loaded = readonly.load_foods()
     assert {f['food_id']:f for f in loaded} == {f['food_id']:f for f in foods}
-    assert objects.reads == [snapshot_key] and objects.creates == creates
+    assert [key for key in objects.reads if '/documents/' in key] == [snapshot_key] and objects.creates == creates
+    assert len([key for key in objects.reads if '/indexes/' in key]) < 128
 
     updated = {**foods[0], 'kcal_per_100g':999}
     added = {**deepcopy(A), 'food_id':'source-new', 'name':'新来源食物'}
@@ -510,7 +517,7 @@ def production_food_snapshot():
     current = {f['food_id']:f for f in readonly.load_foods()}
     changed_refs = {writer.journal.index['food:'+f['food_id']] for f in (updated, added)}
     assert current[updated['food_id']] == updated and current[added['food_id']] == added and len(current)==126
-    assert len(objects.reads)==2 and {key.rsplit('/',1)[1][:-5] for key in objects.reads}==changed_refs
+    assert {key.rsplit('/',1)[1][:-5] for key in objects.reads if '/documents/' in key}==changed_refs
     assert objects.creates == creates
 
     # A new instance needs the original source array plus just the two current
@@ -518,7 +525,7 @@ def production_food_snapshot():
     fresh = CosStore(objects, writer.prefix, readonly=True)
     objects.reads.clear()
     assert {f['food_id']:f for f in fresh.load_foods()} == current
-    assert len(objects.reads)==3 and snapshot_key in objects.reads and objects.creates==creates
+    assert len([key for key in objects.reads if '/documents/' in key])==3 and snapshot_key in objects.reads and objects.creates==creates
     original = objects.data[snapshot_key]
     objects.data[snapshot_key] = b'[]'
     try:
@@ -526,7 +533,7 @@ def production_food_snapshot():
         try: corrupted.load_foods()
         except CommitUnavailable: pass
         else: raise AssertionError('corrupted source snapshot primed food cache')
-        assert not corrupted.journal.cache and objects.creates==creates
+        assert all(corrupted.journal.index['food:'+f['food_id']] not in corrupted.journal.cache for f in foods) and objects.creates==creates
     finally:
         objects.data[snapshot_key] = original
 

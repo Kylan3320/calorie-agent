@@ -187,11 +187,22 @@ def archive_pending(store=None, *, gateway=None, progress=None):
         from .cos_journal import Journal
         progress = Journal(store.objects, store.prefix.rstrip("/") + "/sync/")
     gateway = gateway or BitableArchive()
-    changes = {key: store.journal.state[key] for key in store.journal.state if key.startswith("archive:")}
+    scan = progress.get('archive_scan', {})
+    generation = store.prefix
+    water = scan.get('revision', -1)
+    if scan and scan.get('generation') != generation:
+        raise RuntimeError('archive cursor requires generation conversion')
+    discovered = {}
+    for revision in range(water + 1, store.journal.revision + 1):
+        for key in store.journal._read(revision)['changes']:
+            if key.startswith('archive:'):
+                discovered['archive_pending:' + key] = store.journal.get(key)
+    # Discovery and watermark publish together. Inflight owns the original
+    # absolute request until independent readback resolves its uncertainty.
+    progress.commit({**discovered, 'archive_scan':{'generation':generation, 'revision':store.journal.revision}})
+    changes = {key.removeprefix('archive_pending:'):progress.get(key) for key in progress.keys('archive_pending:')}
     completed, failed = [], []
-    # First resolve every previously transmitted request before selecting newer
-    # versions for that identity. Metadata changes never create archive entries.
-    keys = sorted(set(changes) | {key.removeprefix("item:") for key in progress.state if key.startswith("item:")})
+    keys = sorted(changes)
     for key in keys:
         state = deepcopy(progress.get("item:" + key, {}))
         if state.get("status") == "blocked":
@@ -211,6 +222,8 @@ def archive_pending(store=None, *, gateway=None, progress=None):
                 progress.commit({"item:" + key: state})
                 completed.append({"key": key, "revision": request["revision"], **result})
                 print(json.dumps({"event": "archive_confirmed", **completed[-1]}, ensure_ascii=False))
+            if latest and state.get('ack_revision', -1) >= latest['revision'] and not state.get('inflight'):
+                progress.commit({'archive_pending:' + key:None})
         except Exception as exc:
             state.update(status="blocked" if _blocked_error(exc) else "retry", last_error=f"{type(exc).__name__}:{exc}"[:500], failed_at=time.time())
             progress.commit({"item:" + key: state})

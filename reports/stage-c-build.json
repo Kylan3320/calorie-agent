@@ -1,0 +1,25 @@
+{
+  "BUILD_ID": "stage-c-cf51199c5e1df5c3",
+  "sha256": "69c54e20c15a1398b62bb1e2e617deef250dfcc3cebbcde4f4be4cc71f3a7c08",
+  "bytes": 28417690,
+  "runtime": "Linux Python 3.10.22",
+  "zip_members": 2450,
+  "runtime_files": 58,
+  "dependencies": "root requirements.txt; console dependencies excluded",
+  "frozen_layer_assembly": "not_run: Layer ZIP is not attached",
+  "formal_deployment": false,
+  "business_zip_import_smoke": {
+    "isolated_python": "3.10.22",
+    "runtime_sources_verified": 58,
+    "new_handlers_and_tools": "pass",
+    "console_modules": "excluded"
+  },
+  "dependency_versions": {
+    "langchain": "1.3.11",
+    "langgraph": "1.2.7",
+    "langchain-core": "1.4.8",
+    "httpx": "0.28.1",
+    "cos-python-sdk-v5": "1.9.44",
+    "tokenizers": "0.22.1"
+  }
+}

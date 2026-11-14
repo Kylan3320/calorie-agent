@@ -20,8 +20,9 @@
 
 ## 收件与投递
 
-- `scf_handoff` 记录入口到消息函数的 Invoke。事件引用 `receipt_id/ingress_revision` 及原消息、用户和会话身份。飞书 `latency_webhook` 含 ACK 前事件，`latency_worker` 按收件与消息身份记录事件，`latency_delivery` 另带 `build_id/sequence/source` 和投递结果。归档网络等待在独立函数内。
+- `scf_handoff` 记录入口到消息函数的 Invoke。事件引用 `receipt_id/ingress_revision` 及原消息、用户和会话身份。飞书 `latency_webhook` 含 ACK 前事件，`latency_worker` 记录消息函数自身事件，`latency_delivery` 另带 `build_id/sequence/source` 和投递结果。按 `receipt_id` 或 `message_id` 关联两端记录。累计 trace 不进入派发参数。归档网络等待在独立函数内。
 - `receipt_state` 保存 `receipt_id/sequence/attempts/queue_wait_ms/budget_started_at/deadline_at/legacy_budget/result/work_status`。其 `delivery` 保存 `uuid/result_digest/presented/sent_at/send_result/message_id/cos_revision/t_service_ms/send_duration_ms/slow_request`，进度升级另有 `progress_reply/update_result/recovery_attempts`。新结果和正文摘要在发送前同次保存。CLI／DSH 回报展示及结果摘要，旧事件记为 `presentation_rejected`。
+- 飞书 `latency_receipt_commit` 在确认 manifest 发布后记录同一收件的模型 HTTP、飞书发送、确认阶段耗时、发送前后消息 manifest 数及受理至持久确认耗时。单次决策的成功账本回执可通过 `execution_id` 读取完整执行审计。
 - `t_service_ms` 从原 `received_at` 到发送 API 成功，旧收件缺该时间则为空。大于 10 秒只标慢。存在有效 `create_time` 时另列 `t_user_ms`。重投保留原执行的 `latency_events`，本次发送看入口／投递事件，恢复和重投不产生新的正常性能样本。
 - `worker_started_at` 在 Pipeline.worker 内部 COS 读取前捕获。首次进入 worker 与原收件的差值包含受理端 COS、派发及可能的实例构造。旧证据的 `function_queue_ms` 沿用这一口径。`queue_wait_ms`、原收件至 worker 和未直接观测的纯平台排队应分开，缺冷启动或排队观测时标未知。
 
@@ -43,3 +44,12 @@
 - `cos_refresh` 记录 `view_id/prefix/readonly/start_revision/minimum_revision/confirm/end_revision/reason`，原因是 `first_use/confirmed_view/uncertain_commit`。`cos_catchup` 用同一视图 ID 记录 `start_revision/requested_revision/checkpoint_revision/read_from_revision/read_to_revision/end_revision`。空读段表示未追读旧提交。非空检查点表示从该检查点及尾段重建。失败看 `outcome=error` 与实际水位。视图 ID 仅关联进程内读视图。
 - COS HTTP 等待只取 `cos_get/cos_create/cos_list/cos_versioning` 实际区间并集。这些跨度记录键及适用的字节数。读视图跨度另含本地核对和嵌套 RPC。首轮前区间截断在原 `model_steps.started_at`。
 - Journal 关联收件 `ingress_revision`、消息提交版本及独立 `sync_revision`，业务动作的 `action_id` 固定。归档确认事件含稳定业务键、业务版本和飞书 `record_id`。失败事件含 `ack_revision/inflight_revision`。旧 inflight 保留原 token。人工修复独立保留旧请求、版本、哈希、服务端错误码、目的地和新请求哈希。读回字段和整数版本确认水位，规则见[归档契约](tool_protocol.md#cos-提交与归档)。
+
+## 阶段 C 候选补充
+
+- v2 `cos_catchup.format=2` 的数据根随选定提交读取，v2 的 `checkpoint_revision/read_from_revision/read_to_revision` 为所选根提交；v1 仍表示原检查点和尾段。判断格式以提交的 `schema=calorie.cos.v1/v2` 为准，不能拿 v1 的 128 间隔推导 v2 成本。`cos_get.bytes`、`cos_list.marker/keys`、`cos_create.bytes` 和 `cos_delete` 计入实际传输；增长验收额外保留完整请求／字节／枚举键统计，包括索引页和冷根。
+- 通用任务通过 task／cycle／worker／attempt 和委托 revision 关联。运行时 `usage.decisions/tools/web` 来自计数器，源引用独立保存；候选摘要与固定键用于幂等。能力令牌、预签名 URL、传输凭据及其哈希不进 trace 或模型上下文。
+- 终态瘦身返回 `audit_status=unavailable`、`audit_reason=retention_expired`，`tool_results/native_calls/model_requests/tool_events` 为空；这表示过程已到保留期，不表示原动作未发生。原终态、最终正文、交付 UUID 及业务映射保留。CLI／DSH／控制台沿结果字段显示，不制造旧工具卡片或重新运行。
+- 代切换／删除证据记录源／目标前缀、三域冻结版本、唯一决议、暂停起止、清单摘要及恢复进度；真实 COS 403 与注入传输的拒绝分开。实现候选和外部验收缺口见 [阶段 C 交付](../reports/STAGE_C_DELIVERY.md)。
+
+`worker_compute` 记录 task／worker／attempt 身份、状态和耗时。`task_compute_result` 记录计算角色、候选状态和工具名称／状态／原因码。用量保存在运行时生成的候选中。计算 trace 不打印输入、能力令牌、签名或完整模型交换。

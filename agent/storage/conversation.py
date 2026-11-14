@@ -69,7 +69,31 @@ def context(store, user, chat, session=None, *, write=False):
     return value
 
 
-def _reply_context(store, ident):
+def execution_summary(result):
+    execution = {"business_status": result.get("business_status", "未知")}
+    if result.get('audit_status') == 'unavailable':
+        return execution
+    if "tool_results" in result:
+        execution["tool_results"] = [{"tool": fact["tool"], "status": fact["status"]} for fact in result["tool_results"]]
+        drafts = [{"draft_id": fact["data"]["draft_id"], "items": [
+            {k: item[k] for k in ("item_id", "matched_name", "group") if k in item}
+            for item in fact["data"].get("items", [])]}
+            for fact in result["tool_results"] if fact.get("data", {}).get("draft_id")
+            and fact["data"]["draft_id"] == result.get("presented_candidates", {}).get("meal_draft_candidate")]
+        if drafts:
+            execution["draft_references"] = drafts
+    if "native_calls" in result:
+        execution["tool_calls"] = [call["tool"] for call in result["native_calls"]]
+        if not result["native_calls"] and result.get("business_status") == "none":
+            execution["effect"] = "该轮仅答复，没有调用工具，也未提交业务或草案修改"
+    return execution
+
+
+def _reply_context(store, ident, source=None):
+    if source and 'execution' in source:
+        if source.get('presented'):
+            return {"reply_status":"已回复","execution":source['execution']}
+        return {"reply_status":"未知","execution":{"business_status":"未知"}}
     # confirm_turn is committed only after the entry confirms actual delivery.
     confirmed = (store.committed_action("dialogue-delivered:" + ident) or {}).get("complete")
     if ident.startswith("calorie-user:"):
@@ -77,27 +101,12 @@ def _reply_context(store, ident):
         for entry in ("feishu", "cli", "dsh", "console"):
             receipt = store.load_document("receipt_state", "system", hashlib.sha256((entry + ":" + message_id).encode()).hexdigest())
             if receipt.get("delivery", {}).get("presented") and (receipt.get("result", {}).get("status") == "ok" or receipt.get("result", {}).get("terminal")):
-                result = receipt["result"]
-                execution = {"business_status": result.get("business_status", "未知")}
-                if "tool_results" in result:
-                    execution["tool_results"] = [{"tool": fact["tool"], "status": fact["status"]} for fact in result["tool_results"]]
-                    drafts = [{"draft_id": fact["data"]["draft_id"], "items": [
-                        {k: item[k] for k in ("item_id", "matched_name", "group") if k in item}
-                        for item in fact["data"].get("items", [])]}
-                        for fact in result["tool_results"] if fact.get("data", {}).get("draft_id")
-                        and fact["data"]["draft_id"] == result.get("presented_candidates", {}).get("meal_draft_candidate")]
-                    if drafts:
-                        execution["draft_references"] = drafts
-                if "native_calls" in result:
-                    execution["tool_calls"] = [call["tool"] for call in result["native_calls"]]
-                    if not result["native_calls"] and result.get("business_status") == "none":
-                        execution["effect"] = "该轮仅答复，没有调用工具，也未提交业务或草案修改"
-                return {"reply_status": "已回复", "execution": execution}
+                return {"reply_status": "已回复", "execution": execution_summary(receipt["result"])}
     return {"reply_status": "已回复" if confirmed else "未知", "execution": {"business_status": "未知"}}
 
 
-def _model_turn(store, turn, visible):
-    reply = _reply_context(store, turn["id"])
+def _model_turn(store, turn, visible, source):
+    reply = _reply_context(store, turn["id"], source)
     status = reply["reply_status"]
     # Already-clean sources carry reference facts as historical AI messages;
     # history_messages deliberately does not treat those as assistant prose.
@@ -123,7 +132,12 @@ def history(store, user, chat, session=None, *, bounded=False, config=None, befo
     memory_view = memory.state(store, user)
     selected = value["turns"]
     if before is not None:
-        index = next((i for i, turn in enumerate(selected) if turn["id"] == before), len(selected))
+        if 'positions' in value:
+            position = value['positions'].get(before)
+            index = position-getattr(selected,'start',0) if position is not None else len(selected)
+            index = max(0,min(index,len(selected)))
+        else:
+            index = next((i for i, turn in enumerate(selected) if turn["id"] == before), len(selected))
         selected = selected[:index]
     if bounded:
         config = config or load_config()
@@ -142,7 +156,7 @@ def history(store, user, chat, session=None, *, bounded=False, config=None, befo
         if memory_view.get("redaction_revision"):
             visible = _filter_messages(memory_view, turn["id"], visible)
         if for_model:
-            messages.extend(_model_turn(store, turn, visible))
+            messages.extend(_model_turn(store, turn, visible, source))
             continue
         if not turn["complete"]:
             visible = [message for message in visible if isinstance(message, HumanMessage)]
@@ -160,10 +174,21 @@ def _filter_messages(view, ident, messages):
     return result
 
 
-def stage_turn(store, user, chat, ident, messages, *, reserve=False, metadata=None):
+def _turn(value, ident):
+    entries = value['turns']
+    if 'positions' in value:
+        position = value['positions'].get(ident)
+        offset = getattr(entries,'start',0)
+        if position is not None and offset <= position < offset+len(entries):
+            return entries[position-offset]
+        return None
+    return next((turn for turn in entries if turn['id']==ident),None)
+
+
+def stage_turn(store, user, chat, ident, messages, *, reserve=False, metadata=None, atomic=True):
     def save():
         value = context(store, user, chat, write=True)
-        previous = next((turn for turn in value["turns"] if turn["id"] == ident), None)
+        previous = _turn(value,ident)
         if previous and previous["complete"]:
             return {"id": ident}
         source = {"id": ident, "messages": messages_to_dict(clean_messages(messages)), **(metadata or {})}
@@ -171,10 +196,12 @@ def stage_turn(store, user, chat, ident, messages, *, reserve=False, metadata=No
         if previous:
             previous["tokens"] = tokens(source["messages"])
         else:
+            if 'positions' in value:
+                value['positions'][ident] = getattr(value['turns'],'stop',len(value['turns']))
             value["turns"].append({"id": ident, "complete": False, "tokens": tokens(source["messages"])})
         store.save_document("conversation_context", user, chat, value)
         return {"id": ident}
-    return _save_atomic(store, ("dialogue-reserve:" if reserve else "dialogue-stage:") + ident, save)
+    return _save_atomic(store, ("dialogue-reserve:" if reserve else "dialogue-stage:") + ident, save) if atomic else save()
 
 
 def _eligible(value, config):
@@ -200,6 +227,11 @@ def _register(store, user, chat, value, config):
         store.save_document("summary_active", "system", "", queue)
         request["active"] = False
         store.save_document("summary_request", user, chat, request)
+    entries = value['turns']
+    if hasattr(entries,'token_total'):
+        recent = list(entries[-config.recent_turns:]) if config.recent_turns else []
+        if entries.token_total-sum(turn['tokens'] for turn in recent) < config.summary_pending_tokens:
+            return
     eligible = _eligible(value, config)
     if not eligible or sum(turn["tokens"] for turn in eligible) < config.summary_pending_tokens:
         return
@@ -218,20 +250,23 @@ def _register(store, user, chat, value, config):
     store.save_document("summary_active", "system", "", queue)
 
 
-def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=None, on_confirm=None):
+def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=None, on_confirm=None, atomic=True):
     if not ident:
         return
     config = config or load_config()
     def save():
         value = context(store, user, chat, write=True)
-        turn = next((turn for turn in value["turns"] if turn["id"] == ident), None)
+        turn = _turn(value,ident)
         if turn is None:
             return {"missing": True}
         source = store.load_document("dialogue_turn", user, ident)
         if delivered_messages is not None:
             source["messages"] = messages_to_dict(clean_messages(delivered_messages))
-            store.save_document("dialogue_turn", user, ident, source)
             turn["tokens"] = tokens(source["messages"])
+        if 'execution' in source:
+            source['presented'] = True
+        if delivered_messages is not None or 'execution' in source:
+            store.save_document("dialogue_turn", user, ident, source)
         turn["complete"] = True
         store.save_document("conversation_context", user, chat, value)
         if source.get("messages"):
@@ -240,7 +275,7 @@ def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=No
             on_confirm(source)
         _register(store, user, chat, value, config)
         return {"complete": True}
-    return _save_atomic(store, "dialogue-delivered:" + ident, save)
+    return _save_atomic(store, "dialogue-delivered:" + ident, save) if atomic else save()
 
 
 def _summary_source(source, view):
@@ -303,8 +338,13 @@ def apply_candidate(store, event, config=None):
             text = candidate["text"].strip()
             if not text or tokens(text) > config.summary_output_tokens:
                 raise ValueError("invalid summary candidate")
+            covered = value['summary'].get('covered',[])
+            if hasattr(covered,'persist'):
+                for turn in prefix: covered.append(turn)
+            else:
+                covered = [*covered,*prefix]
             value["summary"] = {"id": ident, "text": text, "fact_scope": "dialogue", "covered_through": ids[-1],
-                                "redaction_revision": revision, "covered": [*value["summary"].get("covered", []), *prefix]}
+                                "redaction_revision": revision, "covered": covered}
             value["turns"] = value["turns"][len(ids):]
         elif candidate["status"] == "failed":
             value["failed_at_turn"] = value["turns"][-1]["id"] if value["turns"] else None

@@ -88,6 +88,21 @@ class Handler(BaseHTTPRequestHandler):
                                  "DEEPSEEK_API_KEY", "BITABLE_APP_TOKEN", "BITABLE_FOOD_TABLE_ID",
                                  "BITABLE_INTAKE_TABLE_ID", "BITABLE_STANDARD_TABLE_ID",
                                  "BITABLE_PENDING_TABLE_ID", "BITABLE_USAGE_TABLE_ID", "COS_BUCKET", "COS_PREFIX")}})
+        elif parsed.path == '/internal/worker-control':
+            if not self._service_auth():
+                self._send_json({'allowed':False},403)
+                return
+            try:
+                from agent.storage.tasks import control
+                params = {k:v[0] for k,v in parse_qs(parsed.query).items()}
+                required = {'user_id','task_id','worker_id','instance_id'}
+                if set(params) != required:
+                    self._send_json({'allowed':False},400)
+                    return
+                params['control_token']=self.headers.get('X-Calorie-Worker-Token','')
+                self._send_json(control(configured_pipeline(self.headers).readonly_store(),params))
+            except Exception:
+                self._send_json({'allowed':False,'reason':'control_unavailable'},503)
         elif parsed.path == "/internal/result":
             if not self._service_auth():
                 self._send_json({"status": "error", "reason": "invalid_service_token"}, 403)
@@ -174,6 +189,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             pipeline = configured_pipeline(self.headers)
+            if kind == 'reminder':
+                from agent.storage.scf_dispatch import dispatch_event
+                request_id = dispatch_event({'type':'calorie_reminder_check', **reference}, self.headers)
+                self._send_json({'status':'accepted', 'request_id':request_id})
+                return
             receipt = pipeline.accept(message, source=source, received_at=received_at, kind=kind, reference=reference)
             # Durable inbox followed by accepted asynchronous Invoke, then ACK.
             pipeline.wake(receipt, self.headers)
@@ -187,6 +207,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def ingress_handler(event, context=None):
+    if event.get('type') == 'calorie_maintenance_pause':
+        if load_config().preset!='live':return {'status':'skipped_preset'}
+        from agent.storage.generations import ingress_pause
+        pipeline = configured_pipeline()
+        return ingress_pause(pipeline.objects,pipeline.prefix,event)
     """Event-SCF function URL adapter sharing the HTTP handler's auth/ACK path."""
     import base64
     import io
@@ -222,15 +247,17 @@ def ingress_handler(event, context=None):
 
 
 def message_handler(event, context=None):
-    events_token = EVENTS.set(list(event.get("ingress_events", [])))
+    if load_config().preset!='live':return {'status':'skipped_preset'}
+    events_token = EVENTS.set([])
     message_token = MESSAGE_ID.set(event.get("message_id"))
     try:
         from agent.storage.timeutil import execution_deadline
         limit_ms = context["time_limit_in_ms"] if isinstance(context, dict) else context.time_limit_in_ms if context is not None else 120000
         with execution_deadline(limit_ms / 1000 - 1):
-            if event.get("type") not in {"calorie_message", "calorie_summary", "calorie_experience", "calorie_memory_backfill", "calorie_diet_goal"}:
-                from agent.storage.reminders import handler
-                return handler(event, context)
+            if event.get("type") not in {"calorie_message", "calorie_summary", "calorie_experience", "calorie_memory_backfill", "calorie_diet_goal", "calorie_reminder_check", "calorie_reminder_recover", "calorie_task", "calorie_maintenance_pause", "calorie_task_tick"}:
+                from agent.storage.reminders import reminder_intake
+                _,reference=reminder_intake(event.get('Time') or event.get('time'))
+                return configured_pipeline().worker({'type':'calorie_reminder_check',**reference})
             return configured_pipeline().worker(event)
     finally:
         print(json.dumps({"event": "latency_worker", "receipt_id": event.get("receipt_id"),
@@ -243,33 +270,38 @@ def maintenance_handler(event, context=None):
     from agent.config import load_config
     from agent.storage.timeutil import execution_deadline
     from agent.storage.cos_archive import archive_pending
-    from agent.storage.cos_journal import Journal
     from agent.storage.memory_background import run_next
     from agent.storage.diet_goal_runtime import run_next as run_goal
     from agent.storage.scf_dispatch import dispatch_event
     limit_ms = context["time_limit_in_ms"] if isinstance(context, dict) else context.time_limit_in_ms if context is not None else 120000
     remaining = limit_ms / 1000
+    if load_config().preset!='live':return {'status':'skipped_preset'}
     with execution_deadline(remaining - 1) as deadline:
         pipeline = configured_pipeline()
+        from agent.storage.generations import maintenance_tick
+        maintenance = maintenance_tick(pipeline,dispatch=dispatch_event)
+        if maintenance['status'] in {'awaiting_message_watchdog','watchdog_owns_resume'}:
+            return {'maintenance':maintenance}
         recovery = pipeline.recover()
         store = pipeline.readonly_store()
-        progress = Journal(pipeline.objects, pipeline.prefix + "sync/")
+        if store.load_document('reminder_delivery_active','system'):
+            dispatch_event({'type':'calorie_reminder_recover'})
+        progress = pipeline.sync_progress(generation=store.prefix)
         archive = archive_pending(store=store, progress=progress)
         summary = {"status": "skipped_maintenance_error"}
         goal = {"status": "skipped_maintenance_error"}
         if not archive["failed"] and not recovery.get("blocked"):
             goal = run_goal(store, progress, load_config(), dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
             summary = run_next(store, progress, dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
-        return {"recovery": recovery, "archive": archive, "summary": summary, "diet_goal": goal}
+        return {"maintenance":maintenance,"recovery": recovery, "archive": archive, "summary": summary, "diet_goal": goal}
 
 
 def reminder_handler(event, context=None):
     # All message writes, timer checks and manual recovery run in this function,
     # configured with platform concurrency one. Maintenance only wakes it.
-    if event.get("type") in {"calorie_message", "calorie_diet_goal"}:
+    if event.get("type") in {"calorie_message", "calorie_diet_goal", "calorie_reminder_check", "calorie_reminder_recover", "calorie_task", "calorie_maintenance_pause", "calorie_task_tick"}:
         return message_handler(event, context)
-    from agent.storage.reminders import handler
-    return handler(event, context)
+    return message_handler(event,context)
 
 
 def main():
@@ -279,3 +311,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def compute_handler(event,context=None):
+    from agent.storage.task_runtime import worker_handler
+    return worker_handler(event,context)
