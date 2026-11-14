@@ -20,7 +20,7 @@ class ToolArgs(Args):
     action_note: Any = Field(None, description="若即将执行的批次仍需明显等待，可给一句具体的下一步行动说明。快路径或已说明时省略。")
 
 class Item(Args):
-    food_query: str = Field("", description="完整食物名称，保留种类、生熟、品牌和规格。已有核实的同会话营养引用时可省略。")
+    food_query: str = Field("", description="用户本轮给出完整食物名称时逐字使用该名称，保留种类、生熟、品牌和规格，数量和单位另外传，不把解释拼进名称。已有核实的同会话营养引用时可省略。")
     source_ref: str = Field("", description="本会话实际返回的营养来源引用，与候选编号互斥")
     grams: float | None = Field(None, gt=0, description="用户明确的可食克重。直接给克数即可，portion_basis 属于菜单核算工具。")
     quantity: float | None = Field(None, gt=0, description="用户原文数量；同时传unit")

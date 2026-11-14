@@ -924,6 +924,26 @@ def manual_recovery_cursor():
 CHECKS['CS09']=manual_recovery_cursor
 
 
+def cold_ingress_aliases():
+    """冷入口沿持久同代别名读取 packed 收件，重投不打开消息域。"""
+    objects = Objects()
+    prefix = "isolated/stage-c/ingress-alias"
+    CosStore(objects, prefix).import_baseline({"aliases": {"feishu-user": "canonical"}})
+    raw = {"message_id": "first", "user_id": "feishu-user", "chat_id": "test", "text": "查询"}
+    with patch.dict("os.environ", {"CALORIE_PACK_INGRESS_COMMITS": "1"}):
+        first = Pipeline(objects, prefix).accept(raw)
+        objects.ops.clear()
+        cold = Pipeline(objects, prefix)
+        replay = cold.accept(raw)
+        new = cold.accept({**raw, "message_id": "second"})
+    assert replay["receipt_id"] == first["receipt_id"]
+    assert new["message"]["user_id"] == "canonical" and new["sequence"] == first["sequence"] + 1
+    assert not any("/message/" in key for _, key, _ in objects.ops)
+
+
+CHECKS['CS12'] = cold_ingress_aliases
+
+
 def reminders_restart_catchup():
     """S1/S3: empty checks do not journal; fixed retry and fifteen-minute catchup survive restart."""
     from datetime import datetime,timezone,timedelta

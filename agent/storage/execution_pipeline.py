@@ -45,8 +45,11 @@ class Pipeline:
             minimum_revision = floor if minimum_revision is None else max(minimum_revision, floor)
         journal = getattr(self, attribute)
         if journal is None:
+            options = {}
+            if not readonly and os.getenv("CALORIE_PACK_INGRESS_COMMITS") == "1":
+                options["pack"] = True
             journal = self.journal_factory(self.objects, prefix + "ingress/", readonly=readonly,
-                                           guard=lambda: self.control.guard(epoch, prefix))
+                                           guard=lambda: self.control.guard(epoch, prefix), **options)
             setattr(self, attribute, journal)
             if minimum_revision is not None and journal.revision < minimum_revision:
                 journal.refresh(confirm=not readonly, minimum_revision=minimum_revision)
@@ -100,17 +103,25 @@ class Pipeline:
             self._sync.refresh()
         return self._sync
 
-    def ingress_identity(self, user_id):
+    def ingress_aliases(self, journal):
+        aliases = journal.get("source:aliases")
+        if aliases is not None:
+            return aliases, {}
         snapshot = self._alias_snapshot
         if snapshot is None or snapshot[0] != self._location:
             sources = self.readonly_store()
+            if sources.prefix + "ingress/" != journal.prefix:
+                from .generations import MaintenancePaused
+                raise MaintenancePaused("ingress alias generation changed")
             aliases = sources.load_user_aliases()
             # The baseline publishes aliases once per generation.
-            if sources.journal.get('baseline'):
+            if sources.journal.get("baseline") or sources.control.minimum("message", confirmed=True) is not None:
                 self._alias_snapshot = (self._location, aliases)
+                return aliases, {"source:aliases": aliases}
         else:
             aliases = snapshot[1]
-        return aliases.get(user_id, user_id)
+            return aliases, {"source:aliases": aliases}
+        return aliases, {}
 
     def accept(self, message, *, source="feishu", received_at=None, kind="message", reference=None):
         if os.getenv("INGRESS_MAINTENANCE", "0").lower() in {"1", "true"}:
@@ -125,8 +136,10 @@ class Pipeline:
         existing = journal.get(key)
         received = time.time() if received_at is None else received_at
         # Identity is normalized from the published snapshot, never by Bitable.
+        identity_changes = {}
         if source != "timer":
-            message = {**message, "user_id": self.ingress_identity(message["user_id"])}
+            aliases, identity_changes = self.ingress_aliases(journal)
+            message = {**message, "user_id": aliases.get(message["user_id"], message["user_id"])}
         if existing:
             if any(existing["message"][k] != message[k] for k in ("message_id", "user_id", "chat_id")):
                 raise ValueError("original message key belongs to another identity")
@@ -141,14 +154,14 @@ class Pipeline:
         head = journal.get(session_key, {})
         if journal.format == 1:
             entries = head if isinstance(head, list) else []
-            journal.commit({key:receipt, 'next_sequence':sequence,
+            journal.commit({**identity_changes, key:receipt, 'next_sequence':sequence,
                             session_key:entries + [{'receipt_id':rid, 'sequence':sequence}]})
         else:
             position = head.get('count', 0)
             page_key = session_key + f':page:{position // 32:012d}'
             page = journal.get(page_key, [])
             receipt['session_position'] = position
-            journal.commit({key: receipt, 'next_sequence':sequence, session_key:{'count':position+1},
+            journal.commit({**identity_changes, key: receipt, 'next_sequence':sequence, session_key:{'count':position+1},
                             page_key:page + [{'receipt_id':rid, 'sequence':sequence, 'position':position}]})
         return {**receipt, "ingress_revision": journal.revision, "ingress_generation":journal.prefix.removesuffix('ingress/')}
 

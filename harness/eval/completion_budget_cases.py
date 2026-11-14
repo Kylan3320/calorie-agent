@@ -16,7 +16,7 @@ from agent.storage.cos_journal import CommitUnavailable
 from agent.storage.cos_store import CosStore
 from agent.storage.execution_pipeline import Pipeline
 from harness.eval.model_transport_cases import Clock, PAYLOAD
-from harness.eval.personal_cases import CONFIG, MEAL, NativeFake, call
+from harness.eval.personal_cases import A as MEAL_FOOD, CONFIG, MEAL, NativeFake, call
 from harness.eval.production_pipeline_cases import event, message
 from harness.eval.production_store_cases import Objects, open_store
 
@@ -377,4 +377,34 @@ def _atomic_receipt(packed):
         assert len(restarted.readonly_store().intake_items("user")) == 2
 
 
-CHECKS = {name: globals()[name] for name in ("CB01", "CB02", "CB03", "CB04", "CB05", "CB06", "CB07", "CB08", "CB09")}
+def CB10():
+    """明确的称重名称按原文绑定，品牌与未说明生熟仍应保留歧义。"""
+    clock = Clock()
+    foods = [
+        {**deepcopy(MEAL_FOOD), "food_id": "rice-cooked", "name": "米饭（熟）", "aliases": ["熟米饭", "米饭"], "type": "熟"},
+        {**deepcopy(MEAL_FOOD), "food_id": "rice-generic", "name": "米饭", "aliases": []},
+    ]
+    with offline(clock):
+        store = CosStore(Objects(), "acceptance/food-grounding")
+        store.import_baseline({"foods": foods})
+        for i, (phrase, supplied) in enumerate([
+            ("熟米饭", "熟米饭（白米饭，蒸煮后）"),
+            ("已煮熟的白米饭", "白米饭（已煮熟）"),
+            ("已煮熟的白米饭（只记这一项）", "已煮熟的白米饭"),
+        ]):
+            msg = message(f"grounded-{i}", f"午餐记一条：200克{phrase}。告诉我这条记录的热量。")
+            outcome = run(msg, store=store, config=LIVE, model=NativeFake(responses=[call("record_meal",
+                {"items": [{"food_query": supplied, "grams": 200}], "finish_after_tools": True})]))
+            assert outcome["model_calls"] == 1 and outcome["tool_results"][0]["data"]["items"][0]["snapshot"]["food"]["food_id"] == "rice-cooked"
+        with patch("agent.storage.boohee_client.search_food", return_value=[]):
+            for i, text in enumerate(("记200克某牌熟米饭。", "记200克米饭。", "记某牌熟米饭200克。", "记米饭200克。",
+                                      "记200克熟米饭2号。", "记200克熟米饭（特别版（新））。")):
+                msg = message(f"ambiguous-{i}", text)
+                outcome = run(msg, store=store, config=LIVE, model=NativeFake(responses=[call("record_meal",
+                    {"items": [{"food_query": "熟米饭", "grams": 200}], "finish_after_tools": True}),
+                    AIMessage(content="请明确食物身份。")]))
+                assert outcome["tool_results"][0]["status"] == "pending"
+        assert len(store.intake_items("user")) == 3
+
+
+CHECKS = {name: globals()[name] for name in ("CB01", "CB02", "CB03", "CB04", "CB05", "CB06", "CB07", "CB08", "CB09", "CB10")}

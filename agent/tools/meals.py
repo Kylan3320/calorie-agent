@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import date, timedelta
 import math
 import re
+import unicodedata
 from ..storage import boohee_client
 from ..storage.food_match import normalize_food_name, match_food_candidates
 from ..storage.bitable_adapter import stable_uuid, normalize_food_key, _is_valid_intake_status
@@ -43,6 +44,61 @@ def exact_food(query, foods, unit=""):
                if normalize_food_name(u.get("unit_name", u.get("unit", u.get("name", "")))) == normalize_food_name(unit)]
     return food if len(matches) == 1 else None
 
+
+_CLAUSE_BOUNDARY = r"(?=$|[，、。；！？,;!?:：\n])"
+_FOOD_PHRASE = r"(?:\((?:[^()]|\([^()]*\))*\)|[^()，、。；！？,;!?:：\n])+"
+_WEIGHED_FOOD = re.compile(
+    r"(?<![\d.])(?P<grams>\d+(?:\.\d+)?)\s*(?:克|[gG](?![a-zA-Z]))\s*(?P<food>"
+    + _FOOD_PHRASE + r")\s*" + _CLAUSE_BOUNDARY)
+_WEIGHED_FOOD_SUFFIX = re.compile(
+    r"(?:^|[，、。；！？,;!?:：\n])\s*(?:(?:早餐|午餐|晚餐|加餐)?\s*记(?:录)?(?:一条)?\s*)?"
+    r"(?P<food>" + _FOOD_PHRASE + r"?)\s*(?P<grams>\d+(?:\.\d+)?)\s*(?:克|[gG])"
+    r"\s*" + _CLAUSE_BOUNDARY)
+_COOKING_PHRASE = re.compile(r"(?:已?煮熟的?)(?P<head>.+)|(?P<tail>.+)\((?:已?煮熟|熟)\)")
+_RECORD_SCOPE = re.compile(r"\(\s*(?:只|仅)(?:记|记录)(?:这一项|这一条|这项|这条)\s*\)$")
+
+
+def weighed_catalog_food(phrase, foods):
+    if food := exact_food(phrase, foods):
+        return food
+    key = unicodedata.normalize("NFKC", phrase).strip()
+    cooking = _COOKING_PHRASE.fullmatch(key)
+    if not cooking:
+        return None
+    base = normalize_food_name(cooking["head"] or cooking["tail"])
+    # 白米饭 is a narrower wording for the catalog's plain rice, not a
+    # general rule that drops varieties, commercial brands or ingredients.
+    if base == "白米饭":
+        base = "米饭"
+    typed = [food for food in foods if food.get("type") == "熟" and base in {
+        normalize_food_name(name) for name in (food["name"], *food.get("aliases", []))
+    }]
+    return typed[0] if len(typed) == 1 else None
+
+
+def weighed_food_phrase(text, grams, query, foods):
+    """Bind an exact, complete user phrase to the uniquely related native item."""
+    if not grams:
+        return ""
+    text = unicodedata.normalize("NFKC", text)
+    matches = [m["food"].strip() for pattern in (_WEIGHED_FOOD, _WEIGHED_FOOD_SUFFIX)
+               for m in pattern.finditer(text) if float(m["grams"]) == grams]
+    if len(matches) != 1:
+        return ""
+    phrase = _RECORD_SCOPE.sub("", matches[0]).strip()
+    normalized = normalize_food_name(query)
+    user_key = normalize_food_name(phrase)
+    if not normalized or not user_key:
+        return ""
+    related = [food for food in foods if any(
+        len(key := normalize_food_name(name)) >= 2 and key in normalized and key in user_key
+        for name in (food["name"], *food.get("aliases", [])))]
+    if (normalized == user_key or (len(normalized) >= 2 and normalized in user_key)
+            or (user_key in normalized and (len(user_key) >= 2 or user_key.isalpha() and not user_key.isascii()))
+            or related):
+        return phrase
+    return ""
+
 def _has_macros(food):
     return all(food.get(key) is not None and math.isfinite(float(food[key])) and float(food[key]) >= 0
                for key in ("carbs_per_100g", "protein_per_100g", "fat_per_100g"))
@@ -55,7 +111,7 @@ def _missing(item, code, detail, *, requires_user=False, **facts):
     return {**item, **facts, "reason": detail, "unmet_conditions": [condition]}
 
 
-def resolve_item(rt, item, *, pending=None, portion_lookup=False, estimate=True):
+def resolve_item(rt, item, *, pending=None, portion_lookup=False, estimate=True, original_phrase=False):
     """Never accepts model-generated nutrition or unit weights."""
     item = deepcopy(item)
     evidence = item.pop("portion_evidence", None)
@@ -87,7 +143,12 @@ def resolve_item(rt, item, *, pending=None, portion_lookup=False, estimate=True)
             raise ValueError("food query conflicts with the selected pending candidate")
     if food is None:
         foods = rt.store.load_foods()
-        food = exact_food(query, foods, item.get("unit", ""))
+        if original_phrase and (phrase := weighed_food_phrase(rt.message["text"], item.get("grams"), query, foods)):
+            query = item["food_query"] = phrase
+            portion_query = phrase
+            food = weighed_catalog_food(phrase, foods)
+        else:
+            food = exact_food(query, foods, item.get("unit", ""))
         if food is None:
             candidates = [c.food for c in match_food_candidates(query, foods)]
             try:
@@ -287,6 +348,10 @@ def record_meal(rt, p):
             if not items:
                 return {"status": "pending", "data": {"question": "未找到可复用的餐食"}}
             items = [scale_item(i, reuse.get("ratio", 1)) for i in items]
+        weighed = {}
+        for entry in p.get("items", []):
+            if grams := entry.get("grams"):
+                weighed[grams] = weighed.get(grams, 0) + 1
         for index, entry in enumerate(p.get("items", [])):
             pid = entry.get("pending_id")
             original = pending_items.get(pid) if pid else None
@@ -316,7 +381,11 @@ def record_meal(rt, p):
                     if original.get(key) not in (None, ""):
                         merged[key] = original[key]
             resolved, unfinished = resolve_item(rt, merged, pending=previous if original else None,
-                                                portion_lookup=True, estimate=p.get("allow_estimate", True))
+                                                portion_lookup=True, estimate=p.get("allow_estimate", True),
+                                                original_phrase=(not original and not entry.get("source_ref")
+                                                                 and entry.get("choice") is None
+                                                                 and weighed.get(entry.get("grams")) == 1
+                                                                 and (getattr(rt, "current", None) or {}).get("args", {}).get("mode", "execute") == "execute"))
             entry_day = (original["date"] if web_completion else
                          resolve_date(p.get("date"), rt.day) if p.get("date") else (original or {}).get("date", day))
             entry_meal = original["meal_type"] if web_completion else p.get("meal_type") or (original or {}).get("meal_type", meal)
