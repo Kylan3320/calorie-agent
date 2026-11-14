@@ -30,15 +30,17 @@ class Pipeline:
         from .generations import GenerationControl
         self.control = GenerationControl(objects, self.prefix)
         self._location = None
+        self._alias_snapshot = None
 
     def inbox(self, *, readonly=False, minimum_revision=None):
+        exact_receipt = readonly and minimum_revision is not None
         epoch, prefix = self.control.location()
         if self._location != (epoch, prefix):
             self._inbox_writer = self._inbox_reader = self._writer = self._reader = None
             self._sync = None
             self._location = (epoch, prefix)
         attribute = "_inbox_reader" if readonly else "_inbox_writer"
-        floor = self.control.minimum('ingress')
+        floor = self.control.minimum('ingress', confirmed=True)
         if floor is not None:
             minimum_revision = floor if minimum_revision is None else max(minimum_revision, floor)
         journal = getattr(self, attribute)
@@ -48,6 +50,10 @@ class Pipeline:
             setattr(self, attribute, journal)
             if minimum_revision is not None and journal.revision < minimum_revision:
                 journal.refresh(confirm=not readonly, minimum_revision=minimum_revision)
+        elif exact_receipt:
+            # The accepted trigger carries the exact ingress revision needed
+            # through its own sequence. Ahead-of-request receipts are immaterial.
+            journal.confirm_readable(minimum_revision)
         else:
             journal.refresh(confirm=not readonly, minimum_revision=minimum_revision)
         return journal
@@ -62,7 +68,8 @@ class Pipeline:
             self._sync = None
             self._location = location
         if self._writer is None:
-            self._writer = CosStore(self.objects, self.prefix)
+            self._writer = CosStore(self.objects, self.prefix, pack=os.getenv("CALORIE_PACK_MESSAGE_COMMITS") == "1",
+                                    control=self.control)
         return self._writer
 
     def readonly_store(self):
@@ -93,6 +100,18 @@ class Pipeline:
             self._sync.refresh()
         return self._sync
 
+    def ingress_identity(self, user_id):
+        snapshot = self._alias_snapshot
+        if snapshot is None or snapshot[0] != self._location:
+            sources = self.readonly_store()
+            aliases = sources.load_user_aliases()
+            # The baseline publishes aliases once per generation.
+            if sources.journal.get('baseline'):
+                self._alias_snapshot = (self._location, aliases)
+        else:
+            aliases = snapshot[1]
+        return aliases.get(user_id, user_id)
+
     def accept(self, message, *, source="feishu", received_at=None, kind="message", reference=None):
         if os.getenv("INGRESS_MAINTENANCE", "0").lower() in {"1", "true"}:
             raise RuntimeError("maintenance: retry with the original message key")
@@ -106,16 +125,15 @@ class Pipeline:
         existing = journal.get(key)
         received = time.time() if received_at is None else received_at
         # Identity is normalized from the published snapshot, never by Bitable.
-        sources = self.readonly_store()
-        message = {**message, "user_id": message["user_id"] if source == "timer" else sources.load_user_aliases().get(message["user_id"], message["user_id"])}
+        if source != "timer":
+            message = {**message, "user_id": self.ingress_identity(message["user_id"])}
         if existing:
             if any(existing["message"][k] != message[k] for k in ("message_id", "user_id", "chat_id")):
                 raise ValueError("original message key belongs to another identity")
             return {**existing, "ingress_revision": journal.revision, "ingress_generation":journal.prefix.removesuffix('ingress/')}
         sequence = journal.get("next_sequence", 0) + 1
-        offset = getattr(sources, "offset_hours", 8)
         date_anchor = datetime.fromisoformat(reference["scheduled_time"]).timestamp() if kind == "reminder" else received
-        day = datetime.fromtimestamp(date_anchor, timezone(timedelta(hours=offset))).date().isoformat()
+        day = datetime.fromtimestamp(date_anchor, timezone(timedelta(hours=8))).date().isoformat()
         receipt = {"receipt_id": rid, "sequence": sequence, "kind": kind, "source": source,
                    "message": message, "received_at": received, "intake_date": day,
                    "reference": reference}
@@ -441,12 +459,13 @@ class Pipeline:
             dispatch_pending(store,user_id=requested['message']['user_id'])
             return {**requested_state, "duplicate": True}
         session_id = receipt_id(requested["message"]["user_id"], requested["message"]["chat_id"])
-        cursor = store.load_document("ingress_cursor", "system", session_id).get("sequence", 0)
+        cursor_state = store.load_document("ingress_cursor", "system", session_id)
+        cursor = cursor_state.get("sequence", 0)
         head = inbox.get("session:" + session_id, [])
         if isinstance(head, list):
             entries = head
         else:
-            from_position = store.load_document('ingress_cursor', 'system', session_id).get('position', -1) + 1
+            from_position = cursor_state.get('position', -1) + 1
             to_position = requested['session_position']
             entries = [entry for page in range(from_position // 32, to_position // 32 + 1)
                        for entry in inbox.get('session:' + session_id + f':page:{page:012d}', [])]

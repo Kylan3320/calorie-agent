@@ -123,6 +123,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self._post(received_at)
         finally:
+            if accepted := next((e for e in reversed(EVENTS.get()) if e["kind"] == "scf_handoff"), None):
+                print(json.dumps({"event": "latency_ingress_handoff", "message_id": MESSAGE_ID.get(),
+                    "receipt_id": accepted["receipt_id"], "invoke_ms": accepted["duration_ms"],
+                    "before_invoke_ms": round(accepted["started_epoch_ms"] - received_at * 1000, 3),
+                    "ack_ms": round((time.time() - received_at) * 1000, 3)}))
             print(json.dumps({"event": "latency_webhook", "events": EVENTS.get(), "duration_ms": round((time.time()-received_at)*1000, 3)}, ensure_ascii=False))
             EVENTS.reset(events_token)
             MESSAGE_ID.reset(message_token)

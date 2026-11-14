@@ -199,7 +199,7 @@ class DeepSeekModel(BaseChatModel):
             raise RuntimeError("DEEPSEEK_API_KEY is not configured")
         url = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com").rstrip("/") + "/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        wire = json.dumps(body, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        wire = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
         maximum = 1 if purpose in {"summary", "experience"} else 2
         while len(attempts) < maximum:
             _remaining(deadline)

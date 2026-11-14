@@ -152,11 +152,14 @@ class GenerationControl:
             return None
         return state
 
-    def minimum(self,domain):
-        self.location()
+    def minimum(self,domain,*,confirmed=False):
+        if not confirmed:self.location()
         return self._minimum.get(domain)
 
     def translate_ingress(self, source, revision):
+        _, current = self.location()
+        if source == current and revision is not None:
+            return revision
         epoch,prefix = 0,self.root
         origin = source or self.root
         water = revision

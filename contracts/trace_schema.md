@@ -13,6 +13,7 @@
 ## 模型请求、预算与摘要
 
 - `model_requests` 保存主决策的 `step_id/projection_ms/history_message_count`、当前消息和注册工具。相同 `tools_digest` 后续仅存工具名。工具消息审计用 `result_ref`（call_id）和 `content_sha256` 关联持久工具事实。
+- 启用打包写入时，消息决策的 `model_requests` 保存 `step_id/projection_ms/budget`，完整投影内容读取原 `request_body`。持久结果的 `latency_events` 留存实际模型调用记录；入口、投递和 COS 诊断从按收件身份关联的运行日志读取。
 - `journal.messages` 保存原生恢复交换，`session.messages` 为近期清洁视图。实际请求和已接收响应保留在恢复日志的 `model_steps[].request_body/response`。公共 trace 保留步骤字段和尝试审计。历史 SystemMessage 背景组的字段见[工具契约](tool_protocol.md#上下文预算与恢复日志)，预算归入 `parts.history`。定位信息标记 `historical`，助手带 `fact_scope=business/knowledge/dialogue`，摘要另带 `lc_source=summarization`。当前用户消息 ID 为 `calorie-user:{message_key}`。
 - `model_requests[].budget` 与 `model_http` 记录 `purpose/encoding/wire_encoding/input_tokens/input_target/output_reserve/protocol_margin/hard_input_limit/removed_turns/over_target_reason` 和分项 `parts(system/state/summary/history/current/reasoning/calls/tools/protocol)`。HTTP 返回后记录供应商 `usage/finish_reason`，本地 wire 计量独立。超限拒绝记录 `budget_exceeded`。请求状态的 `execution_budget` 由持久主决策与固定调用计数构造，字段见[工具契约](tool_protocol.md#上下文预算与恢复日志)。
 - `deadline_at` 是消息固定截止 epoch，`legacy_budget` 标识缺原接收时间的旧收件一次性接管。`model_calls` 只计语义步骤。`model_steps` 含 `id/started_at/deadline_at/status/attempts`，逐次尝试保存 `reserved_at/started_at/ended_at/state/status_code/provider_request_id/response_headers_ms/first_nonempty_response_byte_ms/completed_ms/usage/finish_reason`、脱敏错误和 `retry_delay_seconds/retry_not_before`。空白保活不计首个非空字节。
@@ -23,6 +24,7 @@
 - `scf_handoff` 记录入口到消息函数的 Invoke。事件引用 `receipt_id/ingress_revision` 及原消息、用户和会话身份。飞书 `latency_webhook` 含 ACK 前事件，`latency_worker` 记录消息函数自身事件，`latency_delivery` 另带 `build_id/sequence/source` 和投递结果。按 `receipt_id` 或 `message_id` 关联两端记录。累计 trace 不进入派发参数。归档网络等待在独立函数内。
 - `receipt_state` 保存 `receipt_id/sequence/attempts/queue_wait_ms/budget_started_at/deadline_at/legacy_budget/result/work_status`。其 `delivery` 保存 `uuid/result_digest/presented/sent_at/send_result/message_id/cos_revision/t_service_ms/send_duration_ms/slow_request`，进度升级另有 `progress_reply/update_result/recovery_attempts`。新结果和正文摘要在发送前同次保存。CLI／DSH 回报展示及结果摘要，旧事件记为 `presentation_rejected`。
 - 飞书 `latency_receipt_commit` 在确认 manifest 发布后记录同一收件的模型 HTTP、飞书发送、确认阶段耗时、发送前后消息 manifest 数及受理至持久确认耗时。单次决策的成功账本回执可通过 `execution_id` 读取完整执行审计。
+- `latency_ingress_handoff` 单独记录受理至派发开始、异步 Invoke 和 ACK 耗时。两条聚合日志在逐 RPC 日志有平台行长截断时仍可配对。
 - `t_service_ms` 从原 `received_at` 到发送 API 成功，旧收件缺该时间则为空。大于 10 秒只标慢。存在有效 `create_time` 时另列 `t_user_ms`。重投保留原执行的 `latency_events`，本次发送看入口／投递事件，恢复和重投不产生新的正常性能样本。
 - `worker_started_at` 在 Pipeline.worker 内部 COS 读取前捕获。首次进入 worker 与原收件的差值包含受理端 COS、派发及可能的实例构造。旧证据的 `function_queue_ms` 沿用这一口径。`queue_wait_ms`、原收件至 worker 和未直接观测的纯平台排队应分开，缺冷启动或排队观测时标未知。
 

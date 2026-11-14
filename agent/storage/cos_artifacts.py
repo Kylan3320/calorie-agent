@@ -32,6 +32,24 @@ def freeze(journal, value, fragments):
     return visit(value)
 
 
+def freeze_recovery(journal, value, fragments):
+    """Keep the exact pending model wire request once across commit attempts."""
+    payload = value.get('payload', {})
+    if 'model_steps' not in payload:
+        return value
+    steps = []
+    for step in payload['model_steps']:
+        if 'request_body' in step:
+            body = step['request_body']
+            raw = encode(body)
+            ref = hashlib.sha256(raw).hexdigest()
+            if ref not in journal.cache:
+                fragments.setdefault(ref, (raw, body))
+            step = {**step, 'request_body': {'$artifact': ref}}
+        steps.append(step)
+    return {**value, 'payload': {**payload, 'model_steps': steps}}
+
+
 def thaw(journal, value):
     if isinstance(value, dict):
         if set(value) == {'$artifact'}:

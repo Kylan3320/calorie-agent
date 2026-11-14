@@ -182,6 +182,14 @@ def MT05():
             failure(model, "model_retry_exhausted")
             assert len(requests) == len(events) == len(step["attempts"]) == 2
             assert "private fixture credential" not in json.dumps(step["attempts"])
+    original_wire = requests[0]
+    original_body = json.loads(original_wire)
+    from agent.storage.cos_journal import encode
+    restored = {"deadline_at": 1_800_000_105, "attempts": [{"attempt": 1, "state": "reserved"}],
+                "request_body": json.loads(encode(original_body))}
+    with scenario(lambda request, clock, number: httpx.Response(200, json=PAYLOAD), step=restored) as (model, _, requests, *_):
+        model.invoke([HumanMessage(content="ignore rebuilt prompt on recovery")])
+        assert requests == [original_wire]
     step = {"deadline_at": 1_800_000_105, "attempts": [{"attempt": 1, "state": "reserved"}],
             "request_body": {"model": "deepseek-v4-flash", "messages": [{"role": "user", "content": "saved wire"}], "temperature": 0, "max_tokens": 8192}}
     with scenario(lambda request, clock, number: httpx.Response(200, json=PAYLOAD), step=step) as (model, step, requests, events, *_):

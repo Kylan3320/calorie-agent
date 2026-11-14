@@ -18,7 +18,7 @@ CATALOG_KINDS = frozenset({'user_settings', 'worker_attempt'})
 
 
 class CosStore(StateStore):
-    def __init__(self, objects=None, prefix=None, offset_hours=8, readonly=False, controlled=True):
+    def __init__(self, objects=None, prefix=None, offset_hours=8, readonly=False, controlled=True, *, pack=False, control=None):
         self.objects = objects if objects is not None else CosObjects()
         self.prefix = (prefix or os.environ['COS_PREFIX']).strip('/') + '/'
         if not self.prefix.strip('/') or '..' in self.prefix.split('/'):
@@ -27,11 +27,11 @@ class CosStore(StateStore):
         self.control, guard = None, None
         if controlled:
             from .generations import GenerationControl
-            self.control = GenerationControl(self.objects, self.prefix)
+            self.control = control or GenerationControl(self.objects, self.prefix)
             epoch, self.prefix = self.control.location()
             guard = lambda: self.control.guard(epoch, self.prefix)
-        self.journal = Journal(self.objects, self.prefix+'message/', readonly=readonly, guard=guard)
-        if self.control and (minimum:=self.control.minimum('message')) is not None:
+        self.journal = Journal(self.objects, self.prefix+'message/', readonly=readonly, guard=guard, pack=pack)
+        if self.control and (minimum:=self.control.minimum('message', confirmed=True)) is not None:
             self.journal.refresh(confirm=False,minimum_revision=minimum)
         self._changes = None
         self._legacy_document_index = None
@@ -39,7 +39,7 @@ class CosStore(StateStore):
     def kind(self): return 'cos'
     def today_string(self): return BUSINESS_DATE.get() or today_string(self.offset_hours)
     def confirm_current(self):
-        if self.control:
+        if self.control and self.readonly:
             self.journal.guard()
         return self.journal.refresh(confirm=not self.readonly)
 
@@ -58,11 +58,22 @@ class CosStore(StateStore):
         else: self._commit(changes)
 
     def _commit(self, changes):
-        from .cos_artifacts import freeze
+        from .cos_artifacts import freeze, freeze_recovery
         fragments = {}
-        packed = {key: freeze(self.journal, value, fragments) if value is not None and
-                  key.startswith(('pending:', 'action:', 'document:'))
-                  else value for key, value in changes.items()}
+        if self.journal.pack and self.journal.format == 2:
+            packed = {}
+            for key, value in changes.items():
+                if value is not None and key.startswith('pending:') and value.get('intent') == 'message_execution':
+                    value = freeze_recovery(self.journal, value, fragments)
+                packed[key] = value
+            if sum(len(encode(value)) for value in packed.values()) > 128 * 1024:
+                packed = {key: freeze(self.journal, value, fragments)
+                          if value is not None and key.startswith(('pending:', 'action:', 'document:')) else value
+                          for key, value in packed.items()}
+        else:
+            packed = {key: freeze(self.journal, value, fragments) if value is not None and
+                      key.startswith(('pending:', 'action:', 'document:')) else value
+                      for key, value in changes.items()}
         return self.journal.commit(packed, fragments=fragments)
 
     def _keys(self, prefix):
