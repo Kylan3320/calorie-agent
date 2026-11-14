@@ -151,10 +151,13 @@ def _settings_version(store, user, args, day):
 
 
 class Runtime(AgentMiddleware):
-    def __init__(self, message, store, config, preset, model, day, execution, goal_run=None, on_execution_start=None):
+    def __init__(self, message, store, config, preset, model, day, execution, goal_run=None, on_execution_start=None,
+                 stage_ledger_reply=None):
         self.message, self.store, self.config, self.preset, self.model = message, store, config, preset, model
         self.goal_run = goal_run
         self.on_execution_start = on_execution_start
+        self.stage_ledger_reply = stage_ledger_reply
+        self.finished_result = None
         self.tool_registry = {name: tool for name, tool in TOOL_REGISTRY.items() if name in preset.allowed_tools}
         if goal_run and getattr(goal_run, 'general', False):
             self.tool_registry[TASK_RESULT_TOOL.name] = TASK_RESULT_TOOL
@@ -617,6 +620,13 @@ class Runtime(AgentMiddleware):
                                                   sorted(days), time.time(), days)
                 elif entry["tool"] == "update_user_settings" and data.get("kind") in {"targets", "preferences", "portion", "condition"}:
                     diet_goals.register_event(self.store, self.user_id, "settings", entry["action_id"], data["kind"], time.time())
+            if (self.stage_ledger_reply and self.preset.allow_write and not self.goal_run
+                    and len(self.journal["calls"]) == 1 and self.journal["model_calls"] == 1
+                    and entry["tool"] in {"record_meal", "revise_intake", "query_today", "query_history"}
+                    and entry.get("finish_after_tools") is True and result["status"] == "ok"
+                    and self.try_tool_facts()):
+                self.finished_result = self.finish(in_action=True)
+                self.stage_ledger_reply(self.finished_result, self.task["pending_id"])
             return {"entry": deepcopy(entry), "session": deepcopy(self.session), "settings": deepcopy(self.settings)}
         try:
             from .storage.telemetry import span
@@ -812,7 +822,7 @@ class Runtime(AgentMiddleware):
         business_request = request.override(tool_call={**request.tool_call, "args": deepcopy(entry["args"])})
         return self.execute(entry, lambda: handler(business_request))
 
-    def finish(self, error="", *, terminal=False):
+    def finish(self, error="", *, terminal=False, in_action=False):
         if self.goal_run:
             result = {"goal_candidate": self.goal_run.result(self, error), "model_calls": self.journal["model_calls"],
                       "goal_steps": self.goal_run.audit(self.journal["calls"])}
@@ -949,10 +959,15 @@ class Runtime(AgentMiddleware):
                     self.session["messages"] = messages_to_dict([message for group in turns(clean)[-self.config.recent_turns:] for message in group])
                 self.store.save_session(self.user_id,self.message["chat_id"],self.session)
             return {"completed":True}
-        if self.preset.allow_write and (not error or terminal):
+        if self.preset.allow_write and (not error or terminal) and not in_action:
             self.store.commit_action("dialogue-stage:"+self.human_id,save_final)
         elif self.preset.allow_write:
             save_final()
+        if not in_action:
+            self.write_trace(result)
+        return result
+
+    def write_trace(self, result):
         trace = {"schema_version": "calorie_agent_trace.v2", "created_at": datetime.now(timezone.utc).isoformat(),
             **self.message, "raw_text": self.message["text"], "preset": self.preset.name, "model": self.config.model,
             "retriever": self.config.knowledge_retriever, **result}
@@ -961,13 +976,12 @@ class Runtime(AgentMiddleware):
         if os.getenv("TRACE_ENABLED", "true").lower() != "false":
             path = Path(os.getenv("TRACE_PATH", "/tmp/traces.jsonl")); path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("a", encoding="utf-8") as f: f.write(line+"\n")
-        return result
 
 @request_scope
 @message_scope
 @task_date_scope
 def run(message, *, store=None, config=None, intake_date=None, model=None, action_note_callback=None, goal_run=None,
-        on_execution_start=None):
+        on_execution_start=None, stage_ledger_reply=None):
     config = config or load_config()
     preset = resolve_preset(config.preset, config.allowed_tools)
     if goal_run:
@@ -1004,7 +1018,7 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
             return _saved_result(journal)
         model = model or DeepSeekModel(model_name=config.model)
         rt = Runtime(message, store, config, preset, model, intake_date, execution, goal_run,
-                     on_execution_start=on_execution_start)
+                     on_execution_start=on_execution_start, stage_ledger_reply=stage_ledger_reply)
         rt.action_note_callback = action_note_callback
         token = CURRENT_RUNTIME.set(rt)
         from .storage.timeutil import PROCESSING_DEADLINE
@@ -1042,7 +1056,11 @@ def run(message, *, store=None, config=None, intake_date=None, model=None, actio
                     interrupt_after=["tools"])
                 final = agent.invoke({"messages": messages}, config={"max_concurrency": 1, "recursion_limit": 40})
                 rt.journal["messages"] = messages_to_dict(final["messages"])
-            result = rt.finish()
+            result = rt.finished_result
+            if result is None:
+                result = rt.finish()
+            else:
+                rt.write_trace(result)
         except InputBudgetExceeded as exc:
             for entry in rt.journal["calls"]:
                 if "result" not in entry:
@@ -1104,7 +1122,7 @@ def _stage_saved_dialogue(store, message, journal, *, atomic=True):
     conversation.stage_turn(store, message["user_id"], message["chat_id"], ident, messages, metadata=metadata,atomic=atomic)
 
 
-def mark_reply_presented(store, user_id, chat_id, result):
+def mark_reply_presented(store, user_id, chat_id, result, *, atomic=True):
     """Called by the entry only after successful handoff of the saved reply."""
     if result.get("status") == "error" and not result.get("terminal"):
         return
@@ -1147,4 +1165,4 @@ def mark_reply_presented(store, user_id, chat_id, result):
         if changed:
             store.save_session(user_id, chat_id, session)
 
-    conversation.confirm_turn(store, user_id, chat_id, turn_id, on_confirm=confirm)
+    conversation.confirm_turn(store, user_id, chat_id, turn_id, on_confirm=confirm, atomic=atomic)

@@ -59,10 +59,11 @@ class CosStore(StateStore):
 
     def _commit(self, changes):
         from .cos_artifacts import freeze
-        packed = {key: freeze(self.journal, value) if value is not None and
+        fragments = {}
+        packed = {key: freeze(self.journal, value, fragments) if value is not None and
                   key.startswith(('pending:', 'action:', 'document:'))
                   else value for key, value in changes.items()}
-        return self.journal.commit(packed)
+        return self.journal.commit(packed, fragments=fragments)
 
     def _keys(self, prefix):
         keys=set(self.journal.keys(prefix))
@@ -140,6 +141,16 @@ class CosStore(StateStore):
     def load_document(self, kind, user_id, scope=''):
         payload = self._get('document:'+stable_uuid(f'{kind}:{user_id}:{scope}'),{}).get('payload',{})
         return paged_document.unpack(self, kind, payload)
+
+    def load_receipt(self, receipt_id, *, include_audit=False):
+        state = self.load_document('receipt_state', 'system', receipt_id)
+        if include_audit and state.get('execution_id'):
+            from agent.graph import _saved_result
+            execution = self.get_pending(state['execution_id'])
+            if not execution or not execution.get('payload', {}).get('result'):
+                raise RuntimeError('receipt execution unavailable')
+            state['result'] = _saved_result(execution['payload'])
+        return state
 
     def save_document(self, kind, user_id, scope, payload):
         key = 'document:'+stable_uuid(f'{kind}:{user_id}:{scope}')

@@ -143,7 +143,7 @@ class Pipeline:
                                "chat_id": receipt["message"]["chat_id"]}, headers=headers)
 
     def result(self, rid):
-        return self.readonly_store().load_document("receipt_state", "system", rid)
+        return self.readonly_store().load_receipt(rid, include_audit=True)
 
     def defer_reminder(self, store, receipt, state, session_id):
         """Finish automatic tick attempts while retaining its original recovery.
@@ -211,7 +211,6 @@ class Pipeline:
     def deliver(self, store, receipt, state, send=None, update_send=None):
         import json
         from pathlib import Path
-        from agent.graph import mark_reply_presented
         from . import feishu_client
         from .telemetry import span, EVENTS
         message, delivery = receipt["message"], state["delivery"]
@@ -249,8 +248,28 @@ class Pipeline:
         print(json.dumps({"event": "latency_delivery", "message_id": message["message_id"], "receipt_id": receipt["receipt_id"],
                           "sequence": receipt["sequence"], "source": receipt["source"], "build_id": build.read_text().strip() if build.exists() else "development",
                           "events": list(EVENTS.get() or []), **delivery}, ensure_ascii=False))
-        mark_reply_presented(store, message["user_id"], message["chat_id"], {"dialogue_turn_id": "calorie-user:" + message_key(message), **state["result"]})
         state["status"] = "needs_attention" if unresolved else "completed"
+
+    def confirm_delivery(self, store, receipt, state):
+        from agent.graph import mark_reply_presented
+        message = receipt["message"]
+        if state["delivery"]["presented"]:
+            mark_reply_presented(store, message["user_id"], message["chat_id"],
+                                 {"dialogue_turn_id": "calorie-user:" + message_key(message), **state["result"]},
+                                 atomic=False)
+
+    def stage_reply(self, message, state, result, execution_id=None):
+        state = deepcopy(state)
+        if execution_id:
+            state["execution_id"] = execution_id
+            result = {key: result[key] for key in ("status", "reply", "reply_source", "business_status",
+                "completion_status", "dialogue_turn_id", "presented_candidates", "proposal_id", "terminal", "model_calls")}
+        state.update(result=deepcopy(result), delivery={"uuid": reply_uuid(message), "presented": False,
+                     "result_digest": hashlib.sha256(result["reply"].encode()).hexdigest(), "mode": "send"})
+        notice = state.get("action_notice", {})
+        if notice.get("status") == "confirmed" and notice.get("message_id"):
+            state["delivery"].update(mode="action_note_edit", message_id=notice["message_id"])
+        return state
 
     def action_note(self, store, receipt, state, text, send=None, **context):
         from . import feishu_client
@@ -301,6 +320,7 @@ class Pipeline:
             state["recovered_at"] = time.time()
             session = receipt_id(receipt["message"]["user_id"], receipt["message"]["chat_id"])
             def finish():
+                self.confirm_delivery(store, receipt, state)
                 store.save_document("receipt_state", "system", receipt["receipt_id"], state)
                 cursor = store.load_document("ingress_cursor", "system", session)
                 store.save_document("ingress_cursor", "system", session, {"sequence": max(cursor.get('sequence',0), receipt["sequence"]),
@@ -386,8 +406,6 @@ class Pipeline:
             store.confirm_current()
             return apply_candidate(store, event)
         from agent import run
-        from agent.graph import mark_reply_presented
-        from . import feishu_client
         from .reminders import check_reminders
         if config.preset != "live":
             raise ValueError("live writer requires the live preset")
@@ -506,6 +524,13 @@ class Pipeline:
                                 store.save_document("user_settings", message["user_id"], "", {**settings, "feishu_chat_id": message["chat_id"]})
                         callback = (lambda text, **context: self.action_note(store, receipt, state, text, note_send, **context)) if receipt["source"] == "feishu" else None
                         options = {"on_execution_start": save_processing} if deferred_processing else {}
+                        staged = None
+                        def stage_ledger_reply(result, execution_id):
+                            nonlocal staged
+                            staged = self.stage_reply(message, state, result, execution_id)
+                            store.save_document("receipt_state", "system", rid, staged)
+                        if execute is None and receipt["source"] == "feishu":
+                            options["stage_ledger_reply"] = stage_ledger_reply
                         result = (execute or run)(message, store=store, config=load_config(), intake_date=receipt["intake_date"],
                                                   action_note_callback=callback, **options)
                         errors = ";".join(result.get("errors", []))
@@ -517,14 +542,8 @@ class Pipeline:
                         elif result.get("status") == "error":
                             state.update(work_status="needs_attention", unfinished_error=errors)
                         # Commit final text and reference before any delivery API.
-                        state.update(result=deepcopy(result), delivery={"uuid": reply_uuid(message), "presented": False,
-                            "result_digest": hashlib.sha256(result["reply"].encode()).hexdigest()})
-                        notice = state.get("action_notice", {})
-                        if notice.get("status") == "confirmed" and notice.get("message_id"):
-                            state["delivery"].update(mode="action_note_edit", message_id=notice["message_id"])
-                        else:
-                            state["delivery"]["mode"] = "send"
-                        if receipt["source"] == "feishu":
+                        state = staged if staged is not None else self.stage_reply(message, state, result)
+                        if receipt["source"] == "feishu" and staged is None:
                             store.save_document("receipt_state", "system", rid, state)
                     self.deliver(store, receipt, state, send, update_send)
                     if state.get("work_status") == "needs_attention":
@@ -532,6 +551,8 @@ class Pipeline:
                         return state
                 state["completed_at"] = time.time()
                 def finish_receipt():
+                    if receipt["kind"] == "message":
+                        self.confirm_delivery(store, receipt, state)
                     store.save_document("receipt_state", "system", rid, state)
                     store.save_document("ingress_cursor", "system", session_id, {"sequence": max(receipt["sequence"], store.load_document("ingress_cursor", "system", session_id).get("sequence", 0)), "position":receipt.get("session_position", -1)})
                     if receipt["kind"] == "message":
@@ -544,6 +565,9 @@ class Pipeline:
                             "latency_ms": round((time.time()-receipt["received_at"])*1000) if receipt.get("received_at") is not None else None})
                     return {"status": state["status"]}
                 store.commit_action("receipt-complete:" + rid, finish_receipt)
+                if receipt["kind"] == "message" and receipt["source"] == "feishu":
+                    from .telemetry import log_receipt_latency
+                    log_receipt_latency(receipt, state, store.journal.revision)
                 requested_state = state
                 attempt_started = time.monotonic()
             except Exception as exc:

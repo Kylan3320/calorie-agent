@@ -287,19 +287,19 @@ class Journal:
     def get(self, key, default=None):
         return self.state.get(key, default)
 
-    def commit(self, changes):
+    def commit(self, changes, *, fragments=None):
         try:
-            return self._commit(changes)
+            return self._commit(changes, fragments)
         except BaseException:
             if not self.readonly:
                 self.unavailable = True
             raise
 
-    def _commit(self, changes):
+    def _commit(self, changes, fragments):
         self._check()
         if self.readonly:
             raise PermissionError('readonly journal')
-        refs, documents = {}, {}
+        refs, documents = {}, dict(fragments or {})
         for key,value in changes.items():
             if value is None:
                 if key in self.index: refs[key] = None

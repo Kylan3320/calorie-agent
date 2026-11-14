@@ -250,7 +250,7 @@ def _register(store, user, chat, value, config):
     store.save_document("summary_active", "system", "", queue)
 
 
-def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=None, on_confirm=None):
+def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=None, on_confirm=None, atomic=True):
     if not ident:
         return
     config = config or load_config()
@@ -275,7 +275,7 @@ def confirm_turn(store, user, chat, ident, config=None, *, delivered_messages=No
             on_confirm(source)
         _register(store, user, chat, value, config)
         return {"complete": True}
-    return _save_atomic(store, "dialogue-delivered:" + ident, save)
+    return _save_atomic(store, "dialogue-delivered:" + ident, save) if atomic else save()
 
 
 def _summary_source(source, view):

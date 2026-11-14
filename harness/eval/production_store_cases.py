@@ -30,15 +30,10 @@ class Objects:
         self.creates += 1
         if key in self.data: return False
         value = json.loads(body)
-        def expand(value):
-            if isinstance(value,dict) and set(value)=={'$artifact'}:
-                return expand(json.loads(self.data[key.split('/documents/')[0]+'/documents/'+value['$artifact']+'.json']))
-            if isinstance(value,dict): return {k:expand(v) for k,v in value.items()}
-            if isinstance(value,list): return [expand(v) for v in value]
-            return value
-        if '/documents/' in key and isinstance(value,dict) and value.get('intent')=='message_execution':
-            value = expand(value)
-        if self.fail_document and '/documents/' in key and isinstance(value,dict) and value.get('intent')=='message_execution' and any('result' in c for c in value.get('payload',{}).get('calls',[])):
+        # Independent object transfers may arrive in either order. Fail the
+        # immutable native result itself, before publishing any manifest.
+        if (self.fail_document and '/documents/' in key and isinstance(value, dict)
+                and value.get('tool') == 'record_meal' and 'result' in value):
             self.fail_document = False
             raise OSError('injected tool result document upload failure')
         action_commit = '/commits/' in key and any(k.startswith(self.fault_action_prefix) and k!='action:baseline-import' for k in value.get('changes',{}))
