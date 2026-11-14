@@ -290,4 +290,72 @@ def CB07():
         assert state["queue_wait_ms"] is None and not model.requests
 
 
-CHECKS = {name: globals()[name] for name in ("CB01", "CB02", "CB03", "CB04", "CB05", "CB06", "CB07")}
+def CB08():
+    """原子账本与待投递回执、飞书确认与游标、两次丢失提交回包后的恢复。"""
+    from agent.storage.bitable_adapter import stable_uuid
+    from agent.storage.execution_pipeline import receipt_id
+
+    clock = Clock()
+    with offline(clock):
+        store = open_store()
+        objects = store.objects
+        pipeline = Pipeline(objects, store.prefix)
+        original = pipeline.accept(message("cb-atomic", "记录午餐"), received_at=clock.time())
+        rid = original["receipt_id"]
+        receipt_key = "document:" + stable_uuid("receipt_state:system:" + rid)
+        cursor_key = "document:" + stable_uuid("ingress_cursor:system:" + receipt_id("user", "test"))
+        model = NativeFake(responses=[finished()])
+
+        class ModelFactory:
+            def __new__(cls, **kwargs):
+                return model
+
+        class NoModel:
+            def __new__(cls, **kwargs):
+                forbidden()
+
+        objects.fault_action_prefix = "action:cb-atomic:agent:"
+        objects.lose_action = True
+        with patch("agent.graph.DeepSeekModel", ModelFactory):
+            try:
+                pipeline.worker(event(original), send=forbidden)
+            except (OSError, CommitUnavailable):
+                pass
+            else:
+                raise AssertionError("lost action response must stop delivery")
+        recovered = Pipeline(objects, store.prefix)
+        ready = recovered.result(rid)
+        assert ready["status"] == "processing" and not ready["delivery"]["presented"]
+        assert ready["result"]["tool_results"][0]["data"]["total"]["kcal"] == 270
+        assert "tool_results" not in recovered.readonly_store().load_receipt(rid)["result"]
+        by_key = {}
+        for key, raw in sorted(objects.data.items()):
+            if "/message/commits/" in key:
+                for changed in json.loads(raw)["changes"]:
+                    by_key[changed] = key
+        assert by_key[receipt_key] == by_key["action:cb-atomic:agent:1"]
+        assert by_key["pending:" + ready["execution_id"]] == by_key[receipt_key]
+        assert all(by_key[key] == by_key[receipt_key] for key in by_key if key.startswith("item:"))
+        sends = []
+        objects.fault_action_prefix = "action:receipt-complete:" + rid
+        objects.lose_action = True
+        with patch("agent.graph.DeepSeekModel", NoModel), patch.object(CosStore, "write_intake", side_effect=forbidden):
+            try:
+                recovered.worker(event(original), send=successful_send(sends))
+            except (OSError, CommitUnavailable):
+                pass
+            else:
+                raise AssertionError("lost completion response was not injected")
+            restarted = Pipeline(objects, store.prefix)
+            assert restarted.worker(event(original), send=forbidden)["duplicate"]
+        complete = restarted.result(rid)
+        assert complete["status"] == "completed" and complete["delivery"]["presented"]
+        assert complete["result"] == ready["result"]
+        assert sends == [("test", ready["result"]["reply"], ready["delivery"]["uuid"])]
+        changes = next(commit["changes"] for key, raw in objects.data.items() if "/message/commits/" in key
+                       and "action:receipt-complete:" + rid in (commit := json.loads(raw))["changes"])
+        assert {receipt_key, cursor_key, "document:" + stable_uuid("dialogue_turn:user:calorie-user:cb-atomic")} <= changes.keys()
+        assert len(restarted.readonly_store().intake_items("user")) == 2
+
+
+CHECKS = {name: globals()[name] for name in ("CB01", "CB02", "CB03", "CB04", "CB05", "CB06", "CB07", "CB08")}

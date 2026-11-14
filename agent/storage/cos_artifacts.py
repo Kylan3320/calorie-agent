@@ -1,13 +1,11 @@
 """Immutable execution fragments shared by progress versions and result readers."""
 import hashlib
 import json
-from .cos_journal import encode, CommitUnavailable, _transfer_batch
+from .cos_journal import encode, CommitUnavailable
 
 
-def freeze(journal, value):
+def freeze(journal, value, fragments):
     """Split audit lists and large dictionaries, leaving only bounded references."""
-    fragments = {}
-
     def reference(value):
         raw = encode(value)
         ref = hashlib.sha256(raw).hexdigest()
@@ -31,11 +29,7 @@ def freeze(journal, value):
             return reference(value)
         return value
 
-    packed = visit(value)
-    _transfer_batch(journal._publish_document, [(ref, raw) for ref, (raw, _) in fragments.items()])
-    for ref, (raw, value) in fragments.items():
-        journal.cache_document(ref, value, len(raw))
-    return packed
+    return visit(value)
 
 
 def thaw(journal, value):

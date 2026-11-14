@@ -22,6 +22,7 @@
 
 - `scf_handoff` 记录入口到消息函数的 Invoke。事件引用 `receipt_id/ingress_revision` 及原消息、用户和会话身份。飞书 `latency_webhook` 含 ACK 前事件，`latency_worker` 记录消息函数自身事件，`latency_delivery` 另带 `build_id/sequence/source` 和投递结果。按 `receipt_id` 或 `message_id` 关联两端记录。累计 trace 不进入派发参数。归档网络等待在独立函数内。
 - `receipt_state` 保存 `receipt_id/sequence/attempts/queue_wait_ms/budget_started_at/deadline_at/legacy_budget/result/work_status`。其 `delivery` 保存 `uuid/result_digest/presented/sent_at/send_result/message_id/cos_revision/t_service_ms/send_duration_ms/slow_request`，进度升级另有 `progress_reply/update_result/recovery_attempts`。新结果和正文摘要在发送前同次保存。CLI／DSH 回报展示及结果摘要，旧事件记为 `presentation_rejected`。
+- 飞书 `latency_receipt_commit` 在确认 manifest 发布后记录同一收件的模型 HTTP、飞书发送、确认阶段耗时、发送前后消息 manifest 数及受理至持久确认耗时。单次决策的成功账本回执可通过 `execution_id` 读取完整执行审计。
 - `t_service_ms` 从原 `received_at` 到发送 API 成功，旧收件缺该时间则为空。大于 10 秒只标慢。存在有效 `create_time` 时另列 `t_user_ms`。重投保留原执行的 `latency_events`，本次发送看入口／投递事件，恢复和重投不产生新的正常性能样本。
 - `worker_started_at` 在 Pipeline.worker 内部 COS 读取前捕获。首次进入 worker 与原收件的差值包含受理端 COS、派发及可能的实例构造。旧证据的 `function_queue_ms` 沿用这一口径。`queue_wait_ms`、原收件至 worker 和未直接观测的纯平台排队应分开，缺冷启动或排队观测时标未知。
 

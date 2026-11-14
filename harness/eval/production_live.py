@@ -213,9 +213,9 @@ class Driver:
         deadline = time.monotonic() + self.plan.get("message_wait_seconds", 180)
         while time.monotonic() < deadline:
             self.store.confirm_current()
-            state = self.store.load_document("receipt_state", "system", rid)
+            state = self.store.load_receipt(rid)
             if state.get("status") == "completed":
-                return state
+                return self.store.load_receipt(rid, include_audit=True)
             if state.get("status") == "needs_attention":
                 raise RuntimeError("candidate receipt needs attention: " + json.dumps(state, ensure_ascii=False))
             time.sleep(1)

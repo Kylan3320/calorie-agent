@@ -54,7 +54,7 @@ class Write(ToolArgs):
     authorization_quote: str = Field("", max_length=500, description="确认、取消或明确改写待确认动作时，引用当前用户授权的原话")
 
 class LedgerFinish(ToolArgs):
-    finish_after_tools: bool = Field(False, description="单纯记餐、指定项改量或查账，工具结果足够答复时设 true，系统会直接生成回执。批次每项都需声明。用户另要查询、解释、知识或建议时保留 false，继续处理。")
+    finish_after_tools: bool = Field(False, description="本批工具结果足以答复时设 true，系统直接生成回执，批次每项都须声明。记餐同时返回本次热量和本餐合计，改量同时返回改后餐项和本餐合计。请记下并告知这餐热量、改量并告知改后热量，直接用对应写工具并设 true。另问全天账本、解释、知识或建议时继续处理。")
 
 class Record(Write, LedgerFinish):
     items: list[Item] = []
