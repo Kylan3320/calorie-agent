@@ -84,14 +84,26 @@ def DG01():
     plans = diet_goals.baseline(store, "user", goal)
     assert {day: plan["calculation"]["total"]["kcal"] for day, plan in plans.items()} == {day: 116 for day in days}
 
-    status = _send(store, "只看状态", "status", [call("query_diet_goal", {}), _reply()], chat="lookup")
+    # A previously persisted model suggestion must not become a status fact.
+    goal["next_step"] = "七天午餐已排定并采用。"
+    diet_goals.save(store, "user", goal)
+    artifact = store.load_document("diet_goal_plan", "user", f"{ident}:1")
+    artifact["next_step"] = goal["next_step"]
+    store.save_document("diet_goal_plan", "user", f"{ident}:1", artifact)
+    status = _send(store, "只看状态", "status", [call("query_diet_goal", {}), _reply(goal["next_step"])], chat="lookup")
     assert "goal_delivery_ref" not in status and not diet_goals.load(store, "user").get("delivered")
+    assert "最近生成的计划为第 1 版" in status["reply"] and "已交付" not in status["reply"] and "采用" not in status["reply"]
     denied = _send(store, "查看这个委托", "other-user", [call("query_diet_goal", {"goal_id": ident}), _reply()], user="another")
     assert denied["tool_results"][0]["data"]["reason"] == "goal_not_found"
     show = _send(store, "看最新菜单", "show", [call("query_diet_goal", {"operation": "show_latest", "view_quote": "看最新菜单"}), _reply()], delivered=False)
-    assert all(day in show["reply"] for day in days) and not diet_goals.load(store, "user").get("delivered")
+    assert show["tool_results"][0]["data"]["artifact"]["dates"] == days
+    assert f"{days[0]} 至 {days[-1]}（每天）" in show["reply"] and show["reply"].count("米饭，每份") == 1
+    assert "适用目标" not in show["reply"] and "采用" not in show["reply"]
+    assert not diet_goals.load(store, "user").get("delivered")
     mark_reply_presented(store, "user", "first", show)
     assert diet_goals.load(store, "user")["delivered"] == 1
+    status = _send(store, "只看状态", "delivered-status", [call("query_diet_goal", {}), _reply()], chat="lookup")
+    assert "已交付第 1 版" in status["reply"] and "采用" not in status["reply"]
 
     _control(store, "revise", "revise", goal=goal, spec={"constraints": ["只用微波炉"], "locks": [{"date": days[0], "meal": "lunch"}]})
     stale_show = _send(store, "看修订后的菜单", "stale-show", [call("query_diet_goal", {"operation": "show_latest", "view_quote": "看修订后的菜单"}), _reply()])
@@ -124,6 +136,9 @@ def DG01():
     assert diet_goals.load(store, "user")["delivered"] == 1
     assert _tick(store, progress, send=send)[0]["status"] == "delivered"
     assert send_calls[0] == send_calls[1] and diet_goals.load(store, "user")["delivered"] == 2
+    pushed = send_calls[0][1]
+    assert f"（{days[1]}）" in pushed and "鸡胸肉，每份" in pushed
+    assert f"{days[2]} 至 {days[-1]}（每天）" in pushed and f"锁定餐次：{days[0]} 午餐" in pushed
 
     _control(store, "request_run", "manual", goal=revised)
     _tick(store, progress)
@@ -228,8 +243,10 @@ def E09():
 
     status = send("我那周的午餐现在安排到哪了？先只告诉我进度和以后什么时候再调整。", "goal-status", "another")
     assert "goal_delivery_ref" not in status and not diet_goals.load(store, "user").get("delivered")
+    assert "最近生成的计划为第 1 版" in status["reply"] and "已交付" not in status["reply"] and "采用" not in status["reply"]
     show = send("把现在最新的一周午餐安排给我看看。", "goal-show", "another", delivered=False)
-    assert all(day in show["reply"] for day in days) and not diet_goals.load(store, "user").get("delivered")
+    artifact = next(fact["data"]["artifact"] for fact in show["tool_results"] if "artifact" in fact["data"])
+    assert artifact["dates"] == days and not diet_goals.load(store, "user").get("delivered")
     mark_reply_presented(store, "user", "another", show)
     assert diet_goals.load(store, "user")["delivered"] == 1
 

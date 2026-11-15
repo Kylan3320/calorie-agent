@@ -257,7 +257,8 @@ def maintenance_handler(event, context=None):
         archive = archive_pending(store=store, progress=progress)
         summary = {"status": "skipped_maintenance_error"}
         goal = {"status": "skipped_maintenance_error"}
-        if not archive["failed"] and not recovery.get("blocked"):
+        # Per-item Bitable failures stay in sync; background work reads committed COS facts.
+        if not recovery.get("blocked"):
             goal = run_goal(store, progress, load_config(), dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
             summary = run_next(store, progress, dispatch=dispatch_event, remaining_seconds=deadline - time.monotonic())
         return {"recovery": recovery, "archive": archive, "summary": summary, "diet_goal": goal}

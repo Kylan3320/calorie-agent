@@ -52,6 +52,7 @@
 
 - `manage_diet_goal` 用当前 `user_quote` 授权。宿主绑定本轮看见的 `goal_id` 与 `revision`，实际提交仍核对归一用户和版本。`start` 接收委托目的、日期、完成标准、条件、偏好、授权触发和可选通知目的地。资料不足时保存筹备并给出缺口。`revise` 可用 `change_dates` 限定本次核算和条件。新锁定餐次累加，解除需 `unlock`。`stop_run`、`set_auto`、`pause`、`resume`、`set_notifications`、`end` 各有独立效果。`request_run` 可在关闭自动触发时发起检查。
 - `query_diet_goal` 默认只查状态和版本。`show_latest` / `show_delivered` 使用当前用户明确要求查看的 `view_quote`，由实际已算的计划渲染正文。`goal_delivery_ref` 随显示最新版的回复保存，只有相应回复交付确认后才推进可接续版本。
+- 进度回执以 `latest` 和 `delivered` 分别说明生成及交付版本。计划展示合并连续且呈现相同的日期，保留日期差异、锁定餐次和待决项，逐日成果及交付版本照常保存。
 - 委托状态、归属、运行与计划版本存 `diet_goal`、`diet_goal_owner`、`diet_goal_run` 和 `diet_goal_plan`；`diet_goal_active` 供维护扫描，`diet_goal_event` 按触发来源去重。消息写入者提交 `claim` 和 `begin`。维护复用原生循环，只装载授权读／计算和 `submit_goal_result`，在独立 `sync/` 进度键保留原期限、模型调用和草案。后台通过 `calorie_diet_goal` 交回候选，写入者检查运行身份、委托版本、输入版本和业务事实摘要。
 - `calculate_meal.days` 仅委托后台使用。一次最多七个不同日期，各自使用原计算器核对当天目标、摄入及份量。接受的日期在授权范围内，已有锁定或已食用餐次从原计划保留。`submit_goal_result` 引用本次确实完成的逐日草案，未完成范围与待决事项保留。
 - 触发只排入授权范围的实际实例。终止、暂停或来源变化会拒绝迟到结果。通知另验目的地、最新有效版本、授权与来源，失败以同一投递 UUID 恢复，当前交付版本以确认送达为准。所有维护工作仍让位于现有恢复和归档；委托使用自己的 90 秒、4 次决策和 8 次工具预算。
@@ -73,7 +74,7 @@
 - CLI／控制台／DSH live 通过 `LiveClient` 调用 `/internal/intake`、`/internal/result`、`/internal/presented`，沿用 `session_id/tool_events`。配置见[运维手册](../docs/operations.md#环境配置)。飞书来源才发送飞书回复。CLI 输出和 DSH 实际追加后用已保存 UUID 及结果摘要确认展示。旧展示记为 `presentation_rejected`。
 - live 使用 COS 当前事实。shadow_fakewrite 使用 FakeStore。shadow_readonly 返回可见 COS 提交版本，对 COS、Bitable、会话、缓存、usage 和投递零写入，索引重建仅在内存进行。
 - `model_transport` 的绝对截止覆盖连接、响应头、保活和完整响应体。薄荷两次尝试与退避共享 10 秒，SCF 派发单次 2 秒，LightRAG 初始化、检索及关键词／embedding 线程共享 85 秒，均受当前剩余预算限制。LiveClient 单请求最多 10 秒，受理前开始计算总等待，超时按原消息键核对。COS 使用 SDK 签名、MD5、禁止覆盖及 `retry=0`。
-- 飞书 live 首批选按顺序第一条有效只读说明，直接账本批次跳过。首批无说明时，第一个符合条件的后续计算或知识批次可补一次。机会与批次同存，只有未执行的 `ready` 批次可发送，`attempted` 在 RPC 前保存。全消息最多一次说明尝试，墙钟最多 1 秒且受原截止限制。失败或未知时继续业务，恢复不重发说明。旧执行无持久 `ready` 机会时不补发。收到说明的 `message_id` 后用它编辑终稿，否则用独立最终 UUID 发送。新结果及摘要在发送前保存，说明本身不确认草案或提案。最终交付独立保存恢复次数。
+- 飞书 live 在尚未执行的批次按调用顺序选第一条有效说明，首批及后续批次均适用。机会与批次同存，只有未执行的 `ready` 批次可发送。发送前保存 `attempted`，全消息最多尝试一次，墙钟最多 1 秒并受剩余预算限制。失败或未知时继续业务，恢复不重发。确认 `message_id` 后编辑同一消息交付终稿，否则用独立最终 UUID 发送。最终结果及摘要先保存，展示确认与最终交付恢复单独记录。
 - 维护先唤醒未完收件再归档。提醒沿原计划时刻及逐规则进度恢复。
 
 ## COS 提交与归档

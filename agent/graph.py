@@ -827,6 +827,9 @@ class Runtime(AgentMiddleware):
             if controls:
                 reply = "\n".join(controls) + ("\n" + terminal_notice if terminal_notice else "")
                 adjustments.append({"reason": "diet_goal_control_receipt"})
+            elif not error and len(facts) == 1 and facts[0]["tool"] == "query_diet_goal" and facts[0]["status"] == "ok":
+                reply = diet_goals.status_receipt(facts[0]["data"]["goal"])
+                adjustments.append({"reason": "diet_goal_status_receipt"})
         reply = add_recorded_portion_sources(reply, facts, adjustments)
         # Keep native paired history, and save the actual delivered reply for future references.
         fact_scope = "business" if any(f["tool"] != "query_knowledge" for f in facts) else ("knowledge" if facts else "dialogue")

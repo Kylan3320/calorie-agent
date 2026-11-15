@@ -659,7 +659,7 @@ def calculate_plan(rt, p):
     return {"status": "ok" if data["complete"] else "pending", "data": data}
 
 
-def candidate_presentations(session, message_id, *, facts=()):
+def candidate_presentations(session, message_id, *, facts=(), date_label=None, show_daily_totals=True):
     """A complete public rendering makes delivered candidate identity unambiguous."""
     sections, presented = [], {}
     offer = session.get("food_offer_candidate", {})
@@ -704,7 +704,8 @@ def candidate_presentations(session, message_id, *, facts=()):
     if draft:
         d = draft["calculation"]
         scope = {"daily": "日常完整菜单", "full_day": "当日完整菜单", "remaining": "当日剩余安排"}[draft["scope"]]
-        lines = [f"{scope}（{'长期目标，' if draft['scope'] == 'daily' else ''}{draft['date']}）："]
+        day = draft["date"] if date_label is None else date_label
+        lines = [f"{scope}（{'长期目标，' if draft['scope'] == 'daily' and show_daily_totals else ''}{day}）："]
         labels = {"user_given": "用户给定份量", "suggested": "建议份量", "assumed_takeout": "外卖组成假设"}
         positions = {item["item_id"]: n for n, item in enumerate(draft["items"], 1)}
         groups = {}
@@ -733,12 +734,13 @@ def candidate_presentations(session, message_id, *, facts=()):
         aggregate = "菜单合计" if d["complete"] else "已知小计"
         total = d["total"]
         lines.append(f"{aggregate}{qualifier}{total['kcal']:g}千卡，碳水{total['carbs']:g}克、蛋白质{total['protein']:g}克、脂肪{total['fat']:g}克。")
-        target = d["targets"]
-        lines.append(f"适用目标：{target['kcal']:g}千卡，碳水{target['carbs']:g}克、蛋白质{target['protein']:g}克、脂肪{target['fat']:g}克。")
-        if draft["scope"] == "remaining":
-            lines.append(f"已扣除该日有效摄入{d['consumed']['kcal']:g}千卡（仅扣一次）。")
-        diff = d["budget_difference"]
-        lines.append(f"差额：热量{diff['kcal']:g}千卡，碳水{diff['carbs']:g}克，蛋白质{diff['protein']:g}克，脂肪{diff['fat']:g}克。")
+        if show_daily_totals:
+            target = d["targets"]
+            lines.append(f"适用目标：{target['kcal']:g}千卡，碳水{target['carbs']:g}克、蛋白质{target['protein']:g}克、脂肪{target['fat']:g}克。")
+            if draft["scope"] == "remaining":
+                lines.append(f"已扣除该日有效摄入{d['consumed']['kcal']:g}千卡（仅扣一次）。")
+            diff = d["budget_difference"]
+            lines.append(f"差额：热量{diff['kcal']:g}千卡，碳水{diff['carbs']:g}克，蛋白质{diff['protein']:g}克，脂肪{diff['fat']:g}克。")
         if d["unfinished"]:
             lines.append("尚未计入：" + "；".join((i.get("group") or f"第{positions[i['item_id']]}项") + " " + i.get("food_query", "") + "：" + i["reason"] for i in d["unfinished"]) + "。差额仅基于已知小计。")
             first = d["unfinished"][0]

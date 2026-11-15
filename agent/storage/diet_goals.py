@@ -52,7 +52,7 @@ def _status(goal):
     result.update(objective=spec["objective"], starts=spec.get("starts"), ends=spec.get("ends"),
                   constraints=spec.get("constraints", []), dated_constraints=spec.get("dated_constraints", {}),
                   locks=spec.get("locks", []), done_when=spec.get("done_when"),
-                  next_step=goal.get("next_step", ""), waiting_for=goal.get("waiting_for", ""),
+                  missing_dates=goal.get("missing_dates", []), waiting_for=goal.get("waiting_for", ""),
                   last_change=goal.get("last_change", ""), last_check=goal.get("last_check"),
                   run={key: run[key] for key in ("id", "status", "day", "diagnostic") if key in run},
                   latest=goal.get("latest"), delivered=goal.get("delivered"),
@@ -77,7 +77,8 @@ def _show_artifact(store, user, goal, latest):
         return {"status": "pending", "data": {"goal": _status(goal), "reason": "revised_plan_not_ready"}}
     return {"status": "ok", "data": {"goal": _status(goal), "artifact": {
         "id": goal["id"], "version": version, "dates": sorted(artifact["plans"]),
-        "reply": render(artifact), "latest": latest}}}
+        "reply": render(artifact, locks=goal["spec"].get("locks", []) if artifact["revision"] == goal["revision"] else ()),
+        "latest": latest}}}
 
 
 def query(rt, params):
@@ -92,6 +93,35 @@ def query(rt, params):
             return {"status": "pending", "data": {"goal": _status(goal), "reason": "artifact_view_not_authorized"}}
         return _show_artifact(rt.store, rt.user_id, goal, params["operation"] == "show_latest")
     return {"status": "ok", "data": {"goal": _status(goal)}}
+
+
+def status_receipt(goal):
+    statuses = {"preparing": "筹备中", "active": "进行中", "paused": "已暂停", "ended": "已结束"}
+    runs = {"queued": "已排队", "running": "正在核算", "waiting": "待补充",
+            "complete": "本次核算已完成", "failed": "本次核算失败",
+            "stop_requested": "正在停止", "terminated": "本次运行已终止"}
+    lines = [f"饮食委托{statuses[goal['status']]}。"]
+    if run := runs.get(goal["run"].get("status")):
+        lines.append(f"运行：{run}。")
+    if latest := goal["latest"]:
+        lines.append(f"最近生成的计划为第 {latest} 版。")
+    if delivered := goal["delivered"]:
+        lines.append(f"已交付第 {delivered} 版。")
+    if goal["missing_dates"]:
+        lines.append("尚未完成：" + "、".join(goal["missing_dates"]) + "。")
+    if goal["waiting_for"]:
+        lines.append("待你决定：" + goal["waiting_for"])
+    if goal["status"] == "active":
+        if goal["pending"] and goal["run"].get("status") not in {"queued", "running"}:
+            lines.append("下次核算已排队。")
+        triggers = {"feedback": "你的反馈", "intake": "摄入变化", "settings": "相关设置变化"}
+        upcoming = [triggers[key] for key in goal.get("triggers", []) if key in triggers]
+        if "time" in goal.get("triggers", []) and goal["check_time"]:
+            upcoming.append(f"约定时间 {goal['check_time']}")
+        lines.append("后续触发：" + "、".join(upcoming) + "。" if upcoming else "需要时可请求手动检查。")
+        if not goal["notify"]:
+            lines.append("主动通知关闭。")
+    return "\n".join(lines)
 
 
 def control_receipt(data):
@@ -346,18 +376,30 @@ def baseline(store, user, goal):
     return _artifact(store, user, goal, goal.get("latest")).get("plans", {})
 
 
-def render(artifact):
+def render(artifact, *, locks=()):
     from ..planning import candidate_presentations
-    lines = [candidate_presentations({"meal_draft_candidate": plan}, plan["message_id"])["text"]
-             for _, plan in sorted(artifact["plans"].items())]
-    if artifact.get("meals") and not {"breakfast", "lunch", "dinner"}.issubset(artifact["meals"]):
-        lines = [line.replace("当日完整菜单（", "当日委托安排（", 1) for line in lines]
+    groups = []
+    partial = artifact.get("meals") and not {"breakfast", "lunch", "dinner"}.issubset(artifact["meals"])
+    for day, plan in sorted(artifact["plans"].items()):
+        daily_totals = not partial or plan["scope"] == "remaining" or plan["calculation"]["tolerance_kcal"] is not None
+        text = candidate_presentations({"meal_draft_candidate": plan}, plan["message_id"],
+                                       date_label="{date}", show_daily_totals=daily_totals)["text"]
+        if partial:
+            text = text.replace("当日完整菜单（", "当日委托安排（", 1)
+        if groups and groups[-1][2] == text and date.fromisoformat(day) - date.fromisoformat(groups[-1][1]) == timedelta(days=1):
+            start, _, _ = groups[-1]
+            groups[-1] = (start, day, text)
+        else:
+            groups.append((day, day, text))
+    lines = [text.replace("{date}", start if start == end else f"{start} 至 {end}（每天）", 1)
+             for start, end, text in groups]
+    locked = [f"{lock['date']} {MEALS[lock['meal']]}" for lock in locks if lock["date"] in artifact["plans"]]
+    if locked:
+        lines.append("锁定餐次：" + "、".join(locked))
     if artifact.get("missing_dates"):
         lines.append("尚未完成 " + "、".join(artifact["missing_dates"]))
     if artifact.get("waiting_for"):
         lines.append("待你决定 " + artifact["waiting_for"])
-    if artifact.get("next_step"):
-        lines.append("下一步 " + artifact["next_step"])
     if artifact.get("reason"):
         lines.append("调整依据 " + artifact["reason"])
     if artifact.get("preparation"):
@@ -415,7 +457,7 @@ def publish(store, user, ident, run_id, candidate, config, now):
         plans.update(candidate["plans"])
         missing = _missing_dates(goal, plans, run["day"])
         waiting = candidate.get("waiting_for", "")
-        next_step = candidate.get("next_step") or ("核对尚未完成的日期和餐次" if missing else "")
+        next_step = (candidate.get("next_step") or "核对尚未完成的日期和餐次") if missing else ""
         preparation = candidate.get("preparation") or old.get("preparation", "")
         signature = _hash([_plan_digest(plans), preparation])
         changed = bool(plans and (signature != old.get("signature") or goal["revision"] != old.get("revision")))
@@ -435,7 +477,7 @@ def publish(store, user, ident, run_id, candidate, config, now):
         scheduled = goal["spec"].get("scheduled_delivery") and any(event["kind"] == "time" for event in run["events"].values())
         if candidate.get("notify") and goal["notify"] and (changed or new_question or scheduled):
             version = artifact.get("version") if changed or scheduled else None
-            text = render(artifact) if version else ("饮食委托待你决定 " + waiting if waiting else "")
+            text = render(artifact, locks=goal["spec"].get("locks", [])) if version else ("饮食委托待你决定 " + waiting if waiting else "")
             if text:
                 goal["delivery"] = {"id": stable_uuid(f"goal-notice:{ident}:{run_id}"), "status": "pending",
                                     "version": version, "revision": goal["revision"], "run_id": run_id,

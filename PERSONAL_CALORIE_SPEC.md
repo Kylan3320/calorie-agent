@@ -2,7 +2,7 @@
 
 本规格定义个人饮食管理业务；回复行为见 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，存储与执行见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，实际接口见 [contracts/](contracts/)。
 
-下一阶段新增行为与实施验收统一见 [省心饮食与跨会话记忆规格](PERSONAL_ASSISTANT_SPEC.md)。相关条款是尚未实现的目标，不表示生产已支持。
+份量补证、记忆及持续委托见[统一规格](PERSONAL_ASSISTANT_SPEC.md)，实现与部署状态见[生产交付记录](reports/LATENCY_DELIVERY.md)。
 
 ## 1. 目标与范围
 
@@ -116,7 +116,7 @@
 
 ## 4. 回归场景
 
-以下是既有能力的定向回归参考，不是本轮必跑清单。本轮完成条件见[用户任务验收](PERSONAL_ASSISTANT_SPEC.md#7-用户任务验收与停止条件)。按 [AGENTS.md](AGENTS.md) 选择受影响场景并复用有效证据；夹具使用独立 Store、假时钟、原生 tool-calling 假模型和假薄荷传输，预期值独立于待验工具结果。
+按 [AGENTS.md](AGENTS.md#验证与交付) 选择受影响的回归场景。夹具使用独立 Store、假时钟、原生工具假模型与假薄荷传输，预期值独立于被测实现。
 
 | 编号 | 场景与通过标准 |
 |---|---|

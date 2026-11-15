@@ -48,7 +48,7 @@
 
 各入口共用业务运行时；会话、执行和当前业务事实经 COS 保存，Bitable 用于后台归档、来源维护及旧状态迁移。
 
-上述是当前生产基线。仓库新增的 `query_memory`、网页份量补证、分层记忆、经验沉淀与跨会话续改已通过[阶段 A 隔离验收](reports/stage-a-real-acceptance.json)。`query_diet_goal` 与 `manage_diet_goal` 及后台按日核算属于阶段 B。生产状态见[交付记录](reports/LATENCY_DELIVERY.md)。
+上述为最近有正式部署证据的能力。仓库另有阶段 A 的 `query_memory`、网页份量补证、经验沉淀与跨会话续改，以及阶段 B 的 `query_diet_goal`、`manage_diet_goal` 和后台按日核算。各阶段验收及部署状态见[交付记录](reports/LATENCY_DELIVERY.md#验收结果与未解决项)。
 
 ## 范围外
 

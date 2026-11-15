@@ -273,7 +273,7 @@ def CX08():
 
 
 def CX09():
-    """维护错误阻止摘要，前置IO计入20秒计算且至少预留5秒。"""
+    """收件恢复阻塞时暂停后台，独立归档失败时继续，前置IO计入摘要预算。"""
     from agent.storage.execution_pipeline import Pipeline
     from agent.storage.timeutil import PROCESSING_DEADLINE
     pipeline = Pipeline(Objects(), "context/maintenance")
@@ -284,9 +284,20 @@ def CX09():
     import app
     class Deadline:
         time_limit_in_ms = 25000
-    with patch.object(app, "configured_pipeline", return_value=pipeline), patch.object(pipeline, "recover", return_value=recovery), patch("agent.storage.cos_archive.archive_pending", return_value={"failed": []}), patch.object(cx, "run_background") as background:
-        assert app.maintenance_handler({}, Deadline())["summary"]["status"] == "skipped_maintenance_error"
-        assert not background.called
+    archive = {"failed": ["archive:intake:independent"]}
+    with patch.object(app, "configured_pipeline", return_value=pipeline), \
+            patch.object(pipeline, "recover", side_effect=[recovery, {"blocked": []}]), \
+            patch("agent.storage.cos_archive.archive_pending", return_value=archive), \
+            patch("agent.storage.diet_goal_runtime.run_next", return_value={"status": "idle"}) as goal, \
+            patch("agent.storage.memory_background.run_next", return_value={"status": "idle"}) as background:
+        blocked = app.maintenance_handler({}, Deadline())
+        assert blocked["summary"]["status"] == blocked["diet_goal"]["status"] == "skipped_maintenance_error"
+        assert not background.called and not goal.called
+        independent = app.maintenance_handler({}, Deadline())
+        assert independent["archive"] == archive
+        assert independent["summary"]["status"] == independent["diet_goal"]["status"] == "idle"
+        background.assert_called_once()
+        goal.assert_called_once()
     config = replace(CONFIG, summary_pending_tokens=1)
     store = open_store(); seeded(store, config)
     progress = Journal(store.objects, store.prefix + "sync/")
