@@ -51,7 +51,7 @@
 ## 持续饮食委托
 
 - `manage_diet_goal` 用当前 `user_quote` 授权。宿主绑定本轮看见的 `goal_id` 与 `revision`，实际提交仍核对归一用户和版本。`start` 接收委托目的、日期、完成标准、条件、偏好、授权触发和可选通知目的地。资料不足时保存筹备并给出缺口。`revise` 可用 `change_dates` 限定本次核算和条件。新锁定餐次累加，解除需 `unlock`。`stop_run`、`set_auto`、`pause`、`resume`、`set_notifications`、`end` 各有独立效果。`request_run` 可在关闭自动触发时发起检查。
-- `query_diet_goal` 默认只查状态和版本。`show_latest` / `show_delivered` 使用当前用户明确要求查看的 `view_quote`，由实际已算的计划渲染正文。`goal_delivery_ref` 随显示最新版的回复保存，只有相应回复交付确认后才推进可接续版本。
+- `query_diet_goal` 默认只查委托进度、版本及最近变化。`show_latest` / `show_delivered` 使用当前用户明确要求查看的 `view_quote`。最终回复将已算的委托菜单与本轮记餐回执及所问说明一起交付。`goal_delivery_ref` 随实际显示最新版的回复保存，只有相应回复交付确认后才推进可接续版本。
 - 进度回执以 `latest` 和 `delivered` 分别说明生成及交付版本。计划展示合并连续且呈现相同的日期，保留日期差异、锁定餐次和待决项，逐日成果及交付版本照常保存。
 - 委托状态、归属、运行与计划版本存 `diet_goal`、`diet_goal_owner`、`diet_goal_run` 和 `diet_goal_plan`；`diet_goal_active` 供维护扫描，`diet_goal_event` 按触发来源去重。消息写入者提交 `claim` 和 `begin`。维护复用原生循环，只装载授权读／计算和 `submit_goal_result`，在独立 `sync/` 进度键保留原期限、模型调用和草案。后台通过 `calorie_diet_goal` 交回候选，写入者检查运行身份、委托版本、输入版本和业务事实摘要。
 - `calculate_meal.days` 仅委托后台使用。一次最多七个不同日期，各自使用原计算器核对当天目标、摄入及份量。接受的日期在授权范围内，已有锁定或已食用餐次从原计划保留。`submit_goal_result` 引用本次确实完成的逐日草案，未完成范围与待决事项保留。

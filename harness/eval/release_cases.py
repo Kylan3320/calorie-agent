@@ -33,8 +33,20 @@ def RL01():
         def request(action, payload):
             calls.append((action, payload))
             return {"Status": "Active"}
+        approved = hashlib.sha256(b"frozen-package").hexdigest()
+        arguments = ["--function", "message-worker", "--sha256", approved, str(package)]
         with patch.object(api_deploy, "tc3_request", request):
-            api_deploy.main(["--function", "message-worker", str(package)])
+            package.write_bytes(b"rebuilt-package")
+            with contextlib.redirect_stderr(io.StringIO()):
+                try:
+                    api_deploy.main(arguments)
+                except SystemExit as exc:
+                    assert exc.code == 2
+                else:
+                    raise AssertionError("upload accepted changed bytes")
+            assert not calls
+            package.write_bytes(b"frozen-package")
+            assert api_deploy.main(arguments) == 0
         assert [action for action, _ in calls] == ["UpdateFunctionCode", "GetFunction"]
         assert all(payload["FunctionName"] == "message-worker" for _, payload in calls)
         assert base64.b64decode(calls[0][1]["Code"]["ZipFile"]) == b"frozen-package"

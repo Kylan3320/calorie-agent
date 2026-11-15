@@ -6,6 +6,7 @@ import contextlib
 import importlib
 import io
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -85,8 +86,11 @@ def main(argv=None):
     previous_mode = conversation_cases.REAL
     conversation_cases.REAL = args.real_model
     conversation_cases.TRANSCRIPT.clear()
+    disable_shared_trace = "TRACE_ENABLED" not in os.environ and not os.getenv("TRACE_PATH")
     failed = 0
     try:
+        if disable_shared_trace:
+            os.environ["TRACE_ENABLED"] = "false"
         for key in selected:
             check = checks[key]
             try:
@@ -99,6 +103,8 @@ def main(argv=None):
                 print(f"[PASS] {key} {check.__doc__ or check.__name__}")
     finally:
         conversation_cases.REAL = previous_mode
+        if disable_shared_trace:
+            os.environ.pop("TRACE_ENABLED", None)
         if transcript is not None:
             with transcript:
                 json.dump(conversation_cases.TRANSCRIPT, transcript, ensure_ascii=False, indent=2)

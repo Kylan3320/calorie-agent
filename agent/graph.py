@@ -32,7 +32,7 @@ from .model_controls import extract_review_sources
 from .tools.registry import TOOL_REGISTRY, CURRENT_RUNTIME, GOAL_CALCULATE_TOOL, GOAL_RESULT_TOOL
 from .tools import feedback
 from .replies import (add_recorded_portion_sources, history_messages, model_view, plan_companion_reply, progress_reply,
-                      project_messages, proposal_prompt, render, state_view, tool_facts_reply)
+                      project_messages, proposal_prompt, render, split_plan_notes, state_view, tool_facts_reply)
 from .context import select_messages, REQUEST_BUDGET, InputBudgetExceeded, ModelRequestFailed, TruncatedGeneration, StateCheckpointFailed
 from .storage import conversation, diet_goals, diet_goal_runtime, memory
 from .evidence import collect_visible_evidence
@@ -59,7 +59,7 @@ personal_memory中的明确条件适用时遵守；主题入口只在相关建�
 续改前把指定替换和须保留的餐项一起与本次明确要求及生效条件核对。有冲突而只改指定项无法满足时，说明具体冲突并询问能否扩大修改范围。过期条件不再约束新稿；无期限且只随源稿的条件，跨会话时先确认是否仍适用。
 明确临时条件可用update_user_settings的condition保存原话及范围，已有记录用于菜单时放condition_refs。明确反证且唯一关联经验时用feedback登记原话并当轮停用；用户要求忘记时用memory撤回。依据已提交结果回复实际变更。
 用户分享实际使用后的结果或评价时，直接回应并按价值标记复盘材料；这类反馈不调用设置工具，也不承诺已改原菜单或长期设置。复盘标记放在同次响应正文末尾，单独一行：<review_sources>[{"ref":"current_turn","reason":"简短说明其复盘价值"}]</review_sources>。例如用户说换一种准备方法后确实省了时间，可以直接回应并用 current_turn 标记实际结果。最多4项，可引用本轮已读记忆，日常无材料的回复省略。
-持续饮食委托用manage_diet_goal按本条明确授权创建或控制，普通菜单照常。委托首轮及改稿在后台核算，前台创建或修改成功后直接说明排队结果，无需再调用营养查询、计算或重复请求运行来完成同一委托。查委托用query_diet_goal。只问状态或请求手动检查时不展示菜单；手动检查用request_run排队。用户明确说要看计划内容才用show_latest或show_delivered并给出明确原话，工具会附上实际菜单。收到工具结果后据实说明已授权范围、运行与可取用版本、缺口或下次触发。区分停本次、停未来自动处理、暂停整个委托与关闭通知。后台计划不等于摄入，也不授权修改设置。参考可信会话事实中的委托版本。
+持续饮食委托用manage_diet_goal按本条明确授权创建或控制，普通菜单照常。委托首轮及改稿在后台核算，前台创建或修改成功后直接说明排队结果，无需再调用营养查询、计算或重复请求运行。查委托用query_diet_goal。只问状态或请求手动检查时不展示菜单；手动检查用request_run排队。用户明确说要看计划内容才用show_latest或show_delivered并给出明确原话。系统附上实际委托菜单和同轮记餐／改量回执，正文继续回答其他要求。单独查状态或控制委托时，系统生成事实回执，用户另问的理由或说明放在<plan_note>与</plan_note>之间。后台计划不等于摄入，也不授权修改设置。
 新消息明确要求记录或复用一餐时调用record_meal新增，即使同日已有相同食物、份量和餐次；历史引用只用于定位，不能据此把本次记录改成查询或回答“已经记过”。防重由系统按原消息ID和固定动作键处理，不按餐食内容去重。只有“刚才那份记上了吗”等核对旧账的请求才查询原记录，不新增摄入。
 营养、账本和执行状态取自本次工具事实；历史操作引用用于定位，摄入和目标重新查询。记餐和改量已有meal_totals即可直接回复原餐合计。
 “刚才/上一餐”明确指向last_meal；其中同名食物唯一且有效时直接用引用ID调用revise_intake，不要为重取数量/营养先query_history，工具会核对当前原行和重算原餐。“今天早餐”等未指定哪一份且存在多餐时先定位消歧，不能擅自取最近餐。
@@ -773,22 +773,22 @@ class Runtime(AgentMiddleware):
         messages = messages_from_dict(self.journal["messages"])
         direct = self.journal.get("direct_reply") if not error else None
         text = "" if direct else messages[-1].content if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls else ""
-        reply, adjustments = (direct, []) if direct else render(str(text), facts, visible_evidence=self.journal.get("visible_evidence", []))
-        terminal_notice = ""
+        evidence = self.journal.get("visible_evidence", [])
+        body, adjustments = (direct, []) if direct else render(str(text), facts, visible_evidence=evidence)
+        notice = ""
         if (not text and not direct) or error:
-            reply = progress_reply(facts)
+            body = progress_reply(facts)
             if error:
                 if terminal and error == "input_budget_exceeded":
                     histories = [fact["data"] for fact in facts if fact.get("tool") == "query_history" and fact.get("status") == "ok"]
                     if histories:
                         data = histories[-1]
-                        reply = f"{data['start_date']}至{data['end_date']}（不含尾日）共{data['count']}项，合计{data['total']['kcal']:g}千卡。完整明细超过输入范围。"
+                        body = f"{data['start_date']}至{data['end_date']}（不含尾日）共{data['count']}项，合计{data['total']['kcal']:g}千卡。完整明细超过输入范围。"
                 if terminal:
                     suffix = "本次输入超过模型可处理范围，请缩小范围后重新发送。" if error == "input_budget_exceeded" else "本次等待已到期，请重新发送。" if error == "deadline_reached" else "本轮工具调用已达上限，请缩小范围后继续。" if error == "tool_call_limit" else "本次模型处理未能完成，请重新发送。"
-                    terminal_notice = suffix + "未执行的动作已终止，已完成的部分保留。"
-                    reply += "\n" + terminal_notice
+                    notice = suffix + "未执行的动作已终止，已完成的部分保留。"
                 else:
-                    reply += "\n本轮未完成，已保留执行进度；结果仍需核对。"
+                    notice = "本轮未完成，已保留执行进度；结果仍需核对。"
         proposal = self.session.get("proposal")
         if proposal and proposal.get("response_id") != self.message["message_id"]:
             if not error or terminal:
@@ -800,36 +800,43 @@ class Runtime(AgentMiddleware):
             from .planning import candidate_presentations
             presentation = candidate_presentations(self.session, self.message["message_id"], facts=facts)
             if presentation["text"]:
-                # The selected draft (including model-supplied assumptions) is
-                # the sole public menu. Keep the raw model text in audit only.
                 if "meal_draft_candidate" in presentation["presented_candidates"]:
-                    companion = plan_companion_reply(facts, str(text), self.journal.get("visible_evidence", []), adjustments=adjustments)
-                    reply = (companion + "\n\n" if companion else "") + presentation["text"]
-                    if terminal_notice:
-                        reply += "\n" + terminal_notice
+                    body = plan_companion_reply(facts, str(text), evidence, adjustments=adjustments)
                     reason = "canonical_presentation"
                 else:
-                    reply += "\n\n" + presentation["text"]
                     reason = "candidate_presentation_added"
                 adjustments.append({"reason": reason, "candidate_ids": presentation["presented_candidates"]})
-        if proposal:
-            adjustments.append({"reason":"proposal_confirmation_added","proposal_id":proposal["proposal_id"]})
-            confirmation = proposal_prompt(proposal)
-            reply = reply.replace(confirmation, "").rstrip() + "\n" + confirmation
         goal_artifact = next((fact["data"]["artifact"] for fact in reversed(facts)
                               if fact["tool"] == "query_diet_goal" and fact["status"] == "ok" and "artifact" in fact["data"]), None)
+        goal_only = facts and all(fact["tool"] in {"query_diet_goal", "manage_diet_goal"} for fact in facts)
+        goal_receipt = ""
         if goal_artifact:
-            reply = goal_artifact["reply"]
+            if not error and not direct and "meal_draft_candidate" not in presentation["presented_candidates"]:
+                writes = [fact for fact in facts if fact["tool"] in {"record_meal", "revise_intake"} and fact["status"] in {"ok", "pending"}]
+                if writes:
+                    goal_receipt = tool_facts_reply(writes) or progress_reply(writes)
+            if not text and not error and goal_only:
+                body = ""
             adjustments.append({"reason": "diet_goal_artifact_presented", "version": goal_artifact["version"]})
-        elif facts and all(fact["tool"] in {"query_diet_goal", "manage_diet_goal"} for fact in facts):
+        elif goal_only:
             controls = [diet_goals.control_receipt(fact["data"]) for fact in facts
                         if fact["tool"] == "manage_diet_goal" and fact["status"] == "ok"]
-            if controls:
-                reply = "\n".join(controls) + ("\n" + terminal_notice if terminal_notice else "")
-                adjustments.append({"reason": "diet_goal_control_receipt"})
+            if controls and all(fact["status"] == "ok" for fact in facts):
+                goal_receipt = "\n".join(controls)
             elif not error and len(facts) == 1 and facts[0]["tool"] == "query_diet_goal" and facts[0]["status"] == "ok":
-                reply = diet_goals.status_receipt(facts[0]["data"]["goal"])
-                adjustments.append({"reason": "diet_goal_status_receipt"})
+                goal_receipt = diet_goals.status_receipt(facts[0]["data"]["goal"])
+            if goal_receipt:
+                _, notes = split_plan_notes(str(text))
+                body, adjustments = render(notes, facts, visible_evidence=evidence)
+                adjustments.append({"reason": "diet_goal_control_receipt" if controls else "diet_goal_status_receipt"})
+        confirmation = proposal_prompt(proposal) if proposal else ""
+        if proposal:
+            body = body.replace(confirmation, "").rstrip()
+            adjustments.append({"reason":"proposal_confirmation_added","proposal_id":proposal["proposal_id"]})
+        artifact_text = goal_artifact["reply"] if goal_artifact else ""
+        reply = "\n\n".join(dict.fromkeys(part for part in (
+            goal_receipt, body, presentation["text"], artifact_text, confirmation, notice
+        ) if part))
         reply = add_recorded_portion_sources(reply, facts, adjustments)
         # Keep native paired history, and save the actual delivered reply for future references.
         fact_scope = "business" if any(f["tool"] != "query_knowledge" for f in facts) else ("knowledge" if facts else "dialogue")
@@ -867,7 +874,7 @@ class Runtime(AgentMiddleware):
             "guard_result": {"checked_scope": "committed_tool_facts_and_batch_completion" if direct else "structured_tools_and_source_references", "fallback_used": bool(error or (not text and not direct)), "violations": adjustments},
             "latency_events": [e for e in (EVENTS.get() or []) if e.get("message_id")==self.message["message_id"]],
             "errors": [error] if error else [], "latency_ms": int((time.monotonic()-self.started)*1000), "trace_id": "native_"+uuid.uuid4().hex[:12]}
-        if goal_artifact and goal_artifact["latest"]:
+        if artifact_text and goal_artifact["latest"]:
             result["goal_delivery_ref"] = {"id": goal_artifact["id"], "version": goal_artifact["version"]}
         if not error or terminal:
             self.journal["result"] = {k:v for k,v in result.items() if k not in {"model_requests", "native_calls", "tool_results"}}

@@ -93,6 +93,10 @@ def DG01():
     status = _send(store, "只看状态", "status", [call("query_diet_goal", {}), _reply(goal["next_step"])], chat="lookup")
     assert "goal_delivery_ref" not in status and not diet_goals.load(store, "user").get("delivered")
     assert "最近生成的计划为第 1 版" in status["reply"] and "已交付" not in status["reply"] and "采用" not in status["reply"]
+    explanation = _send(store, "只看状态，上次为什么这样安排？", "status-reason", [
+        call("query_diet_goal", {}), _reply("<plan_note>可先用现有食材备餐。</plan_note>")], chat="lookup")
+    assert goal["last_change"] in explanation["reply"] and "可先用现有食材备餐。" in explanation["reply"]
+    assert "<plan_note>" not in explanation["reply"] and "goal_delivery_ref" not in explanation
     denied = _send(store, "查看这个委托", "other-user", [call("query_diet_goal", {"goal_id": ident}), _reply()], user="another")
     assert denied["tool_results"][0]["data"]["reason"] == "goal_not_found"
     show = _send(store, "看最新菜单", "show", [call("query_diet_goal", {"operation": "show_latest", "view_quote": "看最新菜单"}), _reply()], delivered=False)
@@ -100,7 +104,16 @@ def DG01():
     assert f"{days[0]} 至 {days[-1]}（每天）" in show["reply"] and show["reply"].count("米饭，每份") == 1
     assert "适用目标" not in show["reply"] and "采用" not in show["reply"]
     assert not diet_goals.load(store, "user").get("delivered")
-    mark_reply_presented(store, "user", "first", show)
+    mixed = _send(store, "记录100克米饭，顺便给我看委托菜单，解释调整依据。", "mixed-goal", [
+        call("record_meal", {"items": [{"food_query": "米饭", "grams": 100}]}, "record"),
+        call("query_diet_goal", {"operation": "show_latest", "view_quote": "给我看委托菜单"}, "show"),
+        _reply("优先使用现有食材，减少采购。")], delivered=False)
+    assert mixed["business_status"] == "committed" and len(store.intake) == 1
+    assert "已记录" in mixed["reply"] and "116千卡" in mixed["reply"].split("\n\n", 1)[0]
+    assert "优先使用现有食材，减少采购。" in mixed["reply"] and "当日委托安排" in mixed["reply"]
+    assert mixed["goal_delivery_ref"] == {"id": ident, "version": 1}
+    assert not diet_goals.load(store, "user").get("delivered")
+    mark_reply_presented(store, "user", "first", mixed)
     assert diet_goals.load(store, "user")["delivered"] == 1
     status = _send(store, "只看状态", "delivered-status", [call("query_diet_goal", {}), _reply()], chat="lookup")
     assert "已交付第 1 版" in status["reply"] and "采用" not in status["reply"]
@@ -157,7 +170,7 @@ def DG01():
     assert _tick(store, progress)[0]["status"] == "idle"
     _control(store, "end", "end", goal=revised)
     assert _tick(store, progress)[0]["status"] == "idle"
-    assert not store.intake and not store.load_document("user_settings", "user")
+    assert len(store.intake) == 1 and not store.load_document("user_settings", "user")
 
 
 def DG02():

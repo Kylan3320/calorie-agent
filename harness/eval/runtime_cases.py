@@ -188,16 +188,24 @@ def RG01():
             else: raise AssertionError(f"invalid selection accepted: {args}")
         assert not executed
         assert invoke(["--all"]) == 0 and executed == ["E05", "P01"]
+    import os
     import tempfile
     from pathlib import Path
     from harness.eval import conversation_cases
     previous_mode = conversation_cases.REAL
+    trace_settings = []
     def real_case():
         assert conversation_cases.REAL
+        trace_settings.append((os.getenv("TRACE_ENABLED"), os.getenv("TRACE_PATH")))
         executed.append("real")
         conversation_cases.TRANSCRIPT.append({"case": "E05"})
     with tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory)), \
-            patch.object(runner, "load_checks", return_value={"E05": real_case}):
+            patch.object(runner, "load_checks", return_value={"E05": real_case}), patch.dict(os.environ):
+        os.environ.pop("TRACE_ENABLED", None)
+        os.environ.pop("TRACE_PATH", None)
+        with patch.object(runner, "load_checks", return_value={"E05": lambda: trace_settings.append((os.getenv("TRACE_ENABLED"), os.getenv("TRACE_PATH")))}):
+            assert invoke(["--case", "E05"]) == 0
+        assert trace_settings.pop() == ("false", None) and "TRACE_ENABLED" not in os.environ
         legacy = Path(directory) / "reports/conversation-real.json"
         legacy.parent.mkdir()
         legacy.write_text("original evidence", encoding="utf-8")
@@ -206,8 +214,12 @@ def RG01():
         outputs = list(legacy.parent.glob("conversation-real-*.json"))
         assert len(outputs) == 2 and legacy.read_text(encoding="utf-8") == "original evidence"
         assert all(json.loads(path.read_text(encoding="utf-8")) == [{"case": "E05"}] for path in outputs)
+        assert trace_settings == [("false", None)] * 2 and "TRACE_ENABLED" not in os.environ
         explicit = Path(directory) / "chosen.json"
-        assert invoke(["--real-model", "--case", "E05", "--output", str(explicit)]) == 0
+        trace_path = str(Path(directory) / "chosen-trace.jsonl")
+        with patch.dict(os.environ, {"TRACE_PATH": trace_path}):
+            assert invoke(["--real-model", "--case", "E05", "--output", str(explicit)]) == 0
+        assert trace_settings[-1] == (None, trace_path)
         before = list(executed)
         for path in (explicit, legacy):
             try: invoke(["--real-model", "--case", "E05", "--output", str(path)])
@@ -218,8 +230,10 @@ def RG01():
             real_case()
             raise AssertionError("record this failure")
         failed = Path(directory) / "failed.json"
-        with patch.object(runner, "load_checks", return_value={"E05": failed_case}):
+        with patch.object(runner, "load_checks", return_value={"E05": failed_case}), \
+                patch.dict(os.environ, {"TRACE_ENABLED": "true"}):
             assert invoke(["--real-model", "--case", "E05", "--output", str(failed)]) == 1
+        assert trace_settings[-1] == ("true", None)
         assert json.loads(failed.read_text(encoding="utf-8")) == [{"case": "E05"}]
         assert conversation_cases.REAL == previous_mode
     calls = []

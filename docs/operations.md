@@ -27,7 +27,7 @@ $env:CONSOLE_USER_ID = "本人飞书open_id"
 .\.venv\Scripts\python.exe harness/eval/runner.py --case U01
 ```
 
-Linux 或 macOS 使用 `.venv/bin/python`。`--case` 接受逗号分隔的 ID，`--all` 适用范围见 [AGENTS.md](../AGENTS.md#验证与交付)。`--real-model` 需显式选择 E 类场景，记录默认按 UTC 时间单独保存，`--output PATH` 须为新文件。
+Linux 或 macOS 使用 `.venv/bin/python`。`--case` 接受逗号分隔的 ID，`--all` 适用范围见 [AGENTS.md](../AGENTS.md#验证与交付)。`--real-model` 需显式选择 E 类场景，记录默认按 UTC 时间单独保存，`--output PATH` 须为新文件。共享轨迹默认关闭，设置 `TRACE_PATH` 或 `TRACE_ENABLED=true` 可启用。
 
 ## 接入飞书
 
@@ -85,9 +85,9 @@ $releasePackage = 'C:\path\to\approved-candidate.zip'
 
 按实际改动更新受影响函数：受理 Web 函数 `YOUR_INGRESS_FUNCTION`、消息 Event 函数 `YOUR_MESSAGE_FUNCTION`、归档 Event 函数 `YOUR_ARCHIVE_FUNCTION`。状态兼容的更新沿用以下步骤：
 
-1. 用 `python deploy/production_release.py freeze --package $releasePackage` 读取待上传包的 BUILD_ID 和 SHA256，与发布记录核对。检查受影响函数，将原包及私有配置备份到仓库外。
+1. 从已批准的发布证据取得原包 SHA256，赋给 `$approvedSha256`。检查受影响函数，将原包及私有配置备份到仓库外。
 2. 用 `python deploy/production_release.py maintenance-on --function YOUR_INGRESS_FUNCTION` 暂停新受理，核对未完收件及未知提交，保留原任务。
-3. 向受影响函数显式上传同一冻结包，例如 `python deploy/api_deploy.py --function YOUR_MESSAGE_FUNCTION $releasePackage`。保留角色、前缀、环境、触发及所需 Layer。消息 handler 为 app.message_handler，归档为 app.maintenance_handler。每个已受理更新仅轮询至 Active。
+3. 向受影响函数显式上传同一冻结包，例如 `python deploy/api_deploy.py --function YOUR_MESSAGE_FUNCTION --sha256 $approvedSha256 $releasePackage`。上传入口校验实际提交的 ZIP 字节。保留角色、前缀、环境、触发及所需 Layer。消息 handler 为 app.message_handler，归档为 app.maintenance_handler。每个已受理更新仅轮询至 Active。
 4. 每个更新的函数下载一次实际代码，记录包身份和配置核对结果。比较 ZIP 的 SHA256。HTTP 平台重封装导致哈希不同则比较同一份下载文件的 BUILD_ID 和全部成员内容。仅在代码版本变化或存在具体疑点时复查。
 5. 核对通过后用 `python deploy/production_release.py maintenance-off --function YOUR_INGRESS_FUNCTION` 恢复受理，确认 health 的 BUILD_ID 和回调鉴权。回退时先暂停受理，再恢复并核对原包和配置，最后恢复受理。
 

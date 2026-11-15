@@ -289,13 +289,17 @@ def proposal_prompt(proposal):
             reuse=args["reuse"];action="记录"+str(reuse.get("ratio",1))+"份"+("常用餐“"+reuse["favorite"]+"”" if reuse.get("favorite") else "所选历史餐")
     return "要"+action+"吗？回复确认即可。"
 
+def split_plan_notes(text):
+    parts = re.split(r"<plan_note>(.*?)</plan_note>", text, flags=re.S)
+    return "".join(parts[::2]), "\n".join(parts[1::2])
+
+
 def plan_companion_reply(facts, model_text, visible_evidence, *, adjustments=None):
     """Retain other requested results beside the sole canonical menu."""
     parts = []
-    notes = re.findall(r"<plan_note>(.*?)</plan_note>", model_text, re.S)
-    model_text = re.sub(r"<plan_note>.*?</plan_note>", "", model_text, flags=re.S)
+    model_text, notes = split_plan_notes(model_text)
     if notes:
-        clauses = re.findall(r"[^。！？!?\n]+[。！？!?\n]?", "\n".join(notes))
+        clauses = re.findall(r"[^。！？!?\n]+[。！？!?\n]?", notes)
         # This channel carries qualitative rationale only. All quantitative
         # menu content comes from the selected calculation's renderer.
         quantitative = re.compile(r"\d|[零〇一二两三四五六七八九十百千万半]+\s*(?:千卡|卡路里|克|毫克|公斤|斤|个|只|份|成|倍|%|％)|百分之")

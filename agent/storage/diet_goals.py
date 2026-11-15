@@ -107,6 +107,8 @@ def status_receipt(goal):
         lines.append(f"最近生成的计划为第 {latest} 版。")
     if delivered := goal["delivered"]:
         lines.append(f"已交付第 {delivered} 版。")
+    if goal["last_change"]:
+        lines.append("最近变化：" + goal["last_change"])
     if goal["missing_dates"]:
         lines.append("尚未完成：" + "、".join(goal["missing_dates"]) + "。")
     if goal["waiting_for"]:

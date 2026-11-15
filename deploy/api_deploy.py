@@ -75,10 +75,14 @@ def tc3_request(action: str, payload: dict, version: str = "2018-04-16") -> dict
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Upload the SCF function zip")
     parser.add_argument("--function", required=True, help="SCF function affected by this change")
+    parser.add_argument("--sha256", required=True, help="SHA256 recorded for the approved ZIP")
     parser.add_argument("zip", type=Path, help="verified ZIP to upload")
     args = parser.parse_args(argv)
     zip_path = args.zip.expanduser().resolve()
-    zip_b64 = base64.b64encode(zip_path.read_bytes()).decode()
+    package = zip_path.read_bytes()
+    if hashlib.sha256(package).hexdigest() != args.sha256.strip().lower():
+        parser.error(f"ZIP SHA256 does not match the approved package: {zip_path}")
+    zip_b64 = base64.b64encode(package).decode()
     target = {"FunctionName": args.function, "Namespace": NAMESPACE}
     tc3_request("UpdateFunctionCode", {**target, "CodeSource": "ZipFile", "Code": {"ZipFile": zip_b64}})
     status = tc3_request("GetFunction", target)
