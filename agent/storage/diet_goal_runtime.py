@@ -55,6 +55,8 @@ class GoalRun:
                          for item in plan["calculation"]["items"]]
                    for day, plan in self.baseline.items()}
         return {"spec": spec, "day": self.run["day"], "events": self.run["events"],
+                "recheck_dates": sorted(day for day in self.goal.get("recheck_versions", {})
+                                        if max(self.run["day"], spec["starts"]) <= day <= spec["ends"]),
                 "current_plan": current, "waiting_for": self.goal.get("waiting_for"),
                 "previous_next_step": self.goal.get("next_step") if self.goal.get("missing_dates") else None,
                 "notify_allowed": self.goal["notify"]}
@@ -91,6 +93,8 @@ class GoalRun:
             consumed = {diet_goals.MEALS[row["meal_type"]] for row in self.store.intake_items(self.user, day, following)
                         if row["meal_type"] in diet_goals.MEALS}
             locked = consumed | {diet_goals.MEALS[item["meal"]] for item in spec.get("locks", []) if item["date"] == day}
+            if spec.get("meals"):
+                locked &= {diet_goals.MEALS[meal] for meal in spec["meals"]}
             previous = self.baseline.get(day, {})
             prior = [deepcopy(item) for item in previous.get("items", []) if item["group"] in locked]
             for item in prior:

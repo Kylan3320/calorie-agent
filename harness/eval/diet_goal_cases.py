@@ -118,7 +118,8 @@ def DG01():
     status = _send(store, "只看状态", "delivered-status", [call("query_diet_goal", {}), _reply()], chat="lookup")
     assert "已交付第 1 版" in status["reply"] and "采用" not in status["reply"]
 
-    _control(store, "revise", "revise", goal=goal, spec={"constraints": ["只用微波炉"], "locks": [{"date": days[0], "meal": "lunch"}]})
+    _control(store, "revise", "revise", goal=goal, change_dates=days[:2],
+             spec={"constraints": ["只用微波炉"], "locks": [{"date": days[0], "meal": "lunch"}]})
     stale_show = _send(store, "看修订后的菜单", "stale-show", [call("query_diet_goal", {"operation": "show_latest", "view_quote": "看修订后的菜单"}), _reply()])
     assert stale_show["tool_results"][0]["data"]["reason"] == "revised_plan_not_ready"
     assert _tick(store, progress)[0]["status"] == "running"
@@ -291,5 +292,41 @@ def E09():
     assert not store.intake and store.load_document("user_settings", "user") == settings
 
 
+def DG03():
+    """Publication rejects extra meals and only carries forward plans still in scope."""
+    store = _fixture()
+    progress = Journal(Objects(), "goal-publication/sync/")
+    days = [_day(1), _day(2)]
+    _control(store, "start", "start", spec={"objective": "只安排午餐", "starts": days[0], "ends": days[1], "meals": ["lunch"]})
+    _tick(store, progress)
+    extra_meal = call("calculate_meal", {"days": [{"date": days[0], "items": [
+        {"food_query": "米饭", "grams": 100, "group": meal} for meal in ("早餐", "午餐")]}]})
+    assert _tick(store, progress, NativeFake(responses=[extra_meal, _submit]))[0]["status"] == "failed"
+    goal = diet_goals.load(store, "user")
+    assert goal["run"]["diagnostic"] == "plan_outside_authorized_scope" and not goal.get("latest")
+
+    _control(store, "request_run", "first-run", goal=goal)
+    _tick(store, progress)
+    assert _tick(store, progress, NativeFake(responses=[_plan(days, "鸡胸肉"), _submit]))[0]["latest"] == 1
+    goal = diet_goals.load(store, "user")
+    _control(store, "revise", "revise-all", goal=goal, spec={"constraints": ["不吃鸡肉"]})
+    _tick(store, progress)
+    unchanged = call("submit_goal_result", {"outcome": "unchanged", "reason": "原计划不变"})
+    result, _ = _tick(store, progress, NativeFake(responses=[unchanged]))
+    assert not result["changed"] and result["latest"] == 1
+    goal = diet_goals.load(store, "user")
+    assert goal["missing_dates"] == days
+    assert diet_goals._show_artifact(store, "user", goal, True)["data"]["reason"] == "revised_plan_not_ready"
+
+    _control(store, "request_run", "second-run", goal=goal)
+    _tick(store, progress)
+    assert _tick(store, progress, NativeFake(responses=[_plan(days[:1]), _submit]))[0]["latest"] == 2
+    goal = diet_goals.load(store, "user")
+    artifact = diet_goals._artifact(store, "user", goal, 2)
+    assert list(artifact["plans"]) == days[:1] and artifact["missing_dates"] == days[1:]
+    assert "鸡胸肉" not in diet_goals.render(artifact)
+    assert diet_goals.baseline(store, "user", goal)[days[1]]["calculation"]["total"]["kcal"] == 133
+
+
 E09.real_only = True
-CHECKS = {"DG01": DG01, "DG02": DG02}
+CHECKS = {"DG01": DG01, "DG02": DG02, "DG03": DG03}

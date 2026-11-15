@@ -68,6 +68,15 @@ def _artifact(store, user, goal, version):
     return store.load_document("diet_goal_plan", user, f"{goal['id']}:{version}") if version else {}
 
 
+def _recheck_versions(goal, artifact):
+    if "recheck_versions" in goal:
+        return dict(goal["recheck_versions"])
+    # A pre-upgrade revision mismatch has no evidence of which dates changed.
+    if artifact and artifact["revision"] != goal["revision"]:
+        return {day: artifact["version"] for day in artifact["plans"]}
+    return {}
+
+
 def _show_artifact(store, user, goal, latest):
     version = goal.get("latest") if latest else goal.get("delivered")
     artifact = _artifact(store, user, goal, version)
@@ -213,6 +222,18 @@ def manage(rt, params):
         if missing and goal["status"] != "preparing":
             return {"status": "pending", "data": {"reason": "scope_incomplete", "missing": missing, "goal": _status(goal)}}
         if operation == "revise":
+            old_spec = goal["spec"]
+            artifact = _artifact(store, user, goal, goal.get("latest"))
+            recheck = _recheck_versions(goal, artifact)
+            planning_fields = ("objective", "done_when", "constraints", "preferences", "meals", "external_portions")
+            global_change = any(old_spec.get(key) != spec.get(key) for key in planning_fields)
+            lock_changes = {(item["date"], item["meal"]) for item in old_spec.get("locks", [])} ^ {
+                (item["date"], item["meal"]) for item in spec.get("locks", [])}
+            affected = set(changed_dates) | {day for day, _ in lock_changes}
+            for day in artifact.get("plans", {}):
+                if day >= rt.day and (global_change or day in affected):
+                    recheck[day] = artifact["version"]
+            goal["recheck_versions"] = recheck
             goal["revision"] += 1
             _stop(goal)
         goal.update(spec=spec, notify=notify, last_change=params["user_quote"])
@@ -375,7 +396,15 @@ def valid(store, user, goal, run, config, now, *, check_facts=True):
 
 
 def baseline(store, user, goal):
-    return _artifact(store, user, goal, goal.get("latest")).get("plans", {})
+    artifact = _artifact(store, user, goal, goal.get("latest"))
+    plans = dict(artifact.get("plans", {}))
+    recheck = _recheck_versions(goal, artifact)
+    versions = {version: _artifact(store, user, goal, version)["plans"]
+                for version in set(recheck.values()) if version != artifact.get("version")}
+    for day, version in recheck.items():
+        if version in versions:
+            plans[day] = versions[version][day]
+    return plans
 
 
 def render(artifact, *, locks=()):
@@ -448,19 +477,32 @@ def publish(store, user, ident, run_id, candidate, config, now):
             run.update(status="terminated", diagnostic="scope_sources_or_control_changed", finished_at=now)
             save(store, user, goal)
             return {"status": "obsolete"}
-        if candidate.get("status") == "failed":
-            run.update(status="failed", diagnostic=candidate["diagnostic"], finished_at=now, usage=candidate.get("usage", {}))
+        proposed = candidate.get("plans", {})
+        spec = goal["spec"]
+        first, last = spec["starts"], spec["ends"]
+        allowed = {MEALS[meal] for meal in spec.get("meals", [])}
+
+        def meals_authorized(plan):
+            return not allowed or all(item["group"] in allowed for item in plan["calculation"]["items"])
+
+        outside_scope = any(not max(first, run["day"]) <= day <= last or not meals_authorized(plan)
+                            for day, plan in proposed.items())
+        if candidate.get("status") == "failed" or outside_scope:
+            diagnostic = "plan_outside_authorized_scope" if outside_scope else candidate["diagnostic"]
+            run.update(status="failed", diagnostic=diagnostic, finished_at=now, usage=candidate.get("usage", {}))
             goal["last_check"] = now
             save(store, user, goal)
             return {"status": "failed"}
         old = _artifact(store, user, goal, goal.get("latest"))
-        first, last = (goal["spec"][key] for key in ("starts", "ends"))
-        plans = {day: draft for day, draft in old.get("plans", {}).items() if first <= day <= last}
-        plans.update(candidate["plans"])
-        missing = _missing_dates(goal, plans, run["day"])
+        recheck = {day: version for day, version in _recheck_versions(goal, old).items() if day not in proposed}
+        plans = {day: draft for day, draft in old.get("plans", {}).items()
+                 if first <= day <= last and day not in recheck and meals_authorized(draft)}
+        plans.update(proposed)
+        missing = sorted(set(_missing_dates(goal, plans, run["day"])) |
+                         {day for day in recheck if max(first, run["day"]) <= day <= last})
         waiting = candidate.get("waiting_for", "")
         next_step = (candidate.get("next_step") or "核对尚未完成的日期和餐次") if missing else ""
-        preparation = candidate.get("preparation") or old.get("preparation", "")
+        preparation = candidate.get("preparation") or (old.get("preparation", "") if old.get("revision") == goal["revision"] else "")
         signature = _hash([_plan_digest(plans), preparation])
         changed = bool(plans and (signature != old.get("signature") or goal["revision"] != old.get("revision")))
         new_question = bool(waiting and waiting != goal.get("waiting_for"))
@@ -478,14 +520,14 @@ def publish(store, user, ident, run_id, candidate, config, now):
             goal["last_change"] = candidate["reason"]
         scheduled = goal["spec"].get("scheduled_delivery") and any(event["kind"] == "time" for event in run["events"].values())
         if candidate.get("notify") and goal["notify"] and (changed or new_question or scheduled):
-            version = artifact.get("version") if changed or scheduled else None
+            version = artifact.get("version") if plans and (changed or scheduled) else None
             text = render(artifact, locks=goal["spec"].get("locks", [])) if version else ("饮食委托待你决定 " + waiting if waiting else "")
             if text:
                 goal["delivery"] = {"id": stable_uuid(f"goal-notice:{ident}:{run_id}"), "status": "pending",
                                     "version": version, "revision": goal["revision"], "run_id": run_id,
                                     "destination": goal["spec"]["destination"], "text": text,
                                     "stamp": run["stamp"], "input_revision": run["input_revision"]}
-        goal.update(waiting_for=waiting, next_step=next_step, last_check=now, missing_dates=missing)
+        goal.update(waiting_for=waiting, next_step=next_step, last_check=now, missing_dates=missing, recheck_versions=recheck)
         run.update(status="waiting" if waiting else "complete", finished_at=now, usage=candidate.get("usage", {}))
         if candidate.get("diagnostic"):
             run["diagnostic"] = candidate["diagnostic"]
