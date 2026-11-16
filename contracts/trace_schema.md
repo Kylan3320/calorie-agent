@@ -52,6 +52,6 @@
 - v2 `cos_catchup.format=2` 的数据根随选定提交读取，v2 的 `checkpoint_revision/read_from_revision/read_to_revision` 为所选根提交；v1 仍表示原检查点和尾段。判断格式以提交的 `schema=calorie.cos.v1/v2` 为准，不能拿 v1 的 128 间隔推导 v2 成本。`cos_get.bytes`、`cos_list.marker/keys`、`cos_create.bytes` 和 `cos_delete` 计入实际传输；增长验收额外保留完整请求／字节／枚举键统计，包括索引页和冷根。
 - 通用任务通过 task／cycle／worker／attempt 和委托 revision 关联。运行时 `usage.decisions/tools/web` 来自计数器，源引用独立保存；候选摘要与固定键用于幂等。能力令牌、预签名 URL、传输凭据及其哈希不进 trace 或模型上下文。
 - 终态瘦身返回 `audit_status=unavailable`、`audit_reason=retention_expired`，`tool_results/native_calls/model_requests/tool_events` 为空；这表示过程已到保留期，不表示原动作未发生。原终态、最终正文、交付 UUID 及业务映射保留。CLI／DSH／控制台沿结果字段显示，不制造旧工具卡片或重新运行。
-- 代切换／删除证据记录源／目标前缀、三域冻结版本、唯一决议、暂停起止、清单摘要及恢复进度；真实 COS 403 与注入传输的拒绝分开。实现候选和外部验收缺口见 [阶段 C 交付](../reports/STAGE_C_DELIVERY.md)。
+- 代切换／删除证据记录源／目标前缀、三域冻结版本、唯一决议、暂停起止、清单摘要及恢复进度；真实 COS 403 与注入传输的拒绝分开。实现候选和外部验收缺口见 [阶段 C 交付](../docs/VERIFICATION.md)。
 
 `worker_compute` 记录 task／worker／attempt 身份、状态和耗时。`task_compute_result` 记录计算角色、候选状态和工具名称／状态／原因码。用量保存在运行时生成的候选中。计算 trace 不打印输入、能力令牌、签名或完整模型交换。

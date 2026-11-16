@@ -578,9 +578,8 @@ def MQ15():
 def _r7_fixture():
     """Nutrition and original suggestions frozen from the R7 delivered receipt.
 
-    reports/menu-candidate-evidence-r5-20261104.json:
-    candidate.requests[4].receipt_state.result.{native_calls[2],tool_results[2]}.
-    Only food facts are replayed; no deployment or user credentials are read.
+    Food facts and menu inputs are stored below as a self-contained fixture.
+    This check reads neither historical receipts nor deployment records.
     """
     s = fixture()
     rows = [food("米饭", 116, 25.9, 2.6, .3), food("卤鸭腿", 215, 9.3, 28.5, 7),

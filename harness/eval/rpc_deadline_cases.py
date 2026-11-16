@@ -259,11 +259,20 @@ def RP07():
     """SCF保留TC3签名及Event载荷，真实保活继承预算，独立请求不超过2秒。"""
     calls = []
     credentials = {"X-Scf-Secret-Id": "offline-id", "X-Scf-Secret-Key": "offline-secret", "X-Scf-Session-Token": "offline-session"}
+    with patch.dict(os.environ, {"CALORIE_MESSAGE_FUNCTION": ""}), patch.object(scf_dispatch, "_CLIENT") as unconfigured:
+        try:
+            scf_dispatch.dispatch_event({"message_id": "same-event"}, credentials)
+        except RuntimeError as exc:
+            assert "CALORIE_MESSAGE_FUNCTION" in str(exc)
+        else:
+            raise AssertionError("SCF dispatch accepted a missing worker name")
+        unconfigured.post.assert_not_called()
     def route(url, **kwargs):
         calls.append((url, kwargs, model_transport.remaining()))
         assert kwargs["timeout"] <= 2 and model_transport.remaining() <= 2
         return client.post(f"http://127.0.0.1:{server.server_port}/invoke", **kwargs)
-    with local_server(lambda handler, number, released: block(handler, released, "keepalive")) as (server, seen, _), \
+    with patch.dict(os.environ, {"CALORIE_MESSAGE_FUNCTION": "offline-worker"}), \
+            local_server(lambda handler, number, released: block(handler, released, "keepalive")) as (server, seen, _), \
             model_transport.create_client() as client, patch.object(scf_dispatch, "_CLIENT", SimpleNamespace(post=route)):
         exercise(lambda: scf_dispatch.dispatch_event({"message_id": "same-event"}, credentials),
                  worker=True, expected=(TimeoutError, httpx.TimeoutException))
@@ -273,9 +282,11 @@ def RP07():
         assert kwargs["headers"]["Authorization"].startswith("TC3-HMAC-SHA256 Credential=offline-id/")
         assert kwargs["headers"]["X-TC-Token"] == "offline-session"
         body = json.loads(kwargs["content"])
+        assert body["FunctionName"] == "offline-worker"
         assert body["InvocationType"] == "Event" and json.loads(body["ClientContext"])["message_id"] == "same-event"
         return httpx.Response(200, json={"Response": {"RequestId": "offline-request", "Result": {"InvokeResult": 0}}}, request=httpx.Request("POST", url))
-    with patch.object(scf_dispatch, "_CLIENT", SimpleNamespace(post=accepted)):
+    with patch.dict(os.environ, {"CALORIE_MESSAGE_FUNCTION": "offline-worker"}), \
+            patch.object(scf_dispatch, "_CLIENT", SimpleNamespace(post=accepted)):
         assert scf_dispatch.dispatch_event({"message_id": "same-event"}, credentials) == "offline-request"
 
 

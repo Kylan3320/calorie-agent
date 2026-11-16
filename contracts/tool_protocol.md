@@ -1,10 +1,10 @@
 # Store 与原生工具契约
 
-本文描述仓库接口。阶段 C 的通用来源、Router／Worker、分页索引和回收候选见下文，产品要求见[统一规格第10节](../PERSONAL_ASSISTANT_SPEC.md#10-下一阶段-c通用事务与可靠运行)及[COS 规格](../LATENCY_OPTIMIZATION_SPEC.md)。验收与部署状态见[交付记录](../reports/STAGE_C_DELIVERY.md)。
+本文描述仓库接口。阶段 C 的通用来源、Router／Worker、分页索引和回收候选见下文，产品要求见[统一规格第10节](../PERSONAL_ASSISTANT_SPEC.md#10-下一阶段-c通用事务与可靠运行)及[COS 规格](../LATENCY_OPTIMIZATION_SPEC.md)。验收与部署状态见[交付记录](../docs/VERIFICATION.md)。
 
 回复、整轮完成和恢复规则见[交流体验规格第 2 节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。字段的观测口径见 [Trace 契约](trace_schema.md)。
 
-控制权、份量补证、记忆与持续委托的产品行为见[统一规格](../PERSONAL_ASSISTANT_SPEC.md)。生产能力以[交付记录](../reports/LATENCY_DELIVERY.md)为准。
+控制权、份量补证、记忆与持续委托的产品行为见[统一规格](../PERSONAL_ASSISTANT_SPEC.md)。生产能力以实际部署证据为准，验证范围见[交付与验证摘要](../docs/VERIFICATION.md)。
 
 ## 工具注册与执行
 
@@ -101,7 +101,7 @@
 
 ## 阶段 C 候选接口（未部署）
 
-实现及验收状态见 [阶段 C 交付](../reports/STAGE_C_DELIVERY.md)。以下是本分支代码协议；不能据此认定正式 COS 已切代。
+实现及验收状态见 [阶段 C 交付](../docs/VERIFICATION.md)。以下是本分支代码协议；不能据此认定正式 COS 已切代。
 
 - 主循环新增 `query_sources`（独立通用 Search／Fetch、已读引用和当前用户文本）、`calculate_values`（有来源的 Decimal 四则运算／日期天数差）、`manage_task`、`query_task`、`delegate_task`。工具注册、schema 和预设共用原注册表。Worker／Router 计算上下文另提供 `submit_task_result`，不开放递归委派或业务写工具。
 - 通用委托与饮食委托分别最多一个。`manage_task` 的授权原话须出现在本条消息，修改／控制绑定当前 revision；时间、反馈触发、单次停止、指定 Worker 停止、暂停、未来触发开关及通知开关分开。`query_task.status` 只查询；`read_artifact` 另须当前查看原话，实际交付才确认 delivered。成果采用 `items/evidence/unresolved/sources`，不使用餐次 schema。

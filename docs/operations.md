@@ -43,7 +43,7 @@ Linux 或 macOS 使用 `.venv/bin/python`。`--case` 接受逗号分隔的 ID，
 - 表：BITABLE_FOOD_TABLE_ID、BITABLE_INTAKE_TABLE_ID、BITABLE_STANDARD_TABLE_ID、BITABLE_PENDING_TABLE_ID、BITABLE_USAGE_TABLE_ID、BITABLE_KNOWLEDGE_TABLE_ID；可选 BITABLE_ALIASES_TABLE_ID、USER_ID_ALIASES。
 - 模型与数据源：DEEPSEEK_API_KEY、BOOHEE_API_KEY；LightRAG 使用 SILICONFLOW_API_KEY。
 - 生产COS：COS_BUCKET、COS_PREFIX、COS_REGION（上海）；SCF运行角色注入临时凭据，按每次请求／事件刷新。
-- 受理与worker：CALORIE_MESSAGE_FUNCTION。CLI／DSH及定时提醒HTTP受理使用 CALORIE_SERVICE_URL、CALORIE_SERVICE_TOKEN；本地本人身份 CLI_USER_ID／CONSOLE_USER_ID。候选CAM认证入口配置 CALORIE_SERVICE_AUTH=cam 和 CALORIE_CLOUD_UIN，内部服务令牌独立传输；正式现有入口使用Bearer。令牌仅配置在私有环境，不能写入包。
+- 受理与 worker：在受理函数的环境中设置 CALORIE_MESSAGE_FUNCTION 为消息处理函数的名称。CLI／DSH及定时提醒HTTP受理使用 CALORIE_SERVICE_URL、CALORIE_SERVICE_TOKEN；本地本人身份 CLI_USER_ID／CONSOLE_USER_ID。候选CAM认证入口配置 CALORIE_SERVICE_AUTH=cam 和 CALORIE_CLOUD_UIN，内部服务令牌独立传输；正式现有入口使用Bearer。令牌仅配置在私有环境，不能写入包。
 - 轨迹：可设置 TRACE_PATH。
 
 PRESET、KNOWLEDGE_RETRIEVER 优先于 YAML；model、timezone_offset_hours 优先使用 YAML，环境变量仅作缺省值。
@@ -67,31 +67,33 @@ python3.10 deploy/check_package.py --package /path/to/candidate.zip --layer /pat
 
 部署凭据位于 `%USERPROFILE%\.config\calorie-agent\tencentcloud-credentials.csv`，列为 `SecretId`、`SecretKey`，仅本机用户和 SYSTEM 可读。密钥不得回显或写入仓库、报告和部署包。
 
-PowerShell 中在同一次调用内加载凭据和执行 API 命令。临时凭据另设 `TENCENTCLOUD_SESSION_TOKEN`，`SCF_REGION` 默认 `ap-shanghai`。以下示例查询消息函数。
+PowerShell 中在同一次调用内加载凭据和执行 API 命令。临时凭据另设 `TENCENTCLOUD_SESSION_TOKEN`，`SCF_REGION` 默认 `ap-shanghai`。以下示例查询消息函数。将变量中的占位名称替换为本地部署配置中的实际函数名称。
 
 ```powershell
 $deployCredential = Import-Csv -LiteralPath (Join-Path $env:USERPROFILE '.config\calorie-agent\tencentcloud-credentials.csv')
 $env:TENCENTCLOUD_SECRET_ID = $deployCredential.SecretId
 $env:TENCENTCLOUD_SECRET_KEY = $deployCredential.SecretKey
 Remove-Variable deployCredential
-python deploy/production_release.py inspect --function YOUR_MESSAGE_FUNCTION
+$messageFunction = 'YOUR_MESSAGE_FUNCTION'
+python deploy/production_release.py inspect --function $messageFunction
 ```
 
-部署时，将 `$releasePackage` 指向已验收且获准上传的 ZIP。
+部署时，将 `$releasePackage` 指向已验收且获准上传的 ZIP，并设置受理函数的名称。
 
 ```powershell
 $releasePackage = 'C:\path\to\approved-candidate.zip'
+$ingressFunction = 'YOUR_INGRESS_FUNCTION'
 ```
 
-按实际改动更新受影响函数：受理 Web 函数 `YOUR_INGRESS_FUNCTION`、消息 Event 函数 `YOUR_MESSAGE_FUNCTION`、归档 Event 函数 `YOUR_ARCHIVE_FUNCTION`。状态兼容的更新沿用以下步骤：
+按实际改动更新受影响函数：受理 Web 函数、消息 Event 函数和归档 Event 函数。状态兼容的更新沿用以下步骤：
 
 1. 用 `python deploy/production_release.py freeze --package $releasePackage` 读取待上传包的 BUILD_ID 和 SHA256，与发布记录核对。检查受影响函数，将原包及私有配置备份到仓库外。
-2. 用 `python deploy/production_release.py maintenance-on --function YOUR_INGRESS_FUNCTION` 暂停新受理，核对未完收件及未知提交，保留原任务。
-3. 向受影响函数显式上传同一冻结包，例如 `python deploy/api_deploy.py --function YOUR_MESSAGE_FUNCTION $releasePackage`。保留角色、前缀、环境、触发及所需 Layer。消息 handler 为 app.message_handler，归档为 app.maintenance_handler。每个已受理更新仅轮询至 Active。
+2. 用 `python deploy/production_release.py maintenance-on --function $ingressFunction` 暂停新受理，核对未完收件及未知提交，保留原任务。
+3. 向受影响函数显式上传同一冻结包，例如 `python deploy/api_deploy.py --function $messageFunction $releasePackage`。保留角色、前缀、环境、触发及所需 Layer。消息 handler 为 app.message_handler，归档为 app.maintenance_handler。每个已受理更新仅轮询至 Active。
 4. 每个更新的函数下载一次实际代码，记录包身份和配置核对结果。比较 ZIP 的 SHA256。HTTP 平台重封装导致哈希不同则比较同一份下载文件的 BUILD_ID 和全部成员内容。仅在代码版本变化或存在具体疑点时复查。
-5. 核对通过后用 `python deploy/production_release.py maintenance-off --function YOUR_INGRESS_FUNCTION` 恢复受理，确认 health 的 BUILD_ID 和回调鉴权。回退时先暂停受理，再恢复并核对原包和配置，最后恢复受理。
+5. 核对通过后用 `python deploy/production_release.py maintenance-off --function $ingressFunction` 恢复受理，确认 health 的 BUILD_ID 和回调鉴权。回退时先暂停受理，再恢复并核对原包和配置，最后恢复受理。
 
-[生产计划](../deploy/cos-production-plan.json)和 `cloudshell_cutover.py` 用于首次迁移恢复。日常更新按以上步骤，验收范围按 [AGENTS.md](../AGENTS.md#验证与交付)。迁移接口见 [Bitable 契约](../contracts/bitable_schema.md#旧-bitable-状态与迁移)。
+首次迁移和恢复使用维护者本地归档的生产计划、角色策略及对应 CloudShell 脚本。日常更新按以上步骤，验收范围按 [AGENTS.md](../AGENTS.md#验证与交付)。迁移接口见 [Bitable 契约](../contracts/bitable_schema.md#旧-bitable-状态与迁移)。
 
 ## 收件恢复
 
@@ -101,16 +103,17 @@ $releasePackage = 'C:\path\to\approved-candidate.zip'
 
 日常知识维护在 Bitable 表内编辑。初次建表可用 `python deploy/seed_knowledge.py` 同步内置条目。
 
-在 Linux Python 3.10 环境构建。用[当前部署记录](../reports/LATENCY_DELIVERY.md#当前部署)中的已发布 Layer ZIP 和 SHA256 替换下列示例值。
+在 Linux Python 3.10 环境构建。从本地部署记录取得已发布 Layer ZIP 和 SHA256，用它们替换下列示例值。
 
 ```bash
+export MESSAGE_FUNCTION=YOUR_MESSAGE_FUNCTION
 export RAG_BASE_LAYER=/path/to/published-layer.zip
 export RAG_BASE_LAYER_SHA256=published-layer-sha256
 export RAG_INDEX_SOURCE="$PWD/deploy/rag_index/$(date -u +%Y%m%d%H%M%S)"
 export RAG_LAYER_OUTPUT="$PWD/deploy/rag-layer-$(date -u +%Y%m%d%H%M%S).zip"
 python3.10 deploy/ingest_knowledge.py --base-layer "$RAG_BASE_LAYER" --base-sha256 "$RAG_BASE_LAYER_SHA256" --output "$RAG_INDEX_SOURCE"
 PYTHON=python3.10 bash deploy/build_rag_layer.sh
-python deploy/deploy_rag_layer.py --function YOUR_MESSAGE_FUNCTION "$RAG_LAYER_OUTPUT"
+python deploy/deploy_rag_layer.py --function "$MESSAGE_FUNCTION" "$RAG_LAYER_OUTPUT"
 ```
 
 索引默认读取 Bitable；显式 `--source seed` 用于本地样本。索引和输出 ZIP 均使用新路径，构建校验文档、块、向量及图来源。已有索引可用 `python deploy/ingest_knowledge.py --output INDEX --check-only` 检查；复检已有索引时，在该命令中加 `--base-layer`、`--base-sha256`、`--query` 和 `--expect-text`；`--reject-text` 可指定不应出现的文本。
@@ -119,7 +122,7 @@ Layer 发布保留目标函数原环境变量和其他层，设置 KNOWLEDGE_RET
 
 ## 阶段 C 候选维护
 
-本分支不修改现有已批准生产角色策略、不创建函数、不部署、不切换正式前缀。隔离验证必须另有明确获准的 bucket／prefix、三域角色、计算函数、真实模型凭据与活动材料；当前 Cloud 缺口见 [交付记录](../reports/STAGE_C_DELIVERY.md)。`deploy/stage-c-isolated-plan.template.json` 仅列配置要求，模板不是资源授权。
+本分支不修改现有已批准生产角色策略、不创建函数、不部署、不切换正式前缀。隔离验证必须另有明确获准的 bucket／prefix、三域角色、计算函数、真实模型凭据与活动材料；当前 Cloud 缺口见 [交付记录](VERIFICATION.md)。`deploy/stage-c-isolated-plan.template.json` 仅列配置要求，模板不是资源授权。
 
 凭据从仓库外按原手册加载。先对指定隔离域取预检，再准备目标：
 

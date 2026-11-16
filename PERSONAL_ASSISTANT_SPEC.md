@@ -1,10 +1,10 @@
 # 个人助手、记忆与持续目标实施规格
 
-阶段 A、B 已通过隔离环境真实验收。[阶段 A](reports/stage-a-real-acceptance.json)覆盖 E04、E07、E08 及官方 Search／Fetch。[阶段 B](reports/stage-b-real-acceptance.json)覆盖 E09 一周委托、局部调整和运行控制，并复验阶段 A。当前能力、接口和生产状态分别见[需求基线](REQUIREMENTS.md)、[contracts/](contracts/)和[生产交付记录](reports/LATENCY_DELIVERY.md)。
+阶段 A、B 已通过隔离环境真实验收。[阶段 A](docs/VERIFICATION.md)覆盖 E04、E07、E08 及官方 Search／Fetch。[阶段 B](docs/VERIFICATION.md)覆盖 E09 一周委托、局部调整和运行控制，并复验阶段 A。当前能力、接口和生产状态分别见[需求基线](REQUIREMENTS.md)、[contracts/](contracts/)和[生产交付记录](docs/VERIFICATION.md)。
 
 本规格统一管理份量补证、分层记忆、异步经验、持续委托及通用事务的控制边界。原有营养计算、菜单调配、确认与提交规则继续由 [个人规格](PERSONAL_CALORIE_SPEC.md)、[交流规格](CONVERSATION_EXPERIENCE_SPEC.md) 和 contracts 管理，不在这里复制。
 
-A、B 是已提交并完成上述隔离验收的基线，不等于已正式部署。2026-11-13 确定的下一阶段 C 见第10节：通用事务、Router／Worker、提示词职责收敛及 COS 增长治理；本分支已形成实现候选，受控验证与真实外部验收、部署和生产迁移分别记录，见[阶段 C 交付](reports/STAGE_C_DELIVERY.md)。
+A、B 是已提交并完成上述隔离验收的基线，不等于已正式部署。2026-11-13 确定的下一阶段 C 见第10节：通用事务、Router／Worker、提示词职责收敛及 COS 增长治理；本分支已形成实现候选，受控验证与真实外部验收、部署和生产迁移分别记录，见[阶段 C 交付](docs/VERIFICATION.md)。
 
 ## 1. 目标、范围与保留决定
 

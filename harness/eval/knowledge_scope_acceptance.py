@@ -11,8 +11,12 @@ import io
 import json
 from pathlib import Path
 import re
+import sys
 import time
 from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
 from agent.storage.cos_store import CosStore
 from agent.storage.cos_transport import CosObjects
@@ -20,7 +24,7 @@ from agent.storage.execution_pipeline import Pipeline
 from agent.storage import conversation
 from agent.storage.bitable_adapter import stable_uuid
 from harness.eval.production_live import RawCommits
-from harness.eval.history_boundary_acceptance import ROOT, event
+from harness.eval.history_boundary_acceptance import event
 
 TEXTS = {
     "A": "减脂时碳水化合物需要完全不吃吗？请查资料解释，并给出这次检索的原文依据和出处。",
@@ -28,13 +32,14 @@ TEXTS = {
 }
 
 
-def restore(objects, prefix, chat):
+def restore(objects, prefix, chat, *, baseline, raw_evidence, menu_evidence):
     if not prefix.startswith("cos-probe/") or objects.list(prefix):
         raise ValueError("a fresh isolated cos-probe prefix is required")
-    reference = json.loads((ROOT / "reports/history-boundary-cloud-20261104.json").read_text(encoding="utf-8"))["raw_evidence"]
-    path = Path(reference["path"])
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == reference["sha256"]
-    saved = json.loads(path.read_text(encoding="utf-8"))
+    reference = json.loads(baseline.read_text(encoding="utf-8"))["raw_evidence"]
+    raw = raw_evidence.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != reference["sha256"]:
+        raise ValueError("Raw evidence SHA-256 differs from the baseline report")
+    saved = json.loads(raw)
     prior = saved["candidate"]["requests"][4]
     assert prior["step"] == "replace"
     user = saved["seed"]["isolated_rows"][0]["user_id"]
@@ -42,7 +47,7 @@ def restore(objects, prefix, chat):
     settings = deepcopy(prior["settings_after"])
     settings.pop("feishu_chat_id", None)
     foods = deepcopy(prior["food_sources_after"])
-    old = json.loads((ROOT / "reports/menu-candidate-evidence-r10-20261104.json").read_text(encoding="utf-8"))
+    old = json.loads(menu_evidence.read_text(encoding="utf-8"))
     deliveries = [*old["candidate"]["requests"][:2], *saved["candidate"]["requests"][:5]]
     store = CosStore(objects, prefix)
     def apply():
@@ -68,8 +73,8 @@ def restore(objects, prefix, chat):
             "settings": settings, "source_archive": reference}, saved["candidate"]["requests"][5]["receipt_state"]["result"]["tool_results"]
 
 
-def run(objects, prefix, variant, report, save):
-    seed, facts = restore(objects, prefix, "cli:knowledge-scope")
+def run(objects, prefix, variant, report, save, *, baseline, raw_evidence, menu_evidence):
+    seed, facts = restore(objects, prefix, "cli:knowledge-scope", baseline=baseline, raw_evidence=raw_evidence, menu_evidence=menu_evidence)
     report.update(seed=seed, prefix=prefix, variant=variant, retrieval_mode="replayed R14 entries; real production model")
     retrievals = []
     def retrieve(query, entries):
@@ -128,13 +133,21 @@ def main():
     parser.add_argument("--prefix", required=True)
     parser.add_argument("--variant", choices=TEXTS, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--baseline", type=Path, required=True, help="local archived baseline report")
+    parser.add_argument("--raw-evidence", type=Path, required=True, help="full local snapshot named in the baseline report")
+    parser.add_argument("--menu-evidence", type=Path, required=True, help="local archived menu acceptance report")
     args = parser.parse_args()
+    for path in (args.baseline, args.raw_evidence, args.menu_evidence):
+        if not path.is_file():
+            parser.error(f"local evidence file not found: {path}")
     with args.output.open("x", encoding="utf-8") as stream:
         report = {"schema": "knowledge-scope-contrast.v1", "started_at": time.time()}
         def save():
             stream.seek(0); json.dump(report, stream, ensure_ascii=False, indent=2); stream.truncate(); stream.flush()
         try:
-            run(CosObjects(), args.prefix, args.variant, report, save)
+            run(CosObjects(), args.prefix, args.variant, report, save,
+                         baseline=args.baseline, raw_evidence=args.raw_evidence,
+                         menu_evidence=args.menu_evidence)
         except Exception as exc:
             report["failure"] = {"type": type(exc).__name__, "message": str(exc)}
             raise

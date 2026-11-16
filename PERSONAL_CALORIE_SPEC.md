@@ -133,4 +133,4 @@
 - [LangChain Agent](https://docs.langchain.com/oss/python/langchain/agents) · [内置 middleware](https://docs.langchain.com/oss/python/langchain/middleware/built-in)
 - [薄荷食物详情及 with_units](https://ai.boohee.com/docs/?id=dc043193) · [食物单位](https://ai.boohee.com/docs/?id=dc00259c)
 
-阶段 C 的实现候选、定向验收与尚缺外部证据见[阶段 C 交付](reports/STAGE_C_DELIVERY.md)；本规格的目标不等于正式部署状态。
+阶段 C 的实现候选、定向验收与尚缺外部证据见[阶段 C 交付](docs/VERIFICATION.md)；本规格的目标不等于正式部署状态。

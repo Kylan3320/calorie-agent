@@ -27,20 +27,21 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def restore_seed(objects, prefix, chat):
+def restore_seed(objects, prefix, chat, *, baseline, raw_evidence, menu_evidence):
     if not prefix.startswith("cos-probe/") or objects.list(prefix):
         raise ValueError("a new, empty isolated cos-probe prefix is required")
-    reference = json.loads((ROOT / "reports/r11-cloud-ledger-20261104.json").read_text(encoding="utf-8"))["raw_evidence"]
-    path = Path(reference["path"])
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == reference["sha256"]
-    saved = json.loads(path.read_text(encoding="utf-8"))
+    reference = json.loads(baseline.read_text(encoding="utf-8"))["raw_evidence"]
+    raw = raw_evidence.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != reference["sha256"]:
+        raise ValueError("Raw evidence SHA-256 differs from the baseline report")
+    saved = json.loads(raw)
     seed = deepcopy(saved["seed"])
     user = seed["isolated_rows"][0]["user_id"]
     foods = deepcopy(saved["candidate"]["requests"][0]["food_sources_after"])
     assert len(foods) == seed["food_sources"] == 125
     # Restore actual persisted R10 delivery receipts for the historical plan and revision.
     # No delivery wording or complete=True flag is added to the historical messages.
-    r10 = json.loads((ROOT / "reports/menu-candidate-evidence-r10-20261104.json").read_text(encoding="utf-8"))
+    r10 = json.loads(menu_evidence.read_text(encoding="utf-8"))
     deliveries = r10["candidate"]["requests"][:2]
     assert seed["session"] == r10["candidate"]["requests"][1]["session_after"]
     assert {f["food_id"]: f for f in foods} == {f["food_id"]: f for f in r10["candidate"]["requests"][1]["food_sources_after"]}
@@ -76,8 +77,8 @@ def event(receipt):
             **{k: receipt["message"][k] for k in ("message_id", "user_id", "chat_id")}}
 
 
-def run_contrast(objects, prefix, variant, report, save):
-    seed = restore_seed(objects, prefix, "cli:history-boundary")
+def run_contrast(objects, prefix, variant, report, save, *, baseline, raw_evidence, menu_evidence):
+    seed = restore_seed(objects, prefix, "cli:history-boundary", baseline=baseline, raw_evidence=raw_evidence, menu_evidence=menu_evidence)
     report.update(seed=seed, prefix=prefix, variant=variant)
     pipeline = Pipeline(objects, prefix)
     user, chat = seed["user_id"], seed["chat_id"]
@@ -157,13 +158,21 @@ def main():
     parser.add_argument("--prefix", required=True)
     parser.add_argument("--variant", choices=("A", "B"), required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--baseline", type=Path, required=True, help="local archived baseline report")
+    parser.add_argument("--raw-evidence", type=Path, required=True, help="full local snapshot named in the baseline report")
+    parser.add_argument("--menu-evidence", type=Path, required=True, help="local archived menu acceptance report")
     args = parser.parse_args()
+    for path in (args.baseline, args.raw_evidence, args.menu_evidence):
+        if not path.is_file():
+            parser.error(f"local evidence file not found: {path}")
     with args.output.open("x", encoding="utf-8") as stream:
         report = {"schema": "history-boundary-contrast.v1", "started_at": time.time()}
         def save():
             stream.seek(0); json.dump(report, stream, ensure_ascii=False, indent=2); stream.truncate(); stream.flush()
         try:
-            run_contrast(CosObjects(), args.prefix, args.variant, report, save)
+            run_contrast(CosObjects(), args.prefix, args.variant, report, save,
+                         baseline=args.baseline, raw_evidence=args.raw_evidence,
+                         menu_evidence=args.menu_evidence)
         except Exception as exc:
             report["failure"] = {"type": type(exc).__name__, "message": str(exc)}
             raise

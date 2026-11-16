@@ -7,7 +7,7 @@
 以饮食为已实现专业能力的个人助手，支持记账、菜单、知识、记忆和持续委托。下一阶段 C 扩展到用户文本／公开资料驱动的通用查证与行动清单，引入受限 Router／Worker，并完成提示词职责收敛与 COS 增长治理；不据目标范围推定连接器或生产能力已存在。
 营养事实来自食物库、摄入快照或知识原文，模型负责理解和规划。
 
-业务行为见 [个人功能规格](PERSONAL_CALORIE_SPEC.md) 和 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，存储与执行要求见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，接口见 [contracts/](contracts/)。验证规则见 [AGENTS.md](AGENTS.md)，当前部署及验收结果见 [交付记录](reports/LATENCY_DELIVERY.md)。
+业务行为见 [个人功能规格](PERSONAL_CALORIE_SPEC.md) 和 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，存储与执行要求见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，接口见 [contracts/](contracts/)。验证规则见 [AGENTS.md](AGENTS.md)，公开验证范围见 [交付与验证摘要](docs/VERIFICATION.md)。
 
 [统一实施规格](PERSONAL_ASSISTANT_SPEC.md) 保留 A、B 的行为与验收基线，第10节定义下一阶段 C 的范围、分工与交付顺序；COS 的写入、保留及回收规则只在 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)维护。真实验收和生产部署分别以对应证据为准。
 
@@ -50,7 +50,7 @@
 
 阶段 C 分支新增 `query_sources`、`calculate_values`、`manage_task`、`query_task`、`delegate_task`；计算上下文另用 `submit_task_result`，接口见工具契约。
 
-上述原能力是当前生产基线。仓库新增的 `query_memory`、网页份量补证、分层记忆、经验沉淀与跨会话续改已通过[阶段 A 隔离验收](reports/stage-a-real-acceptance.json)。`query_diet_goal` 与 `manage_diet_goal` 及后台按日核算属于阶段 B。生产状态见[交付记录](reports/LATENCY_DELIVERY.md)。
+上述原能力是当前生产基线。仓库新增的 `query_memory`、网页份量补证、分层记忆、经验沉淀与跨会话续改已通过[阶段 A 隔离验收](docs/VERIFICATION.md)。`query_diet_goal` 与 `manage_diet_goal` 及后台按日核算属于阶段 B。生产状态见[交付记录](docs/VERIFICATION.md)。
 
 ## 范围外
 
@@ -58,4 +58,4 @@
 未受具体委托的自动日报/周报、批量清空摄入记录；已授权饮食委托的状态通知和约定交付按 D32，不等于默认开启报表；
 薄荷饮食记录 API、拍照识别、NLU、食谱、体重和条码接入。
 
-持续饮食委托已在 B 实现；C 的通用只读事务、Router／Worker 与治理已形成未部署代码候选；受控证据与外部缺口见[阶段 C 交付](reports/STAGE_C_DELIVERY.md)，不表示正式数据已升级或真实隔离验收完成。后续未排期：日历／邮箱等连接器及外部写入、语料扩充、DSH settings 迁移、usage 看板、密钥治理；不因 C 自动实施。
+持续饮食委托已在 B 实现；C 的通用只读事务、Router／Worker 与治理已形成未部署代码候选；受控证据与外部缺口见[阶段 C 交付](docs/VERIFICATION.md)，不表示正式数据已升级或真实隔离验收完成。后续未排期：日历／邮箱等连接器及外部写入、语料扩充、DSH settings 迁移、usage 看板、密钥治理；不因 C 自动实施。
