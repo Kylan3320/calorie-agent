@@ -52,7 +52,7 @@ py -3 -m venv .venv
 
 ## 云函数部署
 
-要在自己的飞书里使用，需要配置飞书应用、腾讯云函数、COS 和多维表格。配置项和发布命令见[部署说明](docs/operations.md#接入飞书)。
+如果想自己部署这个机器人，先创建并配置飞书应用，准备好用于保存饮食记录的腾讯云对象存储（COS）和飞书多维表格，再部署处理飞书消息的腾讯云函数。具体配置和发布命令见[部署说明](docs/operations.md#接入飞书)。
 
 ### 知识维护与发布
 
@@ -65,7 +65,7 @@ py -3 -m venv .venv
 <details>
 <summary>查看记餐和营养问答的处理过程</summary>
 
-![飞书消息进入 Calorie Agent。记餐写入 COS，再后台归档。营养问答从 LightRAG 检索资料。](assets/readme/message-flow.gif)
+![收到记餐消息后，机器人会先把饮食记录存到腾讯云对象存储（COS），再由后台归档到飞书多维表格。收到营养问题后，它会通过 LightRAG 检索资料。](assets/readme/message-flow.gif)
 
 </details>
 
