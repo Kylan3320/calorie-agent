@@ -73,4 +73,4 @@ py -3 -m venv .venv
 
 - [产品范围](REQUIREMENTS.md) · [饮食记录和计划](PERSONAL_CALORIE_SPEC.md) · [对话行为](CONVERSATION_EXPERIENCE_SPEC.md)
 - [本地控制台与 DSH](docs/operations.md#本地控制台与-dsh) · [运行评测](docs/operations.md#运行评测) · [存储和接口](contracts/)
-- [部署记录](reports/LATENCY_DELIVERY.md) · [早期版本](legacy/README.md) · [MIT 许可证](LICENSE)
+- [交付与验证摘要](docs/VERIFICATION.md) · [早期版本](legacy/README.md) · [MIT 许可证](LICENSE)

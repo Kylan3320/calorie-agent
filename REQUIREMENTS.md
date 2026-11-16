@@ -7,7 +7,7 @@
 以饮食为已实现专业能力的个人助手，支持记账、菜单、知识、记忆和持续委托。下一阶段 C 扩展到用户文本／公开资料驱动的通用查证与行动清单，引入受限 Router／Worker，并完成提示词职责收敛与 COS 增长治理；不据目标范围推定连接器或生产能力已存在。
 营养事实来自食物库、摄入快照或知识原文，模型负责理解和规划。
 
-业务行为见 [个人功能规格](PERSONAL_CALORIE_SPEC.md) 和 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，存储与执行要求见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，接口见 [contracts/](contracts/)。验证规则见 [AGENTS.md](AGENTS.md)，当前部署及验收结果见 [交付记录](reports/LATENCY_DELIVERY.md)。
+业务行为见 [个人功能规格](PERSONAL_CALORIE_SPEC.md) 和 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，存储与执行要求见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，接口见 [contracts/](contracts/)。验证规则见 [AGENTS.md](AGENTS.md)，公开验证范围见 [交付与验证摘要](docs/VERIFICATION.md)。
 
 [统一实施规格](PERSONAL_ASSISTANT_SPEC.md) 保留 A、B 的行为与验收基线，第10节定义下一阶段 C 的范围、分工与交付顺序；COS 的写入、保留及回收规则只在 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)维护。真实验收和生产部署分别以对应证据为准。
 
@@ -48,7 +48,7 @@
 
 各入口共用业务运行时；会话、执行和当前业务事实经 COS 保存，Bitable 用于后台归档、来源维护及旧状态迁移。
 
-上述为最近有正式部署证据的能力。仓库另有阶段 A 的 `query_memory`、网页份量补证、经验沉淀与跨会话续改，以及阶段 B 的 `query_diet_goal`、`manage_diet_goal` 和后台按日核算。各阶段验收及部署状态见[交付记录](reports/LATENCY_DELIVERY.md#验收结果与未解决项)。
+上述为最近有正式部署证据的能力。仓库另有阶段 A 的 `query_memory`、网页份量补证、经验沉淀与跨会话续改，以及阶段 B 的 `query_diet_goal`、`manage_diet_goal` 和后台按日核算。各阶段的验证方法见[交付与验证摘要](docs/VERIFICATION.md)，实际生产部署状态由维护者从本地部署记录核对。
 
 ## 范围外
 

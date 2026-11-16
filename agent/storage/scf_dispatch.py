@@ -10,7 +10,6 @@ from .timeutil import remaining_timeout
 from .model_transport import create_client, deadline_scope
 
 _CLIENT = create_client()
-WORKER = "YOUR_MESSAGE_FUNCTION"
 REGION = "ap-shanghai"
 HOST = "scf.tencentcloudapi.com"
 
@@ -59,7 +58,9 @@ def dispatch_event(event, headers=None):
     token = headers.get("X-Scf-Session-Token") or os.getenv("TENCENTCLOUD_SESSION_TOKEN") or os.getenv("TENCENTCLOUD_SESSIONTOKEN", "")
     if not secret_id or not secret_key:
         raise RuntimeError("SCF invocation role credentials missing")
-    worker = os.getenv("CALORIE_MESSAGE_FUNCTION", WORKER)
+    worker = os.getenv("CALORIE_MESSAGE_FUNCTION", "").strip()
+    if not worker:
+        raise RuntimeError("CALORIE_MESSAGE_FUNCTION is required for SCF invocation")
     event = {**event, "handoff_started_epoch_ms": time.time()*1000,
              "ingress_events": list(EVENTS.get() or [])}
     body=json.dumps({"FunctionName":worker,"Namespace":"default","InvocationType":"Event",

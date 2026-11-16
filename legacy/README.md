@@ -4,6 +4,5 @@
 
 - [V2 云函数包](calorie-agent-apiV2/README.md)
 - [V3 Beta 模拟包](calorie-agent-apiV3-Beta-simulation/README.md)
-- [PRD、测试数据与数据看板](PRD及测试数据、数据看板/)
 - [历史展示页面](web/)
 - [历史英文介绍](README.en.md)

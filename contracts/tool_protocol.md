@@ -4,7 +4,7 @@
 
 回复、整轮完成和恢复规则见[交流体验规格第 2 节](../CONVERSATION_EXPERIENCE_SPEC.md#2-回复完成与恢复)。字段的观测口径见 [Trace 契约](trace_schema.md)。
 
-控制权、份量补证、记忆与持续委托的产品行为见[统一规格](../PERSONAL_ASSISTANT_SPEC.md)。生产能力以[交付记录](../reports/LATENCY_DELIVERY.md)为准。
+控制权、份量补证、记忆与持续委托的产品行为见[统一规格](../PERSONAL_ASSISTANT_SPEC.md)。生产能力以实际部署证据为准，验证范围见[交付与验证摘要](../docs/VERIFICATION.md)。
 
 ## 工具注册与执行
 

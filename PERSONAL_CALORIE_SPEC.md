@@ -2,7 +2,7 @@
 
 本规格定义个人饮食管理业务；回复行为见 [交流体验规格](CONVERSATION_EXPERIENCE_SPEC.md)，存储与执行见 [COS 规格](LATENCY_OPTIMIZATION_SPEC.md)，实际接口见 [contracts/](contracts/)。
 
-份量补证、记忆及持续委托见[统一规格](PERSONAL_ASSISTANT_SPEC.md)，实现与部署状态见[生产交付记录](reports/LATENCY_DELIVERY.md)。
+份量补证、记忆及持续委托见[统一规格](PERSONAL_ASSISTANT_SPEC.md)，公开验证范围见[交付与验证摘要](docs/VERIFICATION.md)。
 
 ## 1. 目标与范围
 

@@ -41,13 +41,12 @@ def event(receipt):
             **{k: receipt["message"][k] for k in ("message_id", "user_id", "chat_id")}}
 
 
-def accept_chain(objects, prefix, report, save):
+def accept_chain(objects, prefix, report, save, *, menu_evidence):
     if not prefix.startswith("cos-probe/") or len(prefix.rstrip("/").split("/")) < 3:
         raise ValueError("a dedicated cos-probe/.../.../ prefix is required")
     if objects.list(prefix):
         raise ValueError("acceptance prefix must be empty; preserve earlier runs")
-    source_path = ROOT / "reports/menu-candidate-evidence-r10-20261104.json"
-    source = json.loads(source_path.read_text(encoding="utf-8"))
+    source = json.loads(menu_evidence.read_text(encoding="utf-8"))
     prior = source["candidate"]["requests"][1]  # Delivered R10 replacement, before failed record.
     user, chat = source["manifest"]["user_id"], "cli:same-breakfast-acceptance"
     rows = source["frozen_before_original_prompt"]["ledger"]["items"]
@@ -149,7 +148,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prefix", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--menu-evidence", type=Path, required=True, help="local archived menu acceptance report")
     args = parser.parse_args()
+    if not args.menu_evidence.is_file():
+        parser.error(f"local evidence file not found: {args.menu_evidence}")
     # Exclusive create prevents accidental loss of actual failed evidence.
     with args.output.open("x", encoding="utf-8") as stream:
         report = {"schema": "same-breakfast-acceptance.v1", "started_at": time.time()}
@@ -159,7 +161,7 @@ def main():
             stream.truncate()
             stream.flush()
         try:
-            accept_chain(CosObjects(), args.prefix, report, save)
+            accept_chain(CosObjects(), args.prefix, report, save, menu_evidence=args.menu_evidence)
         except Exception as exc:
             report["failure"] = {"type": type(exc).__name__, "message": str(exc)}
             raise

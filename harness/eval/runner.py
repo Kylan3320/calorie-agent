@@ -17,13 +17,22 @@ sys.path.insert(0, str(ROOT))
 
 def load_checks():
     checks = {}
-    for module in (
+    modules = (
         "personal_cases", "conversation_cases", "latency_checks",
         "production_store_cases", "production_archive_cases", "production_pipeline_cases",
-        "production_role_cases", "production_cutover_cases", "production_transport_cases",
+        "production_transport_cases",
         "release_cases", "runtime_cases", "context_cases", "receipt_cases", "receipt_runtime_cases", "model_transport_cases", "rpc_deadline_cases", "delivery_binding_cases", "finalization_cases", "completion_budget_cases", "action_note_cases", "task_evidence_cases", "task_domain_cases", "task_budget_cases", "menu_quality_cases", "preflight_cos_cases", "meal_completion_cases",
         "memory_cases", "memory_background_cases", "stage_a_cases", "diet_goal_cases",
-    ):
+    )
+    # First-migration checks are available only with the owner's archived tools.
+    private_checks = {
+        "production_role_cases": ("deploy/cloudshell_roles.py", "deploy/cos-production-role-policies.json"),
+        "production_cutover_cases": ("deploy/cloudshell_cutover.py", "deploy/cloudshell_release.py"),
+    }
+    for module, dependencies in private_checks.items():
+        if all((ROOT / path).is_file() for path in (f"harness/eval/{module}.py", *dependencies)):
+            modules += (module,)
+    for module in modules:
         group = importlib.import_module("harness.eval." + module).CHECKS
         duplicates = checks.keys() & group.keys()
         if duplicates:
